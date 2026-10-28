@@ -40,3 +40,7 @@ Fehlt `config.local.toml`, wird `config.example.toml` verwendet. Einzelne Werte 
 
 Alles Weitere – Ordnerstruktur, Ablauf, alle Parameter, Erklärung der Ergebnisse – steht im [HANDBUCH](HANDBUCH.md).
 Geplante Erweiterungen: [TODO](TODO.md).
+
+## Lizenz
+
+MIT, siehe [LICENSE](LICENSE).
