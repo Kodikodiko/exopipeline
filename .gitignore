@@ -1,0 +1,23 @@
+# eigene Einstellungen (Standort, Pfade, Beobachter) – Vorlage ist config.example.toml
+config.local.toml
+config_default.toml
+
+# lokale Daten des Werkzeugs
+cache/
+logbuch.csv
+_backup*/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Messdaten und Ergebnisse
+*.fit
+*.fits
+*.fts
+*.xisf
+*.pdf
+*.png
+*.log

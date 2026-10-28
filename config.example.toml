@@ -1,0 +1,95 @@
+# Beispielkonfiguration fuer das Werkzeug "transit".
+# Kopieren nach config.local.toml und dort die eigenen Werte eintragen (config.local.toml wird nicht ins Git aufgenommen).
+# Pro Messung ueberschreibt RESULT\transit.toml einzelne Werte (gleiche Abschnitte/Namen).
+
+[site]                      # leer = aus FITS-Header (SITELAT/SITELONG/SITEELEV)
+lat = 48.0                  # Breite in Grad (Nord positiv)
+lon = 15.0                  # Laenge in Grad (Ost positiv)
+elev = 300.0                # Hoehe in m
+
+[camera]
+gain_e_per_adu = 0.25       # Elektronen pro ADU (Wert der eigenen Kamera beim verwendeten Gain)
+readnoise_e = 1.2
+saturation_adu = 60000      # Frames/Sterne darueber werden verworfen (Linearitaet < 0.2 % bis hier geprueft)
+linearity_warn_adu = 45000  # nur Warnung
+pixel_um = 3.76             # Pixelgroesse ungebinnt (fuer ASTAP, falls XPIXSZ im Header fehlt)
+focal_mm = 1090             # Brennweite (fuer ASTAP, falls FOCALLEN im Header fehlt)
+
+[photometry]
+radii = [8, 10, 12, 14, 16, 18, 20, 22, 24]
+annulus = [25, 40]
+centroid_box = 15
+reference_radius = 16
+aperture_mode = "beides"    # "fest" = feste Radien (search.radii) | "variabel" = mitwachsend k x FWHM | "beides" = beide treten an
+k_fwhm = [1.5, 2.0, 2.5, 3.0, 3.5, 4.0]   # mitwachsende Apertur: Radius pro Bild = k x FWHM (Median der Vergleichssterne)
+fwhm_smooth = 5             # laufender Median ueber so viele Bilder (FWHM-Rauschen nicht in den Radius tragen)
+
+[comps]
+dmag_bright = -0.5          # Kandidat darf hoechstens 0.5 mag heller sein als das Ziel
+dmag_faint = 2.0
+edge_px = 80
+neighbour_px = 40
+neighbour_dmag = 3.0
+color_tol = 0.5             # |BP-RP Kandidat - BP-RP Ziel|
+max_candidates = 30
+gaia_gmax = 16.0
+aij_apertures = ""          # optional: AIJ .apertures-Datei, deren Vergleichssterne mit aufgenommen werden
+exclude_stars = []          # Kandidaten nie verwenden, z. B. ["G06"] (veraenderlich); am besten in RESULT\<lauf>\lauf.toml
+
+[search]
+radii = [14, 16, 18, 20]
+n_min = 3
+n_max = 12
+top = 50
+oot_margin_min = 10
+prefilter_sigma = 3.0
+airmass_max = 0             # > 0: Frames ueber dieser Airmass weglassen (Randpunkte mit starker Systematik), 0 = alle
+symmetry_weight = 0         # > 0: Ensemble-Suche bevorzugt um das Ziel symmetrisch verteilte Sterne (Meridian-Flip), z. B. 1
+
+[fit]
+u1 = 0.40
+u2 = 0.25
+fix_geometry = true         # a/R*, i aus ExoClock festhalten (empfohlen bei Einzelnaechten)
+flip = "prior"              # prior | free | none
+flip_window_h = [-0.85, 0.85]  # Fenster um den Flip fuer die Versatz-Messung an Vergleichssternen
+mcmc_steps = 30000
+airmass_order = 1           # Detrending in Airmass: 1 = linear, 2 = quadratisch
+mcmc_chains = 0             # parallele MCMC-Ketten; 0 = automatisch (bis 16, je >= 2000 Schritte), 1 = eine Kette wie frueher
+weights = "none"            # "none" = alle Bilder gleich genau; "modell" = Fehler pro Bild aus Szintillation (Airmass, Belichtung) + Photonen
+aperture_cm = 15.0          # Teleskopoeffnung fuer das Szintillationsmodell (z. B. 15 cm)
+detrend_fwhm = false        # zusaetzlicher Detrending-Term FWHM (Seeing/Fokus); nur wenn der BIC besser wird
+
+[calib]
+library = 'C:\Photometry\calibration'
+mode = "bf"                 # raw | bf (Bias+Flat) | bfd (Bias+Flat+skalierter Dark)
+master_dir = ""             # leer = automatisch passendes Master-Set suchen
+
+[paths]
+archiv_wurzel = '\\NAS\share\Photometry\done'   # NAS: hier wird (rekursiv) zusaetzlich zu ...\auto nach Messungen gesucht
+astap = 'C:\Program Files\astap\astap_cli.exe'
+
+[planning]
+flip_min_before_ingress_h = 1.0
+baseline_min_h = 1.0
+airmass_max_baseline = 2.0
+
+[progress]
+status_interval_s = 10      # so oft wird RESULT\<lauf>\status.json geschrieben (Lebenszeichen)
+hang_after_s = 120          # aelter -> transit status meldet "haengt? JA"
+toast = false               # Windows-Benachrichtigung am Ende jedes Befehls (wie --toast)
+
+[run]
+workers = 0                 # parallele Prozesse; 0 = Kerne - 2 (PC bleibt bedienbar), 1 = seriell
+cube_workers = 8            # Obergrenze fuer die Photometrie (RAM: ca. 0.4 GB pro Prozess mit Flat)
+
+[observer]                  # fuer die Fusszeile des Ergebnisblatts; leer = aus dem FITS-Header
+name = "Your Name"
+telescope = ""              # leer = TELESCOP aus dem Header
+camera = ""                 # leer = INSTRUME aus dem Header
+
+[report]
+bin_min = 10                # Mittelwert-Bins der Lichtkurve auf dem Ergebnisblatt (Minuten)
+
+[export]
+filter = ""                 # Filter fuer ExoClock, falls der FITS-Header kein FILTER hat (z. B. "L"); leer = aus dem Header
+
