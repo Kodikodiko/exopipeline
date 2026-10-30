@@ -698,12 +698,25 @@ def main(argv=None):
     ar.add_argument("--ziel", required=True, help="Archiv-Ordner, z. B. \\\\NAS\\astro\\messungen (der Messordner kommt als Unterordner hinein)")
     ar.add_argument("--probe", action="store_true", help="Trockenlauf: nur anzeigen, nichts kopieren oder aendern")
     ar.add_argument("--loeschen", action="store_true", help="nach erfolgreicher Pruefung das lokale Original loeschen")
+    pl = sub.add_parser("plan", help="Beobachtungsvorschlag: beobachtbare Transits der naechsten Naechte inkl. Wetter",
+                        description="Sucht in der ExoClock-Datenbank Transits, die vom Standort ([site]) vollstaendig in der Dunkelheit "
+                                    "ueber der Mindesthoehe liegen und fuer das Teleskop tief genug sind; Rangfolge nach ExoClock-Prioritaet, "
+                                    "erwarteter Genauigkeit und Bewoelkungsvorhersage (Open-Meteo). Ergebnis in plan\\plan.json und plan.csv.")
+    pl.add_argument("--naechte", "-n", type=int, help="Anzahl Naechte ab heute (Standard [planning] naechte = 3)")
+    pl.add_argument("--top", type=int, default=10, help="hoechstens so viele Vorschlaege pro Nacht (Standard 10)")
+    pl.add_argument("--prioritaet", nargs="+", choices=["alert", "high", "medium", "low"], help="nur diese ExoClock-Prioritaeten")
+    pl.add_argument("--ohne-wetter", dest="ohne_wetter", action="store_true", help="keine Wettervorhersage abrufen")
+    pl.add_argument("--vergleich", type=int, default=0, metavar="N",
+                    help="fuer die besten N pro Nacht Vergleichssterne im Feld bei Gaia zaehlen (langsamer)")
     h = sub.add_parser("hilfe", help="Deutsche Hilfe zu einem Thema (ohne Thema: Themenliste)")
     h.add_argument("thema", nargs="?", default="")
     h.set_defaults(func=None)
     a = p.parse_args(argv)
     if a.cmd == "hilfe":
         return cmd_hilfe(a)
+    if a.cmd == "plan":
+        from .plan import cmd_plan
+        return cmd_plan(a)
     if getattr(a, "messordner", None) and not (a.cmd == "logbuch" and a.archiv):   # --archiv: old place may be gone
         from .finden import resolve
         a.messordner = resolve(a.messordner, a.nas)

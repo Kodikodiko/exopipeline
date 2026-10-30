@@ -200,7 +200,20 @@ Die Standardwerte stehen in `_pipeline\config.local.toml` (beim ersten Einrichte
 | astap | C:\Program Files\astap\astap_cli.exe | ASTAP-Kommandozeile für `solve` |
 | flip_min_before_ingress_h | 1.0 | Ein Flip, der weniger als so viele Stunden vor dem Ingress liegt, ergibt eine CRIT-Warnung. |
 | baseline_min_h | 1.0 | gewünschte Baseline vor und nach dem Transit |
-| airmass_max_baseline | 2.0 | Warnung, wenn die Baseline nach Egress höher liegt |
+| airmass_max_baseline | 2.0 | Warnung, wenn die Baseline nach Egress höher liegt; in `transit plan` Abzug, wenn das Beobachtungsfenster höher reicht |
+| naechte | 3 | `transit plan`: so viele Nächte ab heute |
+| alt_min | 10.0 | `transit plan`: Mindesthöhe in Grad (Horizont); Transit und mindestens die halbe Baseline müssen darüber liegen |
+| sonne_max | -12.0 | `transit plan`: als dunkel gilt, wenn die Sonne tiefer steht |
+| tiefe_snr_min | 3.0 | `transit plan`: Transittiefe mindestens so oft das erwartete Rauschen eines 10-min-Bins |
+| rauschboden_ppt | 1.0 | `transit plan`: systematischer Rauschboden pro 10-min-Bin; an die eigenen OOT-RMS-Werte anpassen |
+| himmel_mag | 20.0 | `transit plan`: Himmelshelligkeit in mag/arcsec² |
+| tastgrad | 0.8 | `transit plan`: Anteil der Belichtungszeit an der Gesamtzeit |
+| exoclock_oeffnung | true | `transit plan`: nur Planeten, deren ExoClock-Mindestöffnung ≤ `fit.aperture_cm` ist |
+| prioritaeten | alle | `transit plan`: ExoClock-Prioritäten, die vorgeschlagen werden |
+| mond_abstand_min | 30.0 | `transit plan`: Warnung, wenn der Mond (≥ 30 % beleuchtet) näher steht |
+| wetter | true | `transit plan`: Bewölkungsvorhersage von Open-Meteo abrufen |
+| bewoelkung_gut / bewoelkung_max | 20 / 60 | `transit plan`: Ampel grün bis / gelb bis (mittlere Bewölkung in %) |
+| sensor_px | [6248, 4176] | Sensorgröße in Pixeln für das Gesichtsfeld |
 
 ---
 
@@ -718,3 +731,25 @@ Siehe auch `TODO.md` (geplante Erweiterungen).
 `.\transit kommentar <Messordner>` (Standard: gültiger Lauf, sonst `--lauf`) erzeugt einen **kurzen** englischen Kommentar und kopiert ihn in die Zwischenablage. Er steht auch am Ende von `exoclock_formular.txt` (bei jedem `export`) und in der GUI im Bereich **ExoClock-Upload** (Formularwerte, Textfeld, Knöpfe „Kommentar kopieren“ und „Upload-Ordner öffnen“).
 
 Inhalt: nur, was ExoClock nicht selbst sieht – höchstens ca. 300 Zeichen, wichtigstes zuerst: Meridian-Flip im Transit und wie korrigiert; von Hand ausgeschlossene Vergleichssterne; fehlender Flat oder Flat älter als 60 Tage; wechselnde Belichtungszeiten; sehr kurze Belichtung/Szintillation oder große Zeitunsicherheit; Datenlücken; Filter nicht im FITS-Header. Nicht enthalten: Bildzahl, Belichtung, Zeitformat, eigene Fitwerte, Standardmethodik. Ist nichts besonders: „No special remarks.“ Eigener Zusatz (z. B. „Replaces my earlier submission.“): `[export] kommentar_zusatz = "…"` in `RESULT\transit.toml` oder `lauf.toml`. Bereits von Hand angepasste Formular-Kommentare werden nur überschrieben, wenn `export` für diesen Lauf neu läuft.
+
+## 20. Beobachtungsvorschlag (`transit plan`)
+
+`transit plan` schlägt für die nächsten Nächte (Standard 3) Transits vor, die vom eigenen Standort mit dem eigenen Teleskop sinnvoll messbar sind. In der Oberfläche steht dasselbe ganz oben unter „Beobachtungsvorschlag“, mit Höhenkurven pro Nacht.
+
+**Woher:** alle Planeten der ExoClock-Datenbank (derselbe Cache wie bei `inventory`), Transitzeiten aus deren Ephemeride, umgerechnet von BJD_TDB auf UTC. Standort aus `[site]`, Öffnung aus `fit.aperture_cm`, Pixelskala aus `[camera]`.
+
+**Bedingungen (sonst nicht in der Liste):**
+- Transit vollständig, inklusive 3 σ der Tc-Unsicherheit, in der Dunkelheit (`planning.sonne_max`) über `planning.alt_min`
+- vor und nach dem Transit mindestens die halbe `baseline_min_h` beobachtbar
+- ExoClock-Mindestöffnung ≤ eigene Öffnung (`planning.exoclock_oeffnung`)
+- Transittiefe ≥ `tiefe_snr_min` × geschätztes Rauschen eines 10-min-Bins (Photonen + Himmel + Szintillation wie bei `fit.weights = "modell"`, ×1.3 für das Ensemble, plus `rauschboden_ppt`)
+
+**Hinweise (Abzug im Score):** Meridian-Flip weniger als `flip_min_before_ingress_h` vor dem Ingress bis 15 min nach dem Egress (×0.75), Baseline kürzer als `baseline_min_h` (×0.7), Airmass über `airmass_max_baseline` (×0.8), heller Mond näher als `mond_abstand_min` (×0.85), mit `--vergleich` weniger als `search.n_min` Vergleichssterne im Feld (×0.6). Ohne Abzug: helle Sterne, Taugefahr, Böen, Regenrisiko.
+
+**Score** = ExoClock-Priorität (alert 1, high 0.85, medium 0.6, low 0.35) × Genauigkeit (0.5 … 1, voll ab dreifachem Mindest-SNR) × (1 − mittlere Bewölkung im Beobachtungsfenster) × Abzüge, auf 0 … 100.
+
+**Wetter:** Open-Meteo (kostenlos, ohne Schlüssel), stündlich: Gesamtbewölkung sowie tiefe, mittlere und hohe Wolken, Regenwahrscheinlichkeit, Luftfeuchte und Böen. Der Standort wird dabei auf 0.1° gerundet übertragen. Die Antwort wird eine Stunde in `cache\wetter.json` gehalten. Ohne Netz läuft der Vorschlag ohne Wetter.
+
+**Ergebnis:** `plan\plan.json` (für die Oberfläche) und `plan\plan.csv`. Beide enthalten keine Standortkoordinaten.
+
+Die Rauschschätzung ist grob, sie dient nur der Rangfolge. Wer `rauschboden_ppt` und `himmel_mag` an die eigenen OOT-RMS-Werte anpasst, bekommt realistischere SNR-Werte.

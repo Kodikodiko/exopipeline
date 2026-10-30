@@ -72,6 +72,21 @@ astap = 'C:\Program Files\astap\astap_cli.exe'
 flip_min_before_ingress_h = 1.0
 baseline_min_h = 1.0
 airmass_max_baseline = 2.0
+# transit plan (Beobachtungsvorschlag)
+naechte = 3                 # so viele Naechte ab heute
+alt_min = 10.0              # Mindesthoehe (Horizont): Transit + halbe Baseline muessen darueber liegen
+sonne_max = -12.0           # Dunkelheit: Sonne tiefer als das (-12 nautisch, -18 astronomisch)
+tiefe_snr_min = 3.0         # Transittiefe mindestens so oft das erwartete Rauschen eines 10-min-Bins
+rauschboden_ppt = 1.0       # systematischer Rauschboden pro 10-min-Bin (Erfahrungswert, an eigene Messungen anpassen)
+himmel_mag = 20.0           # Himmelshelligkeit am Standort in mag/arcsec2 (SQM-Wert)
+tastgrad = 0.8              # Anteil Belichtungszeit an der Gesamtzeit (Download, Dithern, Guiding)
+exoclock_oeffnung = true    # nur Planeten, deren ExoClock-Mindestoeffnung <= fit.aperture_cm ist
+prioritaeten = ["alert", "high", "medium", "low"]
+mond_abstand_min = 30.0     # Warnung, wenn der (mind. 30 % beleuchtete) Mond naeher steht (Grad)
+wetter = true               # Bewoelkungsvorhersage von Open-Meteo (Standort auf 0.1 Grad gerundet)
+bewoelkung_gut = 20         # mittlere Bewoelkung im Beobachtungsfenster bis hier: gruen
+bewoelkung_max = 60         # bis hier gelb, darueber rot
+sensor_px = [6248, 4176]    # Sensorgroesse in Pixeln (fuer das Gesichtsfeld)
 
 [progress]
 status_interval_s = 10      # so oft wird RESULT\<lauf>\status.json geschrieben (Lebenszeichen)
