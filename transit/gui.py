@@ -131,13 +131,32 @@ def lights_folder(p):
 
 def pick_folder():
     """Local folder dialog (tkinter, standard library); runs on this computer only."""
-    import tkinter
-    from tkinter import filedialog
+    try:
+        import tkinter
+        from tkinter import filedialog
+    except ImportError:                                    # portable package: Python without tkinter
+        return pick_folder_powershell()
     root = tkinter.Tk(); root.withdraw(); root.attributes("-topmost", True)
     try:
         return filedialog.askdirectory(parent=root, initialdir=BASE_DEFAULT, title="Messordner waehlen") or ""
     finally:
         root.destroy()
+
+
+def pick_folder_powershell():
+    """Same dialog via Windows PowerShell (Windows Forms) for a Python without tkinter."""
+    if os.name != "nt":
+        return ""
+    esc = lambda s: str(s).replace("'", "''")
+    ps = ("Add-Type -AssemblyName System.Windows.Forms;"
+          "$o=New-Object System.Windows.Forms.Form -Property @{TopMost=$true};"
+          "$d=New-Object System.Windows.Forms.FolderBrowserDialog;"
+          f"$d.Description='Messordner waehlen';$d.SelectedPath='{esc(BASE_DEFAULT)}';"
+          "if($d.ShowDialog($o) -eq 'OK'){[Console]::OutputEncoding=[Text.Encoding]::UTF8;$d.SelectedPath}")
+    exe = os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+    r = subprocess.run([exe, "-NoProfile", "-STA", "-Command", ps], capture_output=True,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    return r.stdout.decode("utf-8", errors="replace").strip()
 
 
 def header_guess(p):

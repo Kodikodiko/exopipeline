@@ -22,3 +22,8 @@ venv/
 *.pdf
 *.png
 *.log
+
+# portables Windows-Paket (packaging/build_windows.py)
+build/
+dist/
+/python/
