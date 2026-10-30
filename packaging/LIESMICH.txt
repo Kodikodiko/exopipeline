@@ -1,0 +1,27 @@
+transit - Exoplaneten-Transits auswerten (portables Windows-Paket)
+==================================================================
+
+Dieses Paket enthaelt alles, was das Programm braucht, auch Python.
+Es muss nichts installiert werden, Administratorrechte sind nicht noetig.
+
+1. ZIP entpacken (Rechtsklick > "Alle extrahieren"), am besten in den Ordner
+   mit den Messungen, z. B. C:\Photometry\auto  ->  C:\Photometry\auto\exopipeline
+2. Im Ordner "exopipeline" doppelt auf  transit_gui.cmd  klicken.
+   Ein schwarzes Fenster geht auf und der Browser zeigt die Oberflaeche
+   (http://127.0.0.1:8765). Das schwarze Fenster offen lassen, solange man arbeitet.
+   Windows fragt beim ersten Start evtl. nach ("Computer wurde geschuetzt"):
+   "Weitere Informationen" > "Trotzdem ausfuehren".
+3. Eigene Werte eintragen: beim ersten Start wird  config.local.toml  angelegt.
+   Mit dem Editor oeffnen und Standort, Kamera, Kalibrier-Bibliothek, ASTAP-Pfad
+   und Beobachter anpassen. Erklaerung aller Werte im HANDBUCH.md.
+
+Zusaetzlich noetig (nicht im Paket):
+- ASTAP mit Sternkatalog (z. B. D50) fuer das Plate-Solving: https://www.hnsky.org/astap.htm
+- optional AstroImageJ: https://www.astro.louisville.edu/software/astroimagej/
+- Internet fuer Gaia-, ExoClock- und NASA-Abfragen
+
+Neue Version: das neue ZIP einfach ueber den alten Ordner entpacken und "Ersetzen"
+waehlen. Eigene Einstellungen (config.local.toml), Logbuch und Cache bleiben erhalten,
+weil sie nicht im Paket stecken.
+
+Kommandozeile (fuer Fortgeschrittene): PowerShell im Ordner oeffnen,  .\transit hilfe
