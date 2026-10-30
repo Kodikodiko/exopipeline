@@ -133,6 +133,17 @@ THEMEN = {
   transit archiv <Messordner> --ziel <NAS-Pfad> --loeschen   danach lokal loeschen (nur wenn alle Pruefsummen stimmen)
   Lokal bleiben: _pipeline (Code, cache, logbuch.csv). Die O-C-Grafik liest nur das Logbuch.
   Logbuch-Spalten nachtragen: transit logbuch <Messordner> --nachtragen""",
+    "planung": """BEOBACHTUNGSVORSCHLAG (transit plan)
+  transit plan                 beobachtbare Transits der naechsten 3 Naechte, mit Wetter
+  transit plan -n 5 --top 5    5 Naechte, je 5 Vorschlaege
+  transit plan --prioritaet alert high   nur dringende ExoClock-Ziele
+  transit plan --vergleich 5   fuer die besten 5 pro Nacht Vergleichssterne bei Gaia zaehlen
+  transit plan --ohne-wetter   ohne Open-Meteo
+  Bedingungen: ganzer Transit (+-3 sigma Tc) und mindestens die halbe Baseline in der Dunkelheit
+  (planning.sonne_max) ueber planning.alt_min; ExoClock-Mindestoeffnung <= fit.aperture_cm;
+  Tiefe >= planning.tiefe_snr_min x geschaetztes Rauschen eines 10-min-Bins.
+  Score = Prioritaet x Genauigkeit x (1 - Bewoelkung) x Abzuege (Flip, kurze Baseline, Airmass, Mond).
+  Ergebnis: plan\\plan.json, plan\\plan.csv; in der Oberflaeche oben unter "Beobachtungsvorschlag".""",
     "warnungen": """WARNUNGEN UND ABHILFE
   [CRIT] Meridian-Flip im/nahe Transit  -> fit.flip = prior; kuenftig Flip verlegen
   [WARN] Baseline zu kurz / zu hohe Airmass -> laengere Sequenz, Transit nahe Kulmination

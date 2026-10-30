@@ -381,6 +381,10 @@ class H(BaseHTTPRequestHandler):
                     raise ValueError(f"kein Messordner: {p}")
                 self._json(dict(kopf=header_guess(p), laeufe=runs_of(p), filter_menu=EXOCLOCK_FILTERS,
                                 upload=sorted(os.path.basename(f) for f in glob.glob(os.path.join(p, "RESULT", "*_exoclock_JDUTC.txt")))))
+            elif u.path == "/api/plan":                    # last observing suggestion (transit plan)
+                from .plan import PLAN_DIR
+                fp = os.path.join(PLAN_DIR, "plan.json")
+                self._json(json.load(open(fp, encoding="utf-8")) if os.path.exists(fp) else {})
             elif u.path == "/api/kandidaten":
                 self._json(candidates(os.path.abspath(q["pfad"]), q["lauf"]))
             elif u.path == "/datei":
@@ -420,6 +424,18 @@ class H(BaseHTTPRequestHandler):
                     raise ValueError(f"{d} fehlt")
                 os.startfile(d)
                 self._json(dict(ok=True))
+            elif self.path == "/api/plan":
+                args = ["plan", "--naechte", str(int(q.get("naechte") or 3)), "--top", str(int(q.get("top") or 10))]
+                if not q.get("wetter", True):
+                    args.append("--ohne-wetter")
+                if q.get("vergleich"):
+                    args += ["--vergleich", "5"]
+                r = run_cli(args)
+                from .plan import PLAN_DIR
+                fp = os.path.join(PLAN_DIR, "plan.json")
+                if r["ok"] and os.path.exists(fp):
+                    r["plan"] = json.load(open(fp, encoding="utf-8"))
+                self._json(r)
             elif self.path == "/api/gueltig":
                 self._json(run_cli(["logbuch", q["messordner"], "--gueltig", q["lauf"]]))
             elif self.path == "/api/aij":
@@ -487,6 +503,17 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:6px}
 </style></head><body>
 <header><h1>transit</h1><span>Transit-Auswertung bis zur ExoClock-Datei</span></header>
 <main>
+<div class="card"><details id="plandet" ontoggle="if(this.open&&!window.PLAN)planLaden()"><summary>Beobachtungsvorschlag (naechste Naechte, mit Wetter)</summary>
+ <div class="row" style="margin-top:8px">
+  <label>Naechte<input id="pl_n" type="number" value="3" min="1" max="7" style="width:60px"></label>
+  <label>pro Nacht<input id="pl_top" type="number" value="10" min="1" max="50" style="width:60px"></label>
+  <label style="flex-direction:row;align-items:center;gap:6px"><input id="pl_wx" type="checkbox" checked style="min-width:0">Wetter (Open-Meteo)</label>
+  <label style="flex-direction:row;align-items:center;gap:6px"><input id="pl_gaia" type="checkbox" style="min-width:0">Vergleichssterne zaehlen (Gaia, langsamer)</label>
+  <button id="pl_btn" onclick="planRechnen()">Berechnen</button><span id="pl_msg" class="help"></span>
+ </div>
+ <div class="help" style="max-width:none;margin-top:6px">Transits aus der ExoClock-Datenbank, vollstaendig in der Dunkelheit ueber der Mindesthoehe ([planning] in der Konfiguration),
+  tief genug fuer das Teleskop. Score = Prioritaet x erwartete Genauigkeit x Wetter x Abzuege fuer Hinweise. Zeiten lokal.</div>
+ <div id="plan"></div></details></div>
 <div class="card">
  <div class="row">
   <label>Messordner<select id="mess" onchange="lade()"></select></label>
@@ -676,5 +703,45 @@ async function aij(l,p){ p=p||$('mess').value; const r=await (await fetch('/api/
 function blatt(l,p){ const b=(p||$('mess').value)+'\\RESULT\\'+l+'\\'; $('blattcard').style.display=''; $('blatttitel').textContent='Ergebnisblatt '+l;
   $('blatt').src='/datei?pfad='+encodeURIComponent(b+'ergebnisblatt.png')+'&t='+Date.now(); $('blatt2').src='/datei?pfad='+encodeURIComponent(b+'ergebnisblatt_feld.png')+'&t='+Date.now();
   $('blattcard').scrollIntoView({behavior:'smooth'}); }
+const PLC=['#1f5fbf','#c0392b','#2e8b57','#c98a00','#7d3cb5','#138d90','#8a5a2b','#d6338a'];
+const hhmm=s=>s?new Date(s).toLocaleTimeString('de-AT',{hour:'2-digit',minute:'2-digit'}):'';
+const AMP={gruen:'g',gelb:'y',rot:'r'}; const r0=v=>v==null?'?':Math.round(v);
+async function planLaden(){ const r=await (await fetch('/api/plan')).json(); if(r.naechte){window.PLAN=r; planZeigen(r);} else $('plan').innerHTML='<p class="help">Noch kein Vorschlag berechnet.</p>'; }
+async function planRechnen(){ $('pl_btn').disabled=true; $('pl_msg').textContent='rechne ... (ExoClock, Sichtbarkeit'+($('pl_wx').checked?', Wetter':'')+')';
+  try{ const r=await (await fetch('/api/plan',{method:'POST',headers:H,body:JSON.stringify({naechte:+$('pl_n').value,top:+$('pl_top').value,wetter:$('pl_wx').checked,vergleich:$('pl_gaia').checked})})).json();
+    if(r.plan){window.PLAN=r.plan; planZeigen(r.plan); $('pl_msg').textContent='';} else $('pl_msg').textContent='Fehler: '+(r.ausgabe||r.fehler||'');
+  } finally { $('pl_btn').disabled=false; } }
+function planKurve(n){ // altitude curves of the suggestions; thick = observing window, grey band = dark, dashed = minimum altitude
+  const S=n.sonne, t0=new Date(S.t0).getTime(), dt=S.schritt_min*60000, N=S.hoehe.length, W=640, Hh=170, L=30, B=20;
+  const x=t=>L+(t-t0)/(dt*(N-1))*(W-L-6), y=a=>6+(90-Math.max(0,Math.min(90,a)))/90*(Hh-B-6);
+  let g=`<svg viewBox="0 0 ${W} ${Hh}" style="width:100%;max-width:${W}px;font-size:10px">`;
+  const d0=new Date(n.dunkel[0]).getTime(), d1=new Date(n.dunkel[1]).getTime();
+  g+=`<rect x="${x(d0)}" y="6" width="${x(d1)-x(d0)}" height="${Hh-B-6}" fill="var(--line)" opacity=".45"/>`;
+  for(const a of [0,30,60,90]) g+=`<line x1="${L}" x2="${W-6}" y1="${y(a)}" y2="${y(a)}" stroke="var(--line)"/><text x="2" y="${y(a)+3}" fill="var(--mut)">${a}&deg;</text>`;
+  const am=window.PLAN.parameter.alt_min; g+=`<line x1="${L}" x2="${W-6}" y1="${y(am)}" y2="${y(am)}" stroke="var(--bad)" stroke-dasharray="4 3"/>`;
+  for(let i=0;i<N;i+=6){ const t=t0+i*dt; g+=`<text x="${x(t)-12}" y="${Hh-5}" fill="var(--mut)">${hhmm(new Date(t).toISOString())}</text>`; }
+  if(n.mond){ g+=`<polyline fill="none" stroke="var(--mut)" stroke-dasharray="2 3" points="${n.mond.map((a,i)=>x(t0+i*dt)+','+y(a)).join(' ')}"/>`; }
+  n.vorschlaege.slice(0,8).forEach((s,j)=>{ const K=s.kurve, k0=new Date(K.t0).getTime(), kd=K.schritt_min*60000, c=PLC[j%PLC.length];
+    const pts=K.hoehe.map((a,i)=>[k0+i*kd,a]); const s0=new Date(s.start).getTime(), s1=new Date(s.ende).getTime();
+    g+=`<polyline fill="none" stroke="${c}" stroke-width="1" opacity=".5" points="${pts.map(p=>x(p[0])+','+y(p[1])).join(' ')}"/>`;
+    g+=`<polyline fill="none" stroke="${c}" stroke-width="3" points="${pts.filter(p=>p[0]>=s0&&p[0]<=s1).map(p=>x(p[0])+','+y(p[1])).join(' ')}"><title>${esc(s.planet)}</title></polyline>`; });
+  return g+'</svg>'; }
+function planZeigen(P){
+  const fmt=d=>new Date(d+'T12:00').toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit'});
+  let h=`<p class="help" style="max-width:none">Erstellt ${new Date(P.erstellt).toLocaleString('de-AT')} &middot; ${P.instrument.oeffnung_cm} cm, Feld ${P.instrument.feld_arcmin[0]}'x${P.instrument.feld_arcmin[1]}' &middot; Mindesthoehe ${P.parameter.alt_min}&deg;`+(P.parameter.wetter?'':' &middot; <b>ohne Wetter</b>')+'</p>';
+  for(const n of P.naechte){
+    if(!n.dunkel){ h+=`<h3>${fmt(n.datum)}</h3><p class="help">${esc(n.hinweis||'keine Transits')}</p>`; continue; }
+    const w=n.wetter; h+=`<h3 style="margin-bottom:2px">${fmt(n.datum)} &rarr; dunkel ${hhmm(n.dunkel[0])}&ndash;${hhmm(n.dunkel[1])}</h3>
+      <div class="help" style="max-width:none">Mond ${n.mond_beleuchtung} % &middot; `+(w?`Bewoelkung im Mittel <span class="pill ${AMP[n.ampel]||'n'}">${Math.round(w.wolken)} %</span> (max. tief ${r0(w.tief)} / mittel ${r0(w.mittel)} / hoch ${r0(w.hoch)} %)`:'Wetter: keine Vorhersage')+` &middot; ${n.anzahl} beobachtbare Transits</div>`;
+    if(!n.vorschlaege.length){ h+='<p class="help">Kein passender Transit.</p>'; continue; }
+    h+=planKurve(n);
+    h+=`<table><tr><th></th><th>Score</th><th>Planet</th><th>Prio</th><th>mag</th><th>Tiefe ppt</th><th>SNR</th><th>Beobachten</th><th>Ingress / Tc / Egress</th><th>X max</th><th>Wolken</th><th>RA / Dec</th><th>Hinweise</th></tr>`+
+      n.vorschlaege.map((s,j)=>`<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${j<8?PLC[j%PLC.length]:'transparent'}"></span></td>
+        <td>${Math.round(s.score)}</td><td style="white-space:nowrap"><b>${esc(s.planet)}</b></td><td>${esc(s.prio)}</td><td>${s.mag!=null?s.mag.toFixed(1):''}</td><td>${s.tiefe_ppt.toFixed(1)}</td><td>${s.snr??''}</td>
+        <td style="white-space:nowrap">${hhmm(s.start)}&ndash;${hhmm(s.ende)}</td><td>${hhmm(s.ingress)} / ${hhmm(s.tc)} &plusmn;${s.tc_err_min} min / ${hhmm(s.egress)}</td><td>${s.airmass_max}</td>
+        <td>${s.wetter?`<span class="pill ${AMP[s.ampel]||'n'}">${Math.round(s.wetter.wolken)} %</span>`:'?'}</td><td class="mono">${esc(s.ra)}<br>${esc(s.dec)}</td>
+        <td>${esc(s.warnungen.concat(s.vergleichssterne!=null?[s.vergleichssterne+' Vergleichssterne']:[]).join('; '))}</td></tr>`).join('')+'</table>';
+  }
+  $('plan').innerHTML=h; }
 init();
 </script></body></html>"""
