@@ -731,6 +731,7 @@ def main(argv=None):
                         description="Startet eine lokale Bedienoberflaeche im Browser. Sie ruft die normalen transit-Befehle auf.")
     gu.add_argument("--port", type=int, default=8765)
     gu.add_argument("--kein-browser", dest="kein_browser", action="store_true", help="Browser nicht automatisch oeffnen")
+    gu.add_argument("--klassisch", action="store_true", help="die bisherige Oberflaeche oeffnen (auch jederzeit unter /klassisch)")
     ko = sub.add_parser("kommentar", help="Englischer Kommentar fuer den ExoClock-Upload (Ausgabe + Zwischenablage)",
                         description="Erzeugt den Kommentar fuer das ExoClock-Formular aus den Daten des Laufs und kopiert ihn in die Zwischenablage.")
     ko.add_argument("messordner", help="Ordner der Messung")

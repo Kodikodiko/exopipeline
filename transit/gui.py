@@ -279,8 +279,9 @@ def write_lauf_toml(path, sections, note):
     open(path, "w", encoding="utf-8").write("\n".join(lines) + "\n")
 
 
-def start_run(q):
-    """q: messordner, lauf, basis (optional run to reuse photometry from), mode, workers + advanced settings."""
+def start_run(q, launch=None):
+    """q: messordner, lauf, basis (optional run to reuse photometry from), mode, workers + advanced settings.
+    launch(p, lauf, mode, workers, new_stars) -> cmd replaces the plain start (used by the new page)."""
     p = lights_folder(unwrap(os.path.abspath(q["messordner"])))   # results-only folder: run where the lights are
     if not is_measurement(p):
         raise ValueError(f"kein Messordner: {p}")
@@ -319,6 +320,8 @@ def start_run(q):
            "calib": {"flat": a.get("flat"), "bias": a.get("bias"), "dark": a.get("dark")},
            "camera": {"farbkamera": a.get("farbkamera")}, "gaia": {"quelle": a.get("gaia_quelle")}}
     write_lauf_toml(os.path.join(out, "lauf.toml"), sec, f"Lauf {lauf}" + (f", Photometrie aus {basis}" if basis else ""))
+    if launch is not None:
+        return dict(ok=True, lauf=lauf, befehl=" ".join(launch(p, lauf, mode, q.get("workers"), new_stars)))
     cmd = [sys.executable, "-m", "transit", "run", p, "--out", lauf, "--mode", mode]
     if q.get("workers"):
         cmd += ["--workers", str(int(q["workers"]))]
@@ -349,6 +352,369 @@ def allowed_file(path):
     return listable(root) and os.path.isfile(p)
 
 
+# ------------------------------------------------------------------ new GUI (page in gui_neu.py; the classic page stays at /klassisch)
+UPLOAD_MARK = "hochgeladen.json"          # RESULT\<lauf>\hochgeladen.json: {"datum": ...} once the user ticked "hochgeladen"
+GUI_META = "gui_lauf.json"                # RESULT\<lauf>\gui_lauf.json: how the GUI started the run (mode, workers, ...)
+WAITING = {}                              # (messordner, lauf) -> dict of the queued start (second calibration variant)
+STOPPED = set()                           # (messordner, lauf) stopped by the user: queued follow-up runs are dropped
+_NAME = {}
+
+
+def jload(path, default=None):
+    try:
+        return json.load(open(path, encoding="utf-8"))
+    except Exception:
+        return {} if default is None else default
+
+
+def tail(path, n=14):
+    """Last n lines of a console file; progress bars (\\r) collapse to their newest state."""
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(0, 2)
+            fh.seek(max(0, fh.tell() - 24000))
+            txt = fh.read().decode("utf-8", errors="replace")
+    except OSError:
+        return []
+    out = []
+    for line in txt.replace("\r\n", "\n").split("\n"):
+        line = line.split("\r")
+        line = next((s for s in reversed(line) if s.strip()), "")
+        if line.strip():
+            out.append(line.rstrip())
+    return out[-n:]
+
+
+def planet_name(p):
+    """Planet as written (KPS-1b): inventory.json of a run, else RESULT\\transit.toml, else the folder name."""
+    if p in _NAME:
+        return _NAME[p]
+    name = ""
+    for inv in sorted(glob.glob(os.path.join(p, "RESULT", "*", "inventory.json"))):
+        name = jload(inv).get("planet", {}).get("name", "")
+        if name:
+            break
+    if not name:
+        try:
+            import tomllib
+            name = tomllib.load(open(os.path.join(p, "RESULT", "transit.toml"), "rb")).get("target", {}).get("planet", "")
+        except Exception:
+            name = ""
+    if not name:                                           # not evaluated yet: OBJECT of the first light
+        try:
+            from astropy.io import fits
+            ld = find_lights(p)
+            f = sorted(x for x in os.listdir(ld) if x.lower().endswith(FITS_EXT))[0]
+            name = str(fits.getheader(os.path.join(ld, f)).get("OBJECT") or "").strip()
+        except Exception:
+            name = ""
+    _NAME[p] = name or os.path.basename(p)
+    return _NAME[p]
+
+
+def run_states(p):
+    """{lauf: state} from the status.json files plus the GUI's own job list (quick, for the folder list)."""
+    out = {}
+    for f in glob.glob(os.path.join(p, "RESULT", "*", "status.json")):
+        lauf = os.path.basename(os.path.dirname(f))
+        out[lauf] = jload(f).get("state", "")
+    for (mp, lauf), job in JOBS.items():
+        if mp == os.path.normcase(p) and job.poll() is None:
+            out[lauf] = "laeuft"
+    for (mp, lauf) in WAITING:
+        if mp == os.path.normcase(p):
+            out.setdefault(lauf, "wartet")
+    return out
+
+
+def measurements_list(neu=False):
+    from .finden import all_measurements
+    out = []
+    for e in grouped(all_measurements("force" if neu else False, log=lambda *x: None)):
+        p = e["pfad"]
+        try:
+            _, nacht = meta(p)
+        except Exception:
+            nacht = ""
+        st = run_states(p)
+        up = [os.path.basename(os.path.dirname(f)) for f in glob.glob(os.path.join(p, "RESULT", "*", UPLOAD_MARK))]
+        zust = ("laeuft" if "laeuft" in st.values() else "wartet" if "wartet" in st.values()
+                else "fehler" if st and all(v == "fehler" for v in st.values()) and not e["ausgewertet"] else "")
+        out.append(dict(e, planet=planet_name(p), nacht=nacht, zustand=zust,
+                        hochgeladen=bool(e["gueltig"] and e["gueltig"] in up)))
+    return sorted(out, key=lambda e: (e["nacht"] or "0000", e["planet"].lower()), reverse=True)
+
+
+def defaults(p=None):
+    """Values a blank field stands for (global configuration merged with RESULT\\transit.toml)."""
+    import tomllib
+    from .config import DEFAULT_TOML, _merge
+    cfg = tomllib.load(open(DEFAULT_TOML, "rb"))
+    if p:
+        tt = os.path.join(p, "RESULT", "transit.toml")
+        if os.path.exists(tt):
+            cfg = _merge(cfg, tomllib.load(open(tt, "rb")))
+    g = lambda s, k, d=None: cfg.get(s, {}).get(k, d)
+    w = g("run", "workers", 0) or max(1, (os.cpu_count() or 4) - 2)
+    return dict(mode=g("calib", "mode", "bf"), workers=w, gaia_quelle=g("gaia", "quelle", "vizier"), gaia_timeout=g("gaia", "timeout_s", 60),
+                farbkamera=g("camera", "farbkamera", "auto"), dmag_bright=g("comps", "dmag_bright"), dmag_faint=g("comps", "dmag_faint"),
+                neighbour_px=g("comps", "neighbour_px"), edge_px=g("comps", "edge_px"), annulus=g("photometry", "annulus"),
+                aperture_mode=g("photometry", "aperture_mode", "beides"), k_fwhm=g("photometry", "k_fwhm"), radii=g("search", "radii"),
+                airmass_order=g("fit", "airmass_order", 1), airmass_max=g("search", "airmass_max", 0), flip=g("fit", "flip", "prior"),
+                fix_geometry=g("fit", "fix_geometry", True), mcmc_steps=g("fit", "mcmc_steps"), symmetry_weight=g("search", "symmetry_weight", 0),
+                ausreisser_sigma=g("fit", "ausreisser_sigma", 0))
+
+
+def hints(p):
+    """Notes for the measurement shown before a start: colour camera, filter, lights location, ExoClock entry."""
+    out, info = [], {}
+    ld = find_lights(p)
+    fs = sorted(f for f in os.listdir(ld) if f.lower().endswith(FITS_EXT)) if ld else []
+    if not fs:
+        out.append(dict(level="info", titel="Lights nicht in diesem Ordner",
+                        text="Hier liegen nur Ergebnisse. Für einen neuen Lauf werden die Lights am NAS verwendet, falls sie dort gefunden werden."))
+    else:
+        try:
+            from astropy.io import fits
+            h = fits.getheader(os.path.join(ld, fs[0]))
+            bp = str(h.get("BAYERPAT") or "").strip()
+            fk = str(defaults(p)["farbkamera"]).lower()
+            if bp and fk != "nein":
+                out.append(dict(level="warn", titel=f"Farbkamera erkannt (BAYERPAT = {bp})",
+                                text="Die Bilder werden vor der Photometrie zu 2×2-Superpixeln zusammengefasst (Erweitert › Kamera & Gaia)."))
+        except Exception:
+            pass
+    hg = header_guess(p) if fs else {}
+    if fs and not hg.get("filter_exoclock"):
+        out.append(dict(level="warn", titel="Filter bitte prüfen",
+                        text=f"Header FILTER = {hg.get('filter_header') or 'leer'}: keine eindeutige Zuordnung zum ExoClock-Menü."))
+    try:
+        from .ephem import CACHE
+        db = json.load(open(CACHE, encoding="utf-8")) if os.path.exists(CACHE) else None
+    except Exception:
+        db = None
+    pl = (hg.get("planet") or planet_name(p)) if fs else planet_name(p)
+    if db is not None and pl:
+        k = pl if pl in db else next((x for x in db if x.replace(" ", "").lower() == pl.replace(" ", "").lower()), None)
+        if k:
+            e = db[k]
+            info = dict(name=k, prio=e.get("priority", ""), gefunden=True)
+        else:
+            info = dict(name=pl, gefunden=False)
+    return dict(hinweise=out, exoclock=info, kopf=hg)
+
+
+def step_minutes(runs):
+    """Typical duration per pipeline step from the runs of this measurement (median of finished steps, seconds)."""
+    import statistics
+    d = {}
+    for r in runs:
+        for s in r.get("schritte") or []:
+            if s.get("state") == "fertig" and s.get("duration_s"):
+                d.setdefault(s["name"], []).append(s["duration_s"])
+    return {k: statistics.median(v) for k, v in d.items()}
+
+
+def run_checks(r, inv):
+    """Checklist for one finished run: planning warnings from inventory.json plus fit quality."""
+    out = []
+    for c in inv.get("checks", []):
+        lev = str(c.get("level", "")).upper()
+        out.append(dict(level="warn" if lev in ("WARN", "WARNING") else "bad" if lev in ("ERROR", "FEHLER") else "ok", text=c.get("text", "")))
+    if inv and not any(o["level"] != "ok" for o in out):
+        out.insert(0, dict(level="ok", text="Keine Planungs-Warnungen (Baseline, Airmass, Flip)"))
+    if r.get("drift") not in (None, ""):
+        try:
+            v = abs(float(r["drift"]))
+            out.append(dict(level="ok" if v < 2 else "warn" if v < 3 else "bad", text=f"Drift {v:.1f} (ExoClock: gut unter 2)".replace(".", ",")))
+        except ValueError:
+            pass
+    if r.get("rhat") is not None:
+        v = float(r["rhat"])
+        out.append(dict(level="ok" if v < 1.05 else "warn", text=f"R-hat {v:.2f} (konvergiert unter 1,05)".replace(".", ",", 1)))
+    if r.get("ausgeschlossen"):
+        out.append(dict(level="ok", text=f"Ausgeschlossene Vergleichssterne: {r['ausgeschlossen']}"))
+    return out
+
+
+def runs_detail(p):
+    runs = runs_of(p)
+    for r in runs:
+        d = os.path.join(p, "RESULT", r["lauf"])
+        st, mt = jload(os.path.join(d, "status.json")), jload(os.path.join(d, GUI_META))
+        r["modus"] = mt.get("mode") or jload(os.path.join(d, "calib.json")).get("mode", "")
+        r["schritte"] = st.get("steps", [])
+        if r.get("zustand") == "laeuft" and not r.get("schritt"):
+            r["schritt"] = next((x["name"] for x in r["schritte"] if x.get("state") == "laeuft"), "")
+        r["dauer_s"] = st.get("elapsed_s")
+        r["gestartet"] = st.get("started")
+        ar = os.path.join(d, "ausreisser.json")
+        r["ausreisser"] = len(jload(ar).get("frames", [])) if os.path.exists(ar) else None
+        r["hochgeladen"] = jload(os.path.join(d, UPLOAD_MARK)).get("datum", "")
+        if r.get("oc") is not None:
+            r["pruefungen"] = run_checks(r, jload(os.path.join(d, "inventory.json")))
+        if (os.path.normcase(p), r["lauf"]) in WAITING:
+            r["zustand"] = "wartet"
+    return runs
+
+
+def run_detail(p, lauf):
+    d = os.path.join(p, "RESULT", lauf)
+    st = jload(os.path.join(d, "status.json"))
+    toml = {}
+    try:
+        import tomllib
+        toml = tomllib.load(open(os.path.join(d, "lauf.toml"), "rb"))
+    except Exception:
+        pass
+    q = (toml.get("gaia", {}).get("quelle") or defaults(p)["gaia_quelle"])
+    job = JOBS.get((os.path.normcase(p), lauf))
+    log = tail(os.path.join(d, "gui_konsole.txt")) or [l[20:] if l[:2] == "20" else l for l in tail(os.path.join(d, "run.log"))]
+    others = [r for r in runs_detail(p) if r["lauf"] != lauf]
+    return dict(lauf=lauf, pfad=p, status=st, meta=jload(os.path.join(d, GUI_META)), einstellungen=toml,
+                gaia=dict(quelle=q, timeout=defaults(p)["gaia_timeout"]), log=log, jetzt=time.time(),
+                laeuft_aus_gui=bool(job and job.poll() is None), wartet=(os.path.normcase(p), lauf) in WAITING,
+                schaetzung=step_minutes(others), folgelauf=[k[1] for k, v in WAITING.items() if v.get("nach") == lauf and k[0] == os.path.normcase(p)])
+
+
+def active_runs():
+    out = []
+    for (mp, lauf), job in list(JOBS.items()):
+        if job.poll() is not None:
+            continue
+        st = jload(os.path.join(mp, "RESULT", lauf, "status.json"))
+        p = getattr(job, "transit_pfad", mp)
+        out.append(dict(pfad=p, planet=planet_name(p), lauf=lauf, schritt=st.get("step"), task=st.get("task"), prozent=st.get("percent"),
+                        seit=st.get("last_progress_unix"), jetzt=time.time()))
+    for (mp, lauf), w in WAITING.items():
+        out.append(dict(pfad=w["pfad"], planet=planet_name(w["pfad"]), lauf=lauf, schritt="wartet", wartet=True))
+    return out
+
+
+def _launch(p, lauf, mode, workers=None, new_stars=False, append=False):
+    cmd = [sys.executable, "-m", "transit", "run", p, "--out", lauf, "--mode", mode]
+    if workers:
+        cmd += ["--workers", str(int(workers))]
+    if new_stars:
+        cmd += ["--new-stars"]
+    out = os.path.join(p, "RESULT", lauf)
+    log = open(os.path.join(out, "gui_konsole.txt"), "a" if append else "w", encoding="utf-8")
+    env = dict(os.environ, PYTHONPATH=PIPE_DIR + os.pathsep + os.environ.get("PYTHONPATH", ""), PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
+    job = subprocess.Popen(cmd, cwd=PIPE_DIR, stdout=log, stderr=subprocess.STDOUT, env=env,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    job.transit_pfad = p
+    JOBS[(os.path.normcase(p), lauf)] = job
+    return cmd
+
+
+def start_neu(q):
+    """Start from the new page: like start_run, with unbuffered console output, a gui_lauf.json and optional
+    follow-up runs in other calibration modes (q["danach"] = ["bf"]) that start when this one has finished."""
+    r = start_run(q, launch=_launch)
+    p = lights_folder(unwrap(os.path.abspath(q["messordner"])))
+    lauf, mode = r["lauf"], q.get("mode") or "f"
+    json.dump(dict(mode=mode, workers=q.get("workers"), basis=q.get("basis"), gestartet=time.strftime("%Y-%m-%d %H:%M:%S"),
+                   befehl=r["befehl"]), open(os.path.join(p, "RESULT", lauf, GUI_META), "w", encoding="utf-8"))
+    base = lauf[: -len("_" + mode)] if lauf.endswith("_" + mode) else lauf
+    queued = []
+    for m2 in q.get("danach") or []:
+        if m2 == mode:
+            continue
+        l2 = f"{base}_{m2}"
+        d2 = os.path.join(p, "RESULT", l2)
+        if os.path.exists(os.path.join(d2, "fit.json")):
+            continue
+        os.makedirs(d2, exist_ok=True)
+        json.dump(dict(state="wartet", command="run", steps=[]), open(os.path.join(d2, "status.json"), "w", encoding="utf-8"))
+        WAITING[(os.path.normcase(p), l2)] = dict(q, mode=m2, lauf=l2, basis=None, danach=None, nach=lauf, pfad=p)
+        queued.append(l2)
+    if queued:
+        threading.Thread(target=_follow, args=(p, lauf, queued), daemon=True).start()
+    return dict(r, folgelauf=queued)
+
+
+def _follow(p, lauf, queued):
+    job = JOBS.get((os.path.normcase(p), lauf))
+    if job is not None:
+        job.wait()
+    for l2 in queued:
+        q2 = WAITING.get((os.path.normcase(p), l2))
+        if q2 is None:
+            continue
+        if (os.path.normcase(p), lauf) in STOPPED:
+            WAITING.pop((os.path.normcase(p), l2), None)
+            json.dump(dict(state="fehler", error="nicht gestartet: vorheriger Lauf wurde abgebrochen", steps=[]),
+                      open(os.path.join(p, "RESULT", l2, "status.json"), "w", encoding="utf-8"))
+            continue
+        try:
+            os.remove(os.path.join(p, "RESULT", l2, "status.json"))
+            WAITING.pop((os.path.normcase(p), l2), None)
+            start_neu(dict(q2, danach=None))
+            j2 = JOBS.get((os.path.normcase(p), l2))
+            if j2 is not None:
+                j2.wait()
+        except Exception as e:
+            WAITING.pop((os.path.normcase(p), l2), None)
+            json.dump(dict(state="fehler", error=str(e), steps=[]), open(os.path.join(p, "RESULT", l2, "status.json"), "w", encoding="utf-8"))
+
+
+def stop_neu(q):
+    p = os.path.abspath(q["messordner"])
+    key = (os.path.normcase(p), q["lauf"])
+    STOPPED.add(key)
+    for k, w in list(WAITING.items()):                     # the queued follow-up runs of this run are dropped too
+        if k[0] == key[0] and w.get("nach") == q["lauf"]:
+            WAITING.pop(k, None)
+            json.dump(dict(state="fehler", error="nicht gestartet: vorheriger Lauf wurde abgebrochen", steps=[]),
+                      open(os.path.join(p, "RESULT", k[1], "status.json"), "w", encoding="utf-8"))
+    j = JOBS.get(key)
+    if j and j.poll() is None:
+        j.terminate()
+    return dict(ok=True)
+
+
+def switch_gaia(q):
+    """Stop the run, set [gaia] quelle in its lauf.toml and continue it (finished steps are skipped)."""
+    p = os.path.abspath(q["messordner"])
+    lauf, quelle = q["lauf"], ("esa" if q.get("quelle") == "esa" else "vizier")
+    d = os.path.join(p, "RESULT", lauf)
+    key = (os.path.normcase(p), lauf)
+    j = JOBS.get(key)
+    if j and j.poll() is None:
+        j.terminate()
+        try:
+            j.wait(15)
+        except Exception:
+            pass
+    lt = os.path.join(d, "lauf.toml")
+    txt = open(lt, encoding="utf-8").read() if os.path.exists(lt) else ""
+    import re
+    if re.search(r"^\[gaia\]", txt, re.M):
+        if re.search(r"^\[gaia\][^\[]*^quelle\s*=", txt, re.M | re.S):
+            txt = re.sub(r"(^\[gaia\][^\[]*?^quelle\s*=\s*)\"[^\"]*\"", lambda m_: m_.group(1) + f'"{quelle}"', txt, flags=re.M | re.S)
+        else:
+            txt = re.sub(r"^\[gaia\]\s*$", f'[gaia]\nquelle = "{quelle}"', txt, flags=re.M)
+    else:
+        txt = txt.rstrip("\n") + f'\n\n[gaia]\nquelle = "{quelle}"\n'
+    open(lt, "w", encoding="utf-8").write(txt)
+    mt = jload(os.path.join(d, GUI_META))
+    mode = mt.get("mode") or jload(os.path.join(d, "calib.json")).get("mode") or "f"
+    with open(os.path.join(d, "gui_konsole.txt"), "a", encoding="utf-8") as fh:
+        fh.write(f"\n--- Gaia-Quelle auf {quelle} umgestellt, Lauf wird fortgesetzt ---\n")
+    _launch(p, lauf, mode, mt.get("workers"), append=True)
+    return dict(ok=True, quelle=quelle)
+
+
+def mark_uploaded(q):
+    p = os.path.abspath(q["messordner"])
+    f = os.path.join(p, "RESULT", q["lauf"], UPLOAD_MARK)
+    if q.get("wert"):
+        json.dump(dict(datum=time.strftime("%Y-%m-%d %H:%M")), open(f, "w", encoding="utf-8"))
+    elif os.path.exists(f):
+        os.remove(f)
+    return dict(ok=True)
+
+
 # ------------------------------------------------------------------ HTTP
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -366,10 +732,44 @@ class H(BaseHTTPRequestHandler):
         u = urllib.parse.urlparse(self.path)
         q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
         try:
-            if u.path == "/":
-                b = PAGE.encode("utf-8")
+            if u.path in ("/", "/klassisch"):               # new page; the classic one stays available at /klassisch
+                if u.path == "/":
+                    from .gui_neu import PAGE_NEU
+                b = (PAGE_NEU if u.path == "/" else PAGE).encode("utf-8")
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(b)))
+                self.end_headers()
+                self.wfile.write(b)
+            elif u.path == "/api/messungen2":
+                self._json(measurements_list(q.get("neu") == "1"))
+            elif u.path == "/api/messung2":
+                p = os.path.abspath(q["pfad"])
+                if not listable(p):
+                    raise ValueError(f"kein Messordner: {p}")
+                if q.get("leicht") == "1":                 # polling: runs only
+                    self._json(dict(pfad=p, laeufe=runs_detail(p),
+                                    upload=sorted(os.path.basename(f) for f in glob.glob(os.path.join(p, "RESULT", "*_exoclock_JDUTC.txt")))))
+                    return
+                try:
+                    nacht = meta(p)[1]
+                except Exception:
+                    nacht = ""
+                self._json(dict(hints(p), pfad=p, planet=planet_name(p), nacht=nacht, laeufe=runs_detail(p), filter_menu=EXOCLOCK_FILTERS,
+                                vorgaben=defaults(p), cpu=os.cpu_count(),
+                                upload=sorted(os.path.basename(f) for f in glob.glob(os.path.join(p, "RESULT", "*_exoclock_JDUTC.txt")))))
+            elif u.path == "/api/lauf":
+                self._json(run_detail(os.path.abspath(q["pfad"]), q["lauf"]))
+            elif u.path == "/api/aktiv":
+                self._json(active_runs())
+            elif u.path == "/api/vorgaben":
+                self._json(defaults())
+            elif u.path == "/api/logbuch":
+                self._json(logbook())
+            elif u.path == "/handbuch":
+                b = open(os.path.join(PIPE_DIR, "HANDBUCH.md"), "rb").read()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
                 self.send_header("Content-Length", str(len(b)))
                 self.end_headers()
                 self.wfile.write(b)
@@ -415,7 +815,8 @@ class H(BaseHTTPRequestHandler):
                     return
                 b = open(p, "rb").read()
                 self.send_response(200)
-                self.send_header("Content-Type", mimetypes.guess_type(p)[0] or "application/octet-stream")
+                text = os.path.splitext(p)[1].lower() in (".log", ".txt", ".md", ".csv", ".toml", ".json")
+                self.send_header("Content-Type", "text/plain; charset=utf-8" if text else mimetypes.guess_type(p)[0] or "application/octet-stream")
                 self.send_header("Content-Length", str(len(b)))
                 self.end_headers()
                 self.wfile.write(b)
@@ -431,6 +832,14 @@ class H(BaseHTTPRequestHandler):
         try:
             if self.path == "/api/start":
                 self._json(start_run(q))
+            elif self.path == "/api/start2":
+                self._json(start_neu(q))
+            elif self.path == "/api/abbrechen":
+                self._json(stop_neu(q))
+            elif self.path == "/api/gaia_wechsel":
+                self._json(switch_gaia(q))
+            elif self.path == "/api/hochgeladen":
+                self._json(mark_uploaded(q))
             elif self.path == "/api/ordner":
                 p = unwrap(os.path.normpath(pick_folder() or "."))
                 if p in ("", "."):
@@ -440,7 +849,7 @@ class H(BaseHTTPRequestHandler):
                 else:
                     self._json(overview(p))
             elif self.path == "/api/ordner_oeffnen":
-                d = os.path.join(os.path.abspath(q["messordner"]), "RESULT")
+                d = os.path.join(os.path.abspath(q["messordner"]), "RESULT", *([os.path.basename(q["lauf"])] if q.get("lauf") else []))
                 if not os.path.isdir(d):
                     raise ValueError(f"{d} fehlt")
                 os.startfile(d)
@@ -473,7 +882,7 @@ class H(BaseHTTPRequestHandler):
 
 
 def cmd_gui(a):
-    url = f"http://127.0.0.1:{a.port}/"
+    url = f"http://127.0.0.1:{a.port}/" + ("klassisch" if getattr(a, "klassisch", False) else "")
     import socket
     try:                                    # already running (second double-click)? Windows would let us bind twice
         socket.create_connection(("127.0.0.1", a.port), timeout=0.5).close()
@@ -487,6 +896,7 @@ def cmd_gui(a):
         return 0
     srv = ThreadingHTTPServer(("127.0.0.1", a.port), H)
     print(f"transit gui laeuft auf {url}  (beenden: Strg+C)")
+    print(f"  neue Oberflaeche: http://127.0.0.1:{a.port}/   klassische Oberflaeche: http://127.0.0.1:{a.port}/klassisch")
     if not a.kein_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     try:

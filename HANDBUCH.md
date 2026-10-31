@@ -615,6 +615,16 @@ transit gui --port 8800     & rem anderer Port;  --kein-browser: nur den Server 
 ```
 Die Oberfläche läuft nur auf diesem Rechner (127.0.0.1) und braucht nichts außer Python. Jede Aktion ruft die normalen Befehle auf (`transit run`, `transit logbuch --gueltig`, `transit aij --oeffnen`); es gibt keine zweite Rechenlogik. Die Einstellungen eines Laufs schreibt sie in `RESULT\<lauf>\lauf.toml`, genau wie von Hand. Beenden: Strg+C im Konsolenfenster.
 
+**Neue Oberfläche (Standard seit 2026-11) und klassische Oberfläche.** `transit gui` öffnet die neue Oberfläche unter `http://127.0.0.1:8765/`. Die bisherige Oberfläche bleibt unverändert erhalten und ist jederzeit erreichbar: unter `http://127.0.0.1:8765/klassisch`, mit `transit gui --klassisch` oder per Doppelklick auf `transit_gui_klassisch.cmd`. Beide benutzen dieselben Läufe und Dateien; man kann zwischen ihnen hin und her wechseln.
+
+Die neue Oberfläche hat oben vier Bereiche (**Planen**, **Auswerten**, **Logbuch**, **Hilfe**) und rechts oben einen Hinweis, solange ein Lauf aktiv ist (Klick öffnet ihn).
+- **Auswerten:** links die Messungen nach Monat, mit Suche (Enter sucht auch am NAS) und Filtern (Neu, Ohne gültig, Gültig). Rechts die Schrittleiste *Daten → Lauf starten → Vergleichen → Hochladen*, Hinweise aus dem Header (Farbkamera, unklarer Filter, Lights am NAS), das Formular **Neuer Lauf** und die **Läufe dieser Nacht**. Mit dem Haken „zusätzlich … starten“ wird nach dem ersten Lauf automatisch ein zweiter mit der anderen Kalibrierung (f ↔ bf) gerechnet; er übernimmt die Gaia-Abfrage. Laufnamen: `gui_<Datum>_<Zeit>_<Kalibrierung>`.
+- **Erweitert** öffnet eine Seitenleiste mit fünf Gruppen (Kalibrierung, Kamera & Gaia, Vergleichssterne, Apertur, Fit & Ausreißer). Geänderte Felder sind blau markiert und stehen als Zusammenfassung im Formular; leere Felder zeigen den Standard als grauen Text. „als meine Vorgabe merken“ speichert die Werte im Browser.
+- **Lauf (Details):** alle Schritte mit Dauer, der laufende Schritt mit Balken und Restzeit. Schritte ohne Prozentangabe (z. B. die Gaia-Abfrage) zeigen eine Stoppuhr und das Zeitlimit; „Jetzt auf VizieR/ESA wechseln“ stoppt die Abfrage, trägt `[gaia] quelle` in `lauf.toml` ein und setzt den Lauf fort. Darunter die letzten Zeilen der Konsole (live), das Lebenszeichen und auf Wunsch eine Browser-Benachrichtigung, wenn der Lauf fertig ist.
+- **Vergleichen:** Kennzahlen aller fertigen Läufe nebeneinander (niedrigstes OOT-RMS ist markiert), Ergebnisblatt (Lichtkurve, Feld, Vergleichssterne), Prüfliste (Planungs-Warnungen, Drift, R-hat) und **Als gültige Messung dieser Nacht setzen** (mit Rückgängig). Für den gültigen Lauf: jedes ExoClock-Feld mit Kopierknopf, der Kommentar zum Bearbeiten und der Haken **Bei ExoClock hochgeladen** (Datei `RESULT\<lauf>\hochgeladen.json`).
+
+Die folgenden Abschnitte beschreiben die **klassische** Oberfläche.
+
 **Vorne**
 - **Messordner:** alle Ordner unter `auto\`, die `LIGHT`, `LIGHTS`, `_work`, `_orig` oder `orig` enthalten.
 - **Planet:** Vorschlag aus dem FITS-Header (`OBJECT`), in ExoClock-Schreibweise.

@@ -35,7 +35,7 @@ Fehlt `config.local.toml`, wird `config.example.toml` verwendet. Einzelne Werte 
 
 ## Start
 
-- Oberfläche: Doppelklick auf `transit_gui.cmd` (öffnet http://127.0.0.1:8765 im Browser)
+- Oberfläche: Doppelklick auf `transit_gui.cmd` (öffnet http://127.0.0.1:8765 im Browser); die bisherige Oberfläche: `transit_gui_klassisch.cmd` oder http://127.0.0.1:8765/klassisch
 - Kommandozeile (PowerShell im Pipeline-Ordner): `.\transit hilfe`, z. B. `.\transit run ..\WASP-52b`
 
 Alles Weitere – Ordnerstruktur, Ablauf, alle Parameter, Erklärung der Ergebnisse – steht im [HANDBUCH](HANDBUCH.md).
