@@ -125,7 +125,7 @@ Die Standardwerte stehen in `_pipeline\config.local.toml` (beim ersten Einrichte
 | Name | Standard | Wirkung |
 |---|---|---|
 | quelle | "vizier" | Gaia DR3 über VizieR (CDS, Katalog `I/355/gaiadr3`) oder `"esa"` (ESA-Gaia-Archiv). Beide liefern dieselben Sterne und Spalten. |
-| timeout_s | 60 | Wartezeit pro Abfrage; danach bricht `cube` mit einer Meldung ab, statt endlos zu warten |
+| timeout_s | 60 | Wartezeit pro Abfrage (Verbindungsaufbau max. 15 s). Antwortet die gewählte Quelle nicht, versucht das Werkzeug automatisch die anderen: VizieR CDS → VizieR-Spiegel Harvard → ESA (bzw. umgekehrt bei `esa`). Erst wenn keine antwortet, bricht `cube` mit Meldung ab. |
 
 ### [photometry]
 | Name | Standard | Wirkung |

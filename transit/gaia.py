@@ -10,6 +10,8 @@ import numpy as np
 from astropy.table import Table
 
 VIZIER_CAT = "I/355/gaiadr3"
+VIZIER_SERVERS = ("vizier.cds.unistra.fr", "vizier.cfa.harvard.edu")    # CDS, then the Harvard mirror
+CONNECT_S = 15              # give up on a server that does not even accept the connection after this
 # VizieR column -> ESA column
 VIZ = {"Source": "source_id", "RA_ICRS": "ra", "DE_ICRS": "dec", "pmRA": "pmra", "pmDE": "pmdec", "Gmag": "phot_g_mean_mag",
        "BP-RP": "bp_rp", "RUWE": "ruwe", "VarFlag": "phot_variable_flag", "NSS": "non_single_star"}
@@ -33,7 +35,7 @@ def _lower(t):
     return t
 
 
-def _vizier(ra, dec, radius_deg, gmin, gmax, timeout):
+def _vizier(ra, dec, radius_deg, gmin, gmax, timeout, server=VIZIER_SERVERS[0]):
     from astroquery.vizier import Vizier
     import astropy.units as u
     from astropy.coordinates import SkyCoord
@@ -42,7 +44,8 @@ def _vizier(ra, dec, radius_deg, gmin, gmax, timeout):
         filt["Gmag"] = f"{gmin:.3f}..{gmax:.3f}"
     elif gmax is not None:
         filt["Gmag"] = f"<{gmax:.3f}"
-    v = Vizier(columns=list(VIZ), column_filters=filt, row_limit=-1, timeout=timeout)
+    v = Vizier(columns=list(VIZ), column_filters=filt, row_limit=-1, timeout=(min(CONNECT_S, timeout), timeout),
+               vizier_server=server)
     r = v.query_region(SkyCoord(ra, dec, unit="deg"), radius=radius_deg * u.deg, catalog=VIZIER_CAT)
     t = r[0] if len(r) else Table(names=list(VIZ))
     for k, n in VIZ.items():
@@ -68,24 +71,30 @@ def _esa(ra, dec, radius_deg, gmin, gmax, timeout):
 
 
 def cone(cfg, ra, dec, radius_deg, gmax=None, gmin=None, log=None):
-    """Gaia DR3 stars within radius_deg around (ra, dec), optionally limited in G.  Raises RuntimeError with a
-    readable text on timeout / no connection."""
+    """Gaia DR3 stars within radius_deg around (ra, dec), optionally limited in G.  Tries the chosen source first
+    ([gaia] quelle), then the other services (VizieR CDS, VizieR mirror, ESA archive); RuntimeError if none answers."""
     src, timeout = settings(cfg)
-    fn = _esa if src == "esa" else _vizier
-    try:
-        t = fn(float(ra), float(dec), float(radius_deg), gmin, gmax, timeout)
-    except Exception as e:
-        other = "esa" if src == "vizier" else "vizier"
-        raise RuntimeError(f"Gaia-Abfrage ueber {name(cfg)} fehlgeschlagen ({type(e).__name__}: {e}). "
-                           f"Netz pruefen oder unter Erweitert die Gaia-Quelle auf '{other}' stellen "
-                           f"([gaia] quelle = \"{other}\").") from e
-    t = _lower(t)
-    for n in COLS:                                        # same columns whatever the service returned
-        if n not in t.colnames:
-            t[n] = np.full(len(t), "" if n == "phot_variable_flag" else np.nan, dtype=object if n == "phot_variable_flag" else float)
-    if log:
-        log(f"  Gaia DR3 ueber {name(cfg)}: {len(t)} Sterne")
-    return t
+    viz = [(f"VizieR {h}", lambda *a, h=h: _vizier(*a, server=h)) for h in VIZIER_SERVERS]
+    esa = [("ESA-Gaia-Archiv", _esa)]
+    order = esa + viz if src == "esa" else viz + esa
+    errs = []
+    for label, fn in order:
+        try:
+            t = fn(float(ra), float(dec), float(radius_deg), gmin, gmax, timeout)
+        except Exception as e:
+            msg = str(e).split("(Caused by")[0].strip()[:160]
+            errs.append(f"{label}: {type(e).__name__} {msg}")
+            if log:
+                log(f"  Gaia ueber {label} nicht erreichbar ({type(e).__name__}) - naechste Quelle")
+            continue
+        t = _lower(t)
+        for n in COLS:                                    # same columns whatever the service returned
+            if n not in t.colnames:
+                t[n] = np.full(len(t), "" if n == "phot_variable_flag" else np.nan, dtype=object if n == "phot_variable_flag" else float)
+        if log:
+            log(f"  Gaia DR3 ueber {label}: {len(t)} Sterne")
+        return t
+    raise RuntimeError("Gaia-Abfrage fehlgeschlagen, keine Quelle erreichbar: " + "; ".join(errs) + ". Internetverbindung pruefen.")
 
 
 def flags(row):
