@@ -775,5 +775,7 @@ Die Rauschschätzung ist grob, sie dient nur der Rangfolge. Wer `rauschboden_ppt
 
 **Steuerung.** `[camera] farbkamera = "auto"` (Standard) erkennt Farbkameras am Header-Schlüssel `BAYERPAT`; das Log zeigt dann „Farbkamera (BAYERPAT RGGB): Photometrie in 2x2-Superpixeln“. In der GUI unter „Erweitert“ → Farbkamera.
 
+**Gaia-Feld wiederverwenden.** Fehlt einem neuen Lauf `gaia_field.csv`, übernimmt `cube` die Datei des jüngsten anderen Laufs derselben Messung (gleiches Feld) und fragt Gaia gar nicht erst ab. Nur die erste Auswertung einer Nacht braucht also Netz.
+
 **Ergebnis KPS-1b.** Siehe Lauf `kps_bayer`: OOT-RMS 4,4 ppt statt 11,5 ppt.
 

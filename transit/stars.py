@@ -12,6 +12,14 @@ import astropy.units as u
 def gaia_field(m, h0, log=None):
     """Gaia DR3 stars on the frame (cached per run in gaia_field.csv); source per [gaia] quelle (VizieR or ESA)."""
     cache = m.path("gaia_field.csv")
+    if not os.path.exists(cache):                      # same night, same field: reuse another run's Gaia query
+        import glob
+        import shutil
+        old = sorted(glob.glob(os.path.join(os.path.dirname(m.out), "*", "gaia_field.csv")), key=os.path.getmtime, reverse=True)
+        if old:
+            shutil.copy2(old[0], cache)
+            if log:
+                log(f"  Gaia-Feld aus Lauf {os.path.basename(os.path.dirname(old[0]))} uebernommen (keine Netzabfrage)")
     if os.path.exists(cache):
         g = Table.read(cache)
     else:

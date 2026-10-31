@@ -65,7 +65,9 @@ def _esa(ra, dec, radius_deg, gmin, gmax, timeout):
     old = socket.getdefaulttimeout()
     socket.setdefaulttimeout(timeout)                     # astroquery's Gaia TAP client has no timeout of its own
     try:
-        return _lower(Table(Gaia.launch_job(q).get_results()))
+        # asynchronous job: short HTTP requests while the archive works (a synchronous query of a large field
+        # can take minutes and then runs into the read timeout)
+        return _lower(Table(Gaia.launch_job_async(q).get_results()))
     finally:
         socket.setdefaulttimeout(old)
 
