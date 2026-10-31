@@ -11,6 +11,16 @@ from .analysis import linearity
 from .model import model
 
 
+def outlier_lines(m):
+    p = m.path("ausreisser.json")
+    if not os.path.exists(p):
+        return []
+    d = json.load(open(p, encoding="utf-8"))
+    fr = d.get("frames", [])
+    head = f"- Ausreisser entfernt (> {d.get('sigma', 0):g} sigma vom Transit-Fit): {len(fr)} Frames"
+    return [head] + [f"  - {x['frame']}  ({(x['bjd_tdb'] % 1) * 24:.2f} h, {x['resid_ppt']:+.1f} ppt, {x['sigma']:+.1f} sigma)" for x in fr]
+
+
 def make_report(m, n, c, log):
     fr = json.load(open(m.path("fit.json"), encoding="utf-8"))
     inv = json.load(open(m.path("inventory.json"), encoding="utf-8"))
@@ -103,7 +113,7 @@ def make_report(m, n, c, log):
           "## Daten", "",
           f"- Frames: {fr['info']['frames_used']} von {fr['info']['frames_total']} (ausgeschlossen: Liste {fr['info']['excluded_list']}, "
           f"Saettigung {fr['info']['excluded_saturation']}); OOT {fr['info']['n_oot']} ({fr['info']['n_oot_pre']} vor, {fr['info']['n_oot_post']} nach)",
-          f"- Flip-Versatz Ziel (Prior): {fr['flip_target'][0] * 1e3:+.2f} +- {fr['flip_target'][1] * 1e3:.2f} ppt", "",
+          f"- Flip-Versatz Ziel (Prior): {fr['flip_target'][0] * 1e3:+.2f} +- {fr['flip_target'][1] * 1e3:.2f} ppt"] + outlier_lines(m) + ["",
           "## Warnungen", ""] + [f"- [{x['level']}] {x['text']}" + (f" -> {x['fix']}" if x.get("fix") else "") for x in inv["checks"]]
     if lin:
         md += ["", "## Linearitaet (helle Vergleichssterne vs. schwaches Ensemble, gutes Seeing)", "",

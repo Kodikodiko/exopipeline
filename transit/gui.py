@@ -298,7 +298,8 @@ def start_run(q):
     basis = q.get("basis")
     a = q.get("erweitert") or {}
     new_stars = any(a.get(k) not in (None, "") for k in ("dmag_bright", "dmag_faint", "neighbour_px", "edge_px"))
-    new_phot = new_stars or a.get("annulus") not in (None, "", []) or any(a.get(k) for k in ("flat", "bias", "dark"))
+    new_phot = (new_stars or a.get("annulus") not in (None, "", []) or any(a.get(k) for k in ("flat", "bias", "dark"))
+                or a.get("farbkamera") not in (None, ""))
     if basis:                                              # reuse photometry of an existing run (same mode)
         import shutil
         src = os.path.join(p, "RESULT", basis)
@@ -314,8 +315,9 @@ def start_run(q):
            "photometry": {"annulus": a.get("annulus"), "aperture_mode": a.get("aperture_mode"), "k_fwhm": a.get("k_fwhm")},
            "search": {"radii": a.get("radii"), "airmass_max": a.get("airmass_max"), "symmetry_weight": a.get("symmetry_weight")},
            "fit": {"airmass_order": a.get("airmass_order"), "flip": a.get("flip"), "fix_geometry": a.get("fix_geometry"),
-                   "mcmc_steps": a.get("mcmc_steps")},
-           "calib": {"flat": a.get("flat"), "bias": a.get("bias"), "dark": a.get("dark")}}
+                   "mcmc_steps": a.get("mcmc_steps"), "ausreisser_sigma": a.get("ausreisser_sigma")},
+           "calib": {"flat": a.get("flat"), "bias": a.get("bias"), "dark": a.get("dark")},
+           "camera": {"farbkamera": a.get("farbkamera")}, "gaia": {"quelle": a.get("gaia_quelle")}}
     write_lauf_toml(os.path.join(out, "lauf.toml"), sec, f"Lauf {lauf}" + (f", Photometrie aus {basis}" if basis else ""))
     cmd = [sys.executable, "-m", "transit", "run", p, "--out", lauf, "--mode", mode]
     if q.get("workers"):
@@ -565,6 +567,11 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:6px}
    <span class="help">Leer: passende Master aus der Kalibrierbibliothek (Kamera, Groesse, Filter; gebinnte Lights werden unterstuetzt).</span>
   </div>
   <div class="row" style="margin-top:8px">
+   <label>Gaia-Quelle<select id="gaia_quelle"><option value="">VizieR (Standard)</option><option value="esa">ESA-Gaia-Archiv</option></select></label>
+   <label>Farbkamera<select id="farbkamera"><option value="">automatisch (BAYERPAT)</option><option value="ja">ja: 2x2-Superpixel</option><option value="nein">nein: wie Mono</option></select></label>
+   <span class="help">Gaia DR3 kommt standardmaessig ueber VizieR (CDS); das ESA-Archiv ist die Alternative, wenn VizieR nicht antwortet. Farbkamera: Bayer-Bilder (Header BAYERPAT) werden vor der Photometrie zu 2x2-Superpixeln zusammengefasst, sonst stoert das R/G/B-Muster die Himmelsbestimmung.</span>
+  </div>
+  <div class="row" style="margin-top:8px">
    <label>Helligkeit hell (dG)<input id="dmag_bright" type="number" step="0.1" placeholder="-0.5" style="width:80px"></label>
    <label>Helligkeit schwach (dG)<input id="dmag_faint" type="number" step="0.1" placeholder="2.0" style="width:80px"></label>
    <label>Mindestabstand Nachbar (px)<input id="neighbour_px" type="number" placeholder="40" style="width:80px"></label>
@@ -585,7 +592,8 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:6px}
    <label>Geometrie<select id="fix_geometry"><option value="">fest (ExoClock)</option><option value="false">frei</option></select></label>
    <label>MCMC-Schritte<input id="mcmc_steps" type="number" step="1000" placeholder="30000" style="width:90px"></label>
    <label>Symmetrie-Gewicht<input id="symmetry_weight" type="number" step="0.5" placeholder="0" style="width:80px"></label>
-   <span class="help">Quadratisch nur, wenn der BIC besser wird. Airmass-Grenze schneidet Randpunkte (Baseline vor Ingress >= 30 min lassen).</span>
+   <label>Ausreisser entfernen<select id="ausreisser_sigma"><option value="">aus (Standard)</option><option value="4">wenige (&gt; 4 sigma)</option><option value="3">normal (&gt; 3 sigma)</option><option value="2.5">viele (&gt; 2,5 sigma)</option></select></label>
+   <span class="help">Ausreisser: Bilder, die mehr als die gewaehlte Zahl Standardabweichungen vom Transit-Fit abweichen (Wolken, Flugzeug, Wind), werden entfernt und der Fit wiederholt; die Liste steht in summary.md und ausreisser.json. Quadratisch nur, wenn der BIC besser wird. Airmass-Grenze schneidet Randpunkte (Baseline vor Ingress >= 30 min lassen).</span>
   </div>
   <div style="margin-top:10px"><b>Vergleichssterne</b> <span class="help">Haken weg = Stern ausschliessen. Ampel: RUWE &gt; 1,4 (Doppelstern?), Gaia VARIABLE, Transitfenster-Test &gt; 3 sigma. Daten aus dem gewaehlten Basislauf.</span>
    <div class="row" style="align-items:flex-start;margin-top:6px">
@@ -700,7 +708,8 @@ async function start(){
   const er={flat:$('flat').value||null,bias:$('bias').value||null,dark:$('dark').value||null,
     dmag_bright:num('dmag_bright'),dmag_faint:num('dmag_faint'),neighbour_px:num('neighbour_px'),edge_px:num('edge_px'),
     airmass_order:num('airmass_order'),airmass_max:num('airmass_max'),flip:$('flip').value||null,
-    fix_geometry:$('fix_geometry').value===''?null:false,mcmc_steps:num('mcmc_steps'),symmetry_weight:num('symmetry_weight')};
+    fix_geometry:$('fix_geometry').value===''?null:false,mcmc_steps:num('mcmc_steps'),symmetry_weight:num('symmetry_weight'),
+    gaia_quelle:$('gaia_quelle').value||null,farbkamera:$('farbkamera').value||null,ausreisser_sigma:num('ausreisser_sigma')};
   if($('annulus').value){er.annulus=$('annulus').value.split(',').map(Number);}
   const cbs=[...document.querySelectorAll('.kcb')]; if(cbs.length){er.exclude_stars=cbs.filter(c=>!c.checked).map(c=>c.value);}
   const amin=num('ap_min'),amax=num('ap_max');

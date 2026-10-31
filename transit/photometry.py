@@ -53,18 +53,45 @@ def measure_star(data, x, y, radii, r_in, r_out, gain, rn, cbox):
     return dict(flux=flux, err=np.sqrt(var) / gain, bkg=bkg, x=cx + x1, y=cy + y1, fwhm=fwhm)
 
 
-def measure_frame(path, header, calibrator, ra, de, radii, ann, gain, rn, cbox):
-    """All stars in one frame -> list of (flux, err, bkg, x, y, fwhm, peak) or None per star."""
+def pixbin(cfg, header):
+    """2 for a colour (Bayer/OSC) camera, else 1.  [camera] farbkamera = "auto" (BAYERPAT in the header) | "ja" | "nein"."""
+    v = str(cfg.get("camera", {}).get("farbkamera", "auto")).strip().lower()
+    if v in ("ja", "yes", "true", "1"):
+        return 2
+    if v in ("nein", "no", "false", "0"):
+        return 1
+    return 2 if str(header.get("BAYERPAT", "")).strip() else 1
+
+
+def superpixel(a, b, how="sum"):
+    """b x b blocks: sum (calibrated data: one luminance value per Bayer cell) or max (raw peak for saturation)."""
+    ny, nx = a.shape[0] // b * b, a.shape[1] // b * b
+    v = a[:ny, :nx].reshape(ny // b, b, nx // b, b)
+    return v.sum((1, 3)) if how == "sum" else v.max((1, 3))
+
+
+def measure_frame(path, header, calibrator, ra, de, radii, ann, gain, rn, cbox, b=1):
+    """All stars in one frame -> list of (flux, err, bkg, x, y, fwhm, peak) or None per star.
+    b = 2 (colour camera): the calibrated Bayer image is summed in 2x2 superpixels before the photometry, so the
+    R/G/B levels no longer show up as a pattern in the sky ring.  Everything going in and out stays in original
+    image pixels (radii, annulus, x, y, FWHM, sky per pixel), so config, AIJ export and plots need no change."""
     raw = read_data(path)
     data = calibrator(raw)
     px, py = WCS(header).world_to_pixel_values(ra, de)
+    if b > 1:
+        data, raw = superpixel(data, b), superpixel(raw, b, "max")
+        px, py = (np.asarray(px) + 0.5) / b - 0.5, (np.asarray(py) + 0.5) / b - 0.5
+        rn = rn * b                                     # b*b read-outs summed
+        radii, ann, cbox = np.asarray(radii, float) / b, (ann[0] / b, ann[1] / b), max(5, int(cbox) // b | 1)
     out = []
     for j in range(len(ra)):
         r = measure_star(data, px[j], py[j], radii, ann[0], ann[1], gain, rn, cbox)
         if r is None:
             out.append(None); continue
         xi, yi = int(round(r["x"])), int(round(r["y"]))
-        out.append((r["flux"], r["err"], r["bkg"], r["x"], r["y"], r["fwhm"], raw[yi - 4:yi + 5, xi - 4:xi + 5].max()))
+        pk = raw[max(yi - 4, 0):yi + 5, max(xi - 4, 0):xi + 5].max()
+        x, y = (r["x"] + 0.5) * b - 0.5, (r["y"] + 0.5) * b - 0.5
+        out.append((r["flux"], r["err"], r["bkg"] / b ** 2, x, y, r["fwhm"] * b, pk))
     return out
 
 
@@ -79,7 +106,11 @@ def build_cube(m, headers, stars, tm, calibrator, log=print, workers=1, cal_args
     bkg = np.full((nf, ns), np.nan); peak = bkg.copy(); xs = bkg.copy(); ys = bkg.copy(); fw = bkg.copy()
     t0 = time.time()
     bar = progress.task(f"Photometrie ({calibrator.mode})", nf, "Frames")
-    args = (radii, (r_in, r_out), cam["gain_e_per_adu"], cam["readnoise_e"], p["centroid_box"])
+    b = pixbin(m.cfg, headers[use[0]]["header"]) if use else 1
+    if b > 1:
+        log(f"  Farbkamera (BAYERPAT {headers[use[0]]['header'].get('BAYERPAT', '-')}): Photometrie in {b}x{b}-Superpixeln; "
+            f"Radien und Positionen weiter in Bildpixeln")
+    args = (radii, (r_in, r_out), cam["gain_e_per_adu"], cam["readnoise_e"], p["centroid_box"], b)
 
     def store(k, res):
         for j, r in enumerate(res):
@@ -111,5 +142,5 @@ def build_cube(m, headers, stars, tm, calibrator, log=print, workers=1, cal_args
                 jd_start=sub(tm["jd_start"]), jd_utc_mid=sub(tm["jd_mid"]), bjd_tdb=sub(tm["bjd_tdb"]),
                 airmass_calc=sub(tm["airmass_calc"]), airmass_header=sub(tm["airmass_header"]), east=sub(tm["east"]),
                 ccd_temp=np.array([float(headers[i]["header"].get("CCD-TEMP", np.nan)) for i in use]),
-                calib=calibrator.mode, runtime_s=time.time() - t0)
+                calib=calibrator.mode, pixbin=b, runtime_s=time.time() - t0)
     return cube

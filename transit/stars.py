@@ -9,22 +9,30 @@ from astropy.wcs import WCS
 import astropy.units as u
 
 
-def gaia_field(m, h0):
+def gaia_field(m, h0, log=None):
+    """Gaia DR3 stars on the frame (cached per run in gaia_field.csv); source per [gaia] quelle (VizieR or ESA)."""
     cache = m.path("gaia_field.csv")
+    if not os.path.exists(cache):                      # same night, same field: reuse another run's Gaia query
+        import glob
+        import shutil
+        old = sorted(glob.glob(os.path.join(os.path.dirname(m.out), "*", "gaia_field.csv")), key=os.path.getmtime, reverse=True)
+        if old:
+            shutil.copy2(old[0], cache)
+            if log:
+                log(f"  Gaia-Feld aus Lauf {os.path.basename(os.path.dirname(old[0]))} uebernommen (keine Netzabfrage)")
     if os.path.exists(cache):
         g = Table.read(cache)
     else:
-        from astroquery.gaia import Gaia
-        Gaia.ROW_LIMIT = -1
+        from . import gaia
         w = WCS(h0)
         nx, ny = h0["NAXIS1"], h0["NAXIS2"]
         c = w.pixel_to_world(nx / 2, ny / 2)
         scale = abs(h0.get("CDELT1", 0)) or np.sqrt(abs(np.linalg.det(w.pixel_scale_matrix)))
         rad = 0.5 * np.hypot(nx, ny) * scale + 0.02
-        q = (f"SELECT source_id, ra, dec, pmra, pmdec, phot_g_mean_mag, bp_rp FROM gaiadr3.gaia_source "
-             f"WHERE 1=CONTAINS(POINT(ra,dec), CIRCLE({c.ra.deg},{c.dec.deg},{rad})) "
-             f"AND phot_g_mean_mag < {m.cfg['comps']['gaia_gmax']}")
-        g = Table(Gaia.launch_job_async(q).get_results())
+        try:
+            g = gaia.cone(m.cfg, c.ra.deg, c.dec.deg, rad, gmax=m.cfg["comps"]["gaia_gmax"], log=log)
+        except RuntimeError as e:
+            raise SystemExit(str(e))
         g.write(cache, overwrite=True)
     for n in g.colnames:                      # Gaia archive 3.15 returns SOURCE_ID in upper case
         if n != n.lower():
@@ -50,7 +58,7 @@ def select(m, headers, epoch_jyear, target):
     solved = [x for x in headers if x["solved"]]
     h0 = solved[0]["header"]
     nx, ny = h0["NAXIS1"], h0["NAXIS2"]
-    g = gaia_field(m, h0)
+    g = gaia_field(m, h0, log=print)
     dt = epoch_jyear - 2016.0
     pmra = np.nan_to_num(np.array(g["pmra"], float)); pmde = np.nan_to_num(np.array(g["pmdec"], float))
     de0 = np.array(g["dec"], float)

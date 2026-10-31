@@ -14,6 +14,11 @@ saturation_adu = 60000      # Frames/Sterne darueber werden verworfen (Linearita
 linearity_warn_adu = 45000  # nur Warnung
 pixel_um = 3.76             # Pixelgroesse ungebinnt (fuer ASTAP, falls XPIXSZ im Header fehlt)
 focal_mm = 1090             # Brennweite (fuer ASTAP, falls FOCALLEN im Header fehlt)
+farbkamera = "auto"         # "auto" = Bayer-Bilder (BAYERPAT im Header) in 2x2-Superpixeln messen | "ja" | "nein"
+
+[gaia]
+quelle = "vizier"           # Gaia DR3 ueber "vizier" (CDS, I/355/gaiadr3) oder "esa" (ESA-Gaia-Archiv)
+timeout_s = 60              # Wartezeit pro Abfrage in Sekunden
 
 [photometry]
 radii = [8, 10, 12, 14, 16, 18, 20, 22, 24]
@@ -58,6 +63,7 @@ mcmc_chains = 0             # parallele MCMC-Ketten; 0 = automatisch (bis 16, je
 weights = "none"            # "none" = alle Bilder gleich genau; "modell" = Fehler pro Bild aus Szintillation (Airmass, Belichtung) + Photonen
 aperture_cm = 15.0          # Teleskopoeffnung fuer das Szintillationsmodell (z. B. 15 cm)
 detrend_fwhm = false        # zusaetzlicher Detrending-Term FWHM (Seeing/Fokus); nur wenn der BIC besser wird
+ausreisser_sigma = 0        # 0 = aus; z. B. 3: Frames, deren Abweichung vom Transit-Fit > 3 sigma ist, werden entfernt (iterativ)
 
 [calib]
 library = 'C:\Photometry\calibration'

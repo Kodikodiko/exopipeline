@@ -13,27 +13,54 @@ from .export import dms, hms
 
 # ------------------------------------------------------------------ Gaia quality flags (cached per run)
 def gaia_details(m, ids, log=print):
-    """RUWE, phot_variable_flag, non_single_star for the given Gaia DR3 source_ids; cache RESULT\\<lauf>\\gaia_details.json."""
+    """RUWE, phot_variable_flag, non_single_star for the given Gaia DR3 source_ids; cache RESULT\\<lauf>\\gaia_details.json.
+    Taken from the run's gaia_field.csv when it carries these columns, else queried ([gaia] quelle: VizieR or ESA)."""
+    from . import gaia
     cache = m.path("gaia_details.json")
     d = json.load(open(cache, encoding="utf-8")) if os.path.exists(cache) else {}
-    todo = [i for i in ids if str(i) not in d]
+    todo = [str(int(i)) for i in ids if str(i) not in d]
+    if not todo:
+        return d
+    put = lambda sid, row: d.__setitem__(sid, dict(zip(("ruwe", "var", "nss"), gaia.flags(row))))
+    fp = m.path("gaia_field.csv")
+    if os.path.exists(fp):
+        from astropy.table import Table
+        t = gaia._lower(Table.read(fp))
+        if "ruwe" in t.colnames:                                  # field cache written by this version: no network needed
+            for row in t:
+                if str(int(row["source_id"])) in todo:
+                    put(str(int(row["source_id"])), row)
+            todo = [i for i in todo if i not in d]
     if todo:
         try:
-            from astroquery.gaia import Gaia
-            q = ("SELECT source_id, ruwe, phot_variable_flag, non_single_star FROM gaiadr3.gaia_source WHERE source_id IN ("
-                 + ",".join(str(int(i)) for i in todo) + ")")
-            r = Gaia.launch_job(q).get_results()
-            for n in r.colnames:
-                if n != n.lower():
-                    r.rename_column(n, n.lower())
+            src, timeout = gaia.settings(m.cfg)
+            if src == "esa":
+                import socket
+                from astroquery.gaia import Gaia
+                q = ("SELECT source_id, ruwe, phot_variable_flag, non_single_star FROM gaiadr3.gaia_source WHERE source_id IN ("
+                     + ",".join(todo) + ")")
+                old = socket.getdefaulttimeout()
+                socket.setdefaulttimeout(timeout)
+                try:
+                    r = gaia._lower(Gaia.launch_job(q).get_results())
+                finally:
+                    socket.setdefaulttimeout(old)
+            else:                                                 # VizieR: one cone over the candidates
+                cand = {str(x.get("source_id", "")): x for x in csv.DictReader(open(m.path("candidates.csv"), encoding="utf-8"))}
+                pts = [(float(cand[i]["ra"]), float(cand[i]["dec"])) for i in todo if i in cand]
+                if not pts:
+                    raise RuntimeError("keine Koordinaten in candidates.csv")
+                ra = np.array([p[0] for p in pts]); de = np.array([p[1] for p in pts])
+                ra0, de0 = float(np.mean(ra)), float(np.mean(de))
+                rad = float(np.max(np.hypot((ra - ra0) * np.cos(np.radians(de0)), de - de0))) + 0.01
+                r = gaia.cone(m.cfg, ra0, de0, rad)
             for row in r:
-                d[str(int(row["source_id"]))] = dict(
-                    ruwe=None if np.ma.is_masked(row["ruwe"]) else float(row["ruwe"]),
-                    var=str(row["phot_variable_flag"]) if not np.ma.is_masked(row["phot_variable_flag"]) else "",
-                    nss=int(row["non_single_star"]) if not np.ma.is_masked(row["non_single_star"]) else 0)
-            json.dump(d, open(cache, "w", encoding="utf-8"), indent=1)
+                sid = str(int(row["source_id"]))
+                if sid in todo:
+                    put(sid, row)
         except Exception as e:
-            log(f"  Gaia-Archiv nicht erreichbar ({e}) - RUWE/Variabilitaet bleiben leer")
+            log(f"  Gaia ({gaia.name(m.cfg)}) nicht erreichbar ({e}) - RUWE/Variabilitaet bleiben leer")
+    json.dump(d, open(cache, "w", encoding="utf-8"), indent=1)
     return d
 
 
