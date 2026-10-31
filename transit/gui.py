@@ -315,7 +315,7 @@ def start_run(q):
            "photometry": {"annulus": a.get("annulus"), "aperture_mode": a.get("aperture_mode"), "k_fwhm": a.get("k_fwhm")},
            "search": {"radii": a.get("radii"), "airmass_max": a.get("airmass_max"), "symmetry_weight": a.get("symmetry_weight")},
            "fit": {"airmass_order": a.get("airmass_order"), "flip": a.get("flip"), "fix_geometry": a.get("fix_geometry"),
-                   "mcmc_steps": a.get("mcmc_steps")},
+                   "mcmc_steps": a.get("mcmc_steps"), "ausreisser_sigma": a.get("ausreisser_sigma")},
            "calib": {"flat": a.get("flat"), "bias": a.get("bias"), "dark": a.get("dark")},
            "camera": {"farbkamera": a.get("farbkamera")}, "gaia": {"quelle": a.get("gaia_quelle")}}
     write_lauf_toml(os.path.join(out, "lauf.toml"), sec, f"Lauf {lauf}" + (f", Photometrie aus {basis}" if basis else ""))
@@ -592,7 +592,8 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:6px}
    <label>Geometrie<select id="fix_geometry"><option value="">fest (ExoClock)</option><option value="false">frei</option></select></label>
    <label>MCMC-Schritte<input id="mcmc_steps" type="number" step="1000" placeholder="30000" style="width:90px"></label>
    <label>Symmetrie-Gewicht<input id="symmetry_weight" type="number" step="0.5" placeholder="0" style="width:80px"></label>
-   <span class="help">Quadratisch nur, wenn der BIC besser wird. Airmass-Grenze schneidet Randpunkte (Baseline vor Ingress >= 30 min lassen).</span>
+   <label>Ausreisser entfernen<select id="ausreisser_sigma"><option value="">aus (Standard)</option><option value="4">wenige (&gt; 4 sigma)</option><option value="3">normal (&gt; 3 sigma)</option><option value="2.5">viele (&gt; 2,5 sigma)</option></select></label>
+   <span class="help">Ausreisser: Bilder, die mehr als die gewaehlte Zahl Standardabweichungen vom Transit-Fit abweichen (Wolken, Flugzeug, Wind), werden entfernt und der Fit wiederholt; die Liste steht in summary.md und ausreisser.json. Quadratisch nur, wenn der BIC besser wird. Airmass-Grenze schneidet Randpunkte (Baseline vor Ingress >= 30 min lassen).</span>
   </div>
   <div style="margin-top:10px"><b>Vergleichssterne</b> <span class="help">Haken weg = Stern ausschliessen. Ampel: RUWE &gt; 1,4 (Doppelstern?), Gaia VARIABLE, Transitfenster-Test &gt; 3 sigma. Daten aus dem gewaehlten Basislauf.</span>
    <div class="row" style="align-items:flex-start;margin-top:6px">
@@ -708,7 +709,7 @@ async function start(){
     dmag_bright:num('dmag_bright'),dmag_faint:num('dmag_faint'),neighbour_px:num('neighbour_px'),edge_px:num('edge_px'),
     airmass_order:num('airmass_order'),airmass_max:num('airmass_max'),flip:$('flip').value||null,
     fix_geometry:$('fix_geometry').value===''?null:false,mcmc_steps:num('mcmc_steps'),symmetry_weight:num('symmetry_weight'),
-    gaia_quelle:$('gaia_quelle').value||null,farbkamera:$('farbkamera').value||null};
+    gaia_quelle:$('gaia_quelle').value||null,farbkamera:$('farbkamera').value||null,ausreisser_sigma:num('ausreisser_sigma')};
   if($('annulus').value){er.annulus=$('annulus').value.split(',').map(Number);}
   const cbs=[...document.querySelectorAll('.kcb')]; if(cbs.length){er.exclude_stars=cbs.filter(c=>!c.checked).map(c=>c.value);}
   const amin=num('ap_min'),amax=num('ap_max');

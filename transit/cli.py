@@ -235,7 +235,19 @@ def cmd_cube(m, a):
 
 
 # ------------------------------------------------------------------ search + fit helpers
-def night_from(m, a):
+OUTLIERS = "ausreisser.json"
+
+
+def outlier_sigma(m):
+    """[fit] ausreisser_sigma: remove frames whose residual from the transit fit exceeds this many sigma (0 = off)."""
+    try:
+        return max(0.0, float(m.cfg["fit"].get("ausreisser_sigma", 0) or 0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def night_from(m, a, outliers=True):
+    """outliers=True: also leave out the frames that `fit` removed as outliers (ausreisser.json), if the option is on."""
     from .analysis import Night
     from .ephem import planet_params
     mode = getattr(a, "mode", None) or m.cfg["calib"]["mode"]
@@ -261,6 +273,8 @@ def night_from(m, a):
         at = at if os.path.isabs(at) else os.path.join(m.root, at)
         keepf = {l.split("\t")[0] for l in open(at).readlines()[1:]}
         excl += [f for f in c["frame_file"] if f not in keepf]
+    if outliers and outlier_sigma(m) > 0 and os.path.exists(m.path(OUTLIERS)):
+        excl += [d["frame"] for d in jload(m, OUTLIERS).get("frames", [])]
     n = Night(c, m.cfg, pred, geom, excl, log)
     return n, c, pred, par
 
@@ -306,15 +320,55 @@ def mcmc_step_cost(n, r, ens, pred, reps=5):
     return (time.time() - t0) / reps
 
 
+def clip_outliers(m, a, n, r, comps, k, max_iter=5):
+    """Iterative sigma clipping on the residuals of the transit fit (best ensemble, fixed geometry): a frame whose
+    residual deviates by more than k x robust sigma (1.4826 x MAD) is removed, then the fit is repeated.  Writes
+    ausreisser.json and returns the Night without these frames."""
+    removed = []
+    for it in range(max_iter):
+        idx = {nm: i for i, nm in enumerate(n.names)}
+        f = n.fit(r, [idx[s] for s in comps])
+        res = np.asarray(f["res"]) * np.asarray(f["s"])               # back to relative flux
+        med = np.median(res)
+        sig = 1.4826 * np.median(np.abs(res - med))
+        bad = np.abs(res - med) > k * sig
+        if not bad.any():
+            break
+        files = np.asarray(n.c["frame_file"])[n.sel]
+        tt = n.t
+        for j in np.where(bad)[0]:
+            removed.append(dict(frame=str(files[j]), bjd_tdb=float(tt[j]), resid_ppt=float(res[j] * 1e3),
+                                sigma=float((res[j] - med) / sig), runde=it + 1))
+        jdump(dict(sigma=k, frames=removed), m.path(OUTLIERS))
+        n, *_ = night_from(m, a)
+        n.prefilter()
+        n.flip_offsets()
+    else:
+        log(f"  [WARN] Ausreisser: nach {max_iter} Runden noch nicht stabil")
+    jdump(dict(sigma=k, frames=removed), m.path(OUTLIERS))
+    if removed:
+        log(f"Ausreisser (> {k:g} sigma vom Transit-Fit): {len(removed)} Frames entfernt: "
+            + ", ".join(f"{(d['bjd_tdb'] % 1) * 24:.2f} h ({d['sigma']:+.1f} sigma)" for d in removed) + "  -> ausreisser.json")
+    else:
+        log(f"Ausreisser (> {k:g} sigma vom Transit-Fit): keine")
+    return n
+
+
 def cmd_fit(m, a):
     from . import parallel
     from .analysis import summarize_chains
-    n, c, pred, par = night_from(m, a)
+    k_out = outlier_sigma(m)
+    n, c, pred, par = night_from(m, a, outliers=False)
     cs = jload(m, "compsearch.json")
     n.prefilter()
     n.flip_offsets()
+    best = cs["top"][0]; r = best["radius"]
+    if k_out > 0:
+        n = clip_outliers(m, a, n, r, best["comps"], k_out)
+    elif os.path.exists(m.path(OUTLIERS)):
+        os.remove(m.path(OUTLIERS))                         # option switched off: no stale list for export/report
     idx = {nm: i for i, nm in enumerate(n.names)}
-    best = cs["top"][0]; r = best["radius"]; ens = [idx[s] for s in best["comps"]]
+    ens = [idx[s] for s in best["comps"]]
     free_mc = not m.cfg["fit"]["fix_geometry"]
     W = parallel.n_workers(m, a)
     steps = a.mcmc_steps or m.cfg["fit"]["mcmc_steps"]

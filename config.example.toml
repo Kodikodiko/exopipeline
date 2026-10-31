@@ -63,6 +63,7 @@ mcmc_chains = 0             # parallele MCMC-Ketten; 0 = automatisch (bis 16, je
 weights = "none"            # "none" = alle Bilder gleich genau; "modell" = Fehler pro Bild aus Szintillation (Airmass, Belichtung) + Photonen
 aperture_cm = 15.0          # Teleskopoeffnung fuer das Szintillationsmodell (z. B. 15 cm)
 detrend_fwhm = false        # zusaetzlicher Detrending-Term FWHM (Seeing/Fokus); nur wenn der BIC besser wird
+ausreisser_sigma = 0        # 0 = aus; z. B. 3: Frames, deren Abweichung vom Transit-Fit > 3 sigma ist, werden entfernt (iterativ)
 
 [calib]
 library = 'C:\Photometry\calibration'

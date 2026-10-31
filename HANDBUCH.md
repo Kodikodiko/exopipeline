@@ -170,6 +170,7 @@ Die Standardwerte stehen in `_pipeline\config.local.toml` (beim ersten Einrichte
 | mcmc_steps | 30000 | Schritte der Metropolis-MCMC insgesamt, über alle Ketten (je Kette wird ein Viertel als Einlaufphase verworfen) |
 | airmass_order | 1 | Detrending in der Airmass: 1 = linear, 2 = quadratisch (ExoClock-Tipp 5; per BIC auf dem Ergebnisblatt vergleichen, kleiner ist besser) |
 | mcmc_chains | 0 | Zahl der unabhängigen Ketten; 0 = automatisch (seriell 1, parallel bis 16 mit je ≥ 2000 Schritten), Kapitel 11 |
+| ausreisser_sigma | 0 | 0 = aus. Sonst werden Frames, deren Abweichung vom Transit-Fit (bestes Ensemble, feste Geometrie) mehr als so viele robuste Standardabweichungen (1,4826 × MAD) beträgt, entfernt; der Fit wird wiederholt, bis nichts mehr herausfällt. Liste in `summary.md` und `ausreisser.json`, Upload-Datei und AIJ-Export ohne diese Frames. GUI: „Erweitert“ → Ausreisser entfernen (wenige 4σ / normal 3σ / viele 2,5σ). KPS-1b mit 3σ: 5 Frames (Wolken, 11,6 h), Streuung 4,9 statt 6,4 ‰, O-C −2,6 ± 1,8 min. |
 
 ### [run]
 | Name | Standard | Wirkung |
