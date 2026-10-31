@@ -14,6 +14,11 @@ saturation_adu = 60000      # Frames/Sterne darueber werden verworfen (Linearita
 linearity_warn_adu = 45000  # nur Warnung
 pixel_um = 3.76             # Pixelgroesse ungebinnt (fuer ASTAP, falls XPIXSZ im Header fehlt)
 focal_mm = 1090             # Brennweite (fuer ASTAP, falls FOCALLEN im Header fehlt)
+farbkamera = "auto"         # "auto" = Bayer-Bilder (BAYERPAT im Header) in 2x2-Superpixeln messen | "ja" | "nein"
+
+[gaia]
+quelle = "vizier"           # Gaia DR3 ueber "vizier" (CDS, I/355/gaiadr3) oder "esa" (ESA-Gaia-Archiv)
+timeout_s = 60              # Wartezeit pro Abfrage in Sekunden
 
 [photometry]
 radii = [8, 10, 12, 14, 16, 18, 20, 22, 24]

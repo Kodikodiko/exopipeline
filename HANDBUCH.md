@@ -119,6 +119,13 @@ Die Standardwerte stehen in `_pipeline\config.local.toml` (beim ersten Einrichte
 | readnoise_e | 1.2 | Ausleserauschen in e⁻ |
 | saturation_adu | 60000 | Liegen Ziel oder ein Ensemble-Stern darüber, wird der Frame verworfen. Ein Vergleichsstern, der in mehr als 5 % der Frames darüber liegt, wird entfernt. |
 | linearity_warn_adu | 45000 | nur ein Hinweis in inventory/report |
+| farbkamera | "auto" | `auto`: Bilder mit `BAYERPAT` im Header (Farbkamera, z. B. ATR2600C) werden nach der Kalibrierung zu 2×2-Superpixeln summiert und erst dann gemessen. `ja` erzwingt das, `nein` misst wie eine Mono-Kamera. Siehe Kapitel 21. |
+
+### [gaia]
+| Name | Standard | Wirkung |
+|---|---|---|
+| quelle | "vizier" | Gaia DR3 über VizieR (CDS, Katalog `I/355/gaiadr3`) oder `"esa"` (ESA-Gaia-Archiv). Beide liefern dieselben Sterne und Spalten. |
+| timeout_s | 60 | Wartezeit pro Abfrage; danach bricht `cube` mit einer Meldung ab, statt endlos zu warten |
 
 ### [photometry]
 | Name | Standard | Wirkung |
@@ -472,7 +479,7 @@ Alle drei liegen zusätzlich mit Upload-Datei und `exoclock_formular.txt` in `RE
      - gelb: ein Hinweis, der beachtet werden sollte (RUWE > 1,4 = möglicher Doppelstern, Gaia VARIABLE, Nachbar < 10″)
    - **Begründung in Klartext** je Stern: Helligkeit und Farbe ähnlich dem Ziel, ruhig (Rang der Streuung), Teil des besten Ensembles, dazu Warnungen.
    - **Ausschlüsse:** die geeigneten, aber nicht genutzten Kandidaten, dann die verworfenen mit Grund: Vorfilter, Sättigung, Kriterien aus `candidates_rejected.csv`.
-   - **Gaia-Daten:** RUWE und Variabilität werden einmal pro Lauf beim Gaia-Archiv abgefragt und in `RESULT\<lauf>\gaia_details.json` gespeichert. Ohne Internet bleiben die Spalten leer; alles andere kommt aus `gaia_field.csv` und `candidates*.csv`.
+   - **Gaia-Daten:** RUWE und Variabilität kommen seit der VizieR-Umstellung gleich mit der Feldabfrage (`gaia_field.csv`); ältere Läufe fragen sie einmal nach (Quelle laut `[gaia] quelle`). Gespeichert in `RESULT\<lauf>\gaia_details.json`. Ohne Internet bleiben die Spalten leer; alles andere kommt aus `gaia_field.csv` und `candidates*.csv`.
 6. **Planetenprofil (Literatur):** Periode, Masse, Radius, T_eq, Entdeckung, V-Helligkeit, R*, M*, Teff, Spektraltyp.
 7. **Fußzeile:**
    - Beobachter, Teleskop und Kamera aus `[observer]` in `transit.toml`, sonst aus dem Header
@@ -626,6 +633,8 @@ Die Oberfläche läuft nur auf diesem Rechner (127.0.0.1) und braucht nichts au�
 | Feld | wird zu |
 |---|---|
 | Flat, Bias, Dark (Pfad) | `[calib] flat/bias/dark`; leer = automatische Suche |
+| Gaia-Quelle VizieR/ESA | `[gaia] quelle` (Standard VizieR) |
+| Farbkamera automatisch/ja/nein | `[camera] farbkamera` (ändert die Photometrie → Cube wird neu gerechnet) |
 | Helligkeit hell/schwach (ΔG) | `[comps] dmag_bright / dmag_faint` |
 | Mindestabstand Nachbar, Rand (px) | `[comps] neighbour_px / edge_px` |
 | Apertur von/bis (× FWHM) | `[search] radii`, aus der FWHM des Basislaufs in Pixel umgerechnet |
@@ -753,3 +762,18 @@ Inhalt: nur, was ExoClock nicht selbst sieht – höchstens ca. 300 Zeichen, wic
 **Ergebnis:** `plan\plan.json` (für die Oberfläche) und `plan\plan.csv`. Beide enthalten keine Standortkoordinaten.
 
 Die Rauschschätzung ist grob, sie dient nur der Rangfolge. Wer `rauschboden_ppt` und `himmel_mag` an die eigenen OOT-RMS-Werte anpasst, bekommt realistischere SNR-Werte.
+
+---
+
+## 21. Farbkameras (Bayer/OSC)
+
+**Problem.** Das Rohbild einer Farbkamera ist ein Mosaik aus roten, grünen und blauen Pixeln (`BAYERPAT = RGGB`). Der Himmel hat darin drei Niveaus, bei KPS-1b (ATR2600C, 2026-06-05) etwa R 759, G 851 und B 662 ADU. Der Median im Himmelsring springt dann von Bild zu Bild zwischen diesen Werten. Der Fehler wächst mit der Aperturfläche: zwei helle Vergleichssterne streuten gegeneinander um 17 ppt bei r = 8 px und um 108 ppt bei r = 24 px. Der Transit verschwand im Rauschen (O-C +41 ± 181 min).
+
+**Lösung.** Nach der Kalibrierung (jeder Pixel mit seinem eigenen Bias/Flat) wird jedes 2×2-Feld zu einem Superpixel summiert, wie in HOPS (`colour_camera_mode`, `bin_fits 2`). Ein Superpixel enthält immer R + 2 G + B, das Muster ist weg. Die Photometrie läuft auf diesem halb so großen Bild.
+
+**Was gleich bleibt.** Radien, Himmelsring, Positionen, FWHM und Himmel pro Pixel stehen im Cube weiter in Bildpixeln. Konfiguration, AIJ-Export, Feldbild und Ergebnisblatt brauchen also keine Umrechnung. Die Sättigungsprüfung nutzt den hellsten Einzelpixel im Rohbild.
+
+**Steuerung.** `[camera] farbkamera = "auto"` (Standard) erkennt Farbkameras am Header-Schlüssel `BAYERPAT`; das Log zeigt dann „Farbkamera (BAYERPAT RGGB): Photometrie in 2x2-Superpixeln“. In der GUI unter „Erweitert“ → Farbkamera.
+
+**Ergebnis KPS-1b.** Siehe Lauf `kps_bayer`: OOT-RMS 4,4 ppt statt 11,5 ppt.
+

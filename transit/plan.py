@@ -24,6 +24,7 @@ from .ephem import exoclock_db
 PLAN_DIR = os.path.join(PIPE_DIR, "plan")
 WX_CACHE = os.path.join(PIPE_DIR, "cache", "wetter.json")
 GAIA_CACHE = os.path.join(PIPE_DIR, "cache", "plan_gaia.json")
+GAIA_BUDGET_S = 180         # all Gaia queries of one plan together; afterwards only cached comparison-star counts
 WX_URL = "https://api.open-meteo.com/v1/forecast"
 WX_VARS = ("cloud_cover", "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high", "precipitation_probability",
            "relative_humidity_2m", "wind_gusts_10m")
@@ -118,24 +119,22 @@ def ampel(w, pc):
 
 
 # ------------------------------------------------------------------ Gaia comparison stars
-def comp_count(name, c, gmag, inst, cfg, log=print):
-    """Gaia stars in the field (inscribed circle of the sensor) within the [comps] magnitude range of the target."""
+def comp_count(name, c, gmag, inst, cfg, log=print, net=True):
+    """Gaia stars in the field (inscribed circle of the sensor) within the [comps] magnitude range of the target.
+    net=False: cached value only (None if not cached)."""
     try:
         cache = json.load(open(GAIA_CACHE, encoding="utf-8"))
     except Exception:
         cache = {}
     cc = cfg["comps"]
     key = f"{name}|{gmag:.2f}|{cc['dmag_bright']}|{cc['dmag_faint']}|{min(inst['fov_arcmin']):.0f}"
-    if key in cache:
-        return cache[key]
+    if key in cache or not net:
+        return cache.get(key)
+    from . import gaia
     try:
-        from astroquery.gaia import Gaia
         r = min(inst["fov_arcmin"]) / 120
-        q = (f"SELECT ra, dec, phot_g_mean_mag FROM gaiadr3.gaia_source WHERE 1=CONTAINS(POINT(ra,dec), "
-             f"CIRCLE({c.ra.deg},{c.dec.deg},{r})) AND phot_g_mean_mag BETWEEN {gmag + cc['dmag_bright']} AND {gmag + cc['dmag_faint']}")
-        g = Gaia.launch_job(q).get_results()
-        cols = {n.lower(): n for n in g.colnames}
-        sep = np.hypot((np.array(g[cols["ra"]], float) - c.ra.deg) * math.cos(c.dec.rad), np.array(g[cols["dec"]], float) - c.dec.deg)
+        g = gaia.cone(cfg, c.ra.deg, c.dec.deg, r, gmin=gmag + cc["dmag_bright"], gmax=gmag + cc["dmag_faint"])
+        sep = np.hypot((np.array(g["ra"], float) - c.ra.deg) * math.cos(c.dec.rad), np.array(g["dec"], float) - c.dec.deg)
         n = int((sep * 3600 > 5).sum())
     except Exception as e:
         log(f"Gaia-Abfrage fuer {name} fehlgeschlagen: {e}")
@@ -208,6 +207,7 @@ def plan(cfg, pc, n_nights=None, top=10, gaia_top=0, use_weather=None, log=print
         f"Mindesthoehe {pc['alt_min']:.0f} Grad, Sonne < {pc['sonne_max']:.0f} Grad")
     T0 = np.array([r["T0"] for r in rows]); P = np.array([r["P"] for r in rows])
     out = []
+    gaia = dict(ok=True, ende=time.time() + GAIA_BUDGET_S)
     for d in dates:
         t0 = local_noon_utc(d)
         grid = [t0 + timedelta(minutes=STEP_MIN * i) for i in range(24 * 60 // STEP_MIN + 1)]
@@ -321,8 +321,14 @@ def plan(cfg, pc, n_nights=None, top=10, gaia_top=0, use_weather=None, log=print
         sug.sort(key=lambda s: -s["score"])
         if gaia_top:
             for s in sug[:gaia_top]:
+                if gaia["ok"] and time.time() > gaia["ende"]:
+                    log(f"Gaia antwortet zu langsam (> {GAIA_BUDGET_S} s): weitere Vergleichssterne nur aus dem Cache")
+                    gaia["ok"] = False
                 c = coords[[r["name"] for r in rows].index(s["planet"])]
-                n = comp_count(s["stern"], c, s["mag"] or 12, inst, cfg, log)
+                n = comp_count(s["stern"], c, s["mag"] or 12, inst, cfg, log, net=gaia["ok"])
+                if n is None and gaia["ok"]:
+                    log("Gaia nicht erreichbar: weitere Vergleichssterne nur aus dem Cache")
+                    gaia["ok"] = False
                 s["vergleichssterne"] = n
                 if n is not None and n < cfg["search"].get("n_min", 3):
                     s["warnungen"].append(f"nur {n} Vergleichssterne im Feld")

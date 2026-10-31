@@ -98,9 +98,9 @@ def chain_plan(nstep, workers, chains_cfg=0):
 
 
 # ------------------------------------------------------------------ cube workers (calibrator built once per worker)
-def init_cube(cal_args, ra, de, radii, ann, gain, rn, cbox, ctr=None):
+def init_cube(cal_args, ra, de, radii, ann, gain, rn, cbox, b=1, ctr=None):
     from .calib import Calibrator
-    _G.update(cal=Calibrator(*cal_args), ra=ra, de=de, radii=radii, ann=ann, gain=gain, rn=rn, cbox=cbox, ctr=ctr)
+    _G.update(cal=Calibrator(*cal_args), ra=ra, de=de, radii=radii, ann=ann, gain=gain, rn=rn, cbox=cbox, b=b, ctr=ctr)
 
 
 def cube_frames(items):
@@ -109,7 +109,7 @@ def cube_frames(items):
     out = []
     for k, path, hdr in items:
         out.append((k, measure_frame(path, hdr, _G["cal"], _G["ra"], _G["de"], _G["radii"], _G["ann"], _G["gain"],
-                                     _G["rn"], _G["cbox"])))
+                                     _G["rn"], _G["cbox"], _G.get("b", 1))))
         ctr = _G.get("ctr")
         if ctr is not None:
             with ctr.get_lock():
