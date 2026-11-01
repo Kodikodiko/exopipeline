@@ -54,8 +54,8 @@ def vsx_field(m, ra, dec, radius_deg, log=None):
         keep = [c for c in COLS if c in t.colnames]
         t = Table(t[keep])
         for c in t.colnames:                                    # plain columns for the CSV cache
-            if hasattr(t[c], "filled"):                         # integer flag columns (uint8) cannot hold NaN
-                t[c] = t[c].filled("") if t[c].dtype.kind in "US" else t[c].astype(float).filled(np.nan)
+            if hasattr(t[c], "filled"):
+                t[c] = t[c].filled("" if t[c].dtype.kind in "US" else np.nan)
         t.write(cache, format="ascii.csv", overwrite=True)
         if log:
             log(f"  VSX: {len(t)} Eintraege im Feld")
