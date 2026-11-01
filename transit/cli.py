@@ -203,6 +203,24 @@ def cmd_calibrate(m, a):
 
 
 # ------------------------------------------------------------------ cube
+def relocate_masters(m, cj):
+    """calib.json stores absolute master paths.  When the measurement moved (e.g. lights and the masters beside them
+    now on the NAS, or a run copied from another folder), look for the same file name in the current light folder
+    and the measurement folder before giving up."""
+    for k in ("bias", "flat", "dark"):
+        r = cj.get(k)
+        if not r or not r.get("path") or os.path.exists(r["path"]):
+            continue
+        name = os.path.basename(r["path"].replace("\\", "/"))
+        hit = next((q for q in (os.path.join(d, name) for d in (m.lights, m.root) if d) if os.path.exists(q)), None)
+        if hit:
+            log(f"  {k:5s}: Master nicht mehr unter {r['path']}, nehme {hit}")
+            r["path"] = hit
+        else:
+            log(f"  WARNUNG: {k}-Master {r['path']} nicht gefunden (auch nicht im Light-Ordner) - Schritt calibrate neu ausfuehren")
+    return cj
+
+
 def cmd_cube(m, a):
     from .stars import select, load
     from .photometry import build_cube
@@ -220,7 +238,7 @@ def cmd_cube(m, a):
     if mode == "raw":
         cal_args = ("raw", {})
     else:
-        cj = jload(m, "calib.json")
+        cj = relocate_masters(m, jload(m, "calib.json"))
         k = cj.get("dark_scale", {}).get("k_night", 1.0) if mode == "bfd" else 1.0
         cal_args = (mode, cj, k, m.cfg["calib"].get("crop", [0, 0]))
     cal = Calibrator(*cal_args)
@@ -276,6 +294,7 @@ def night_from(m, a, outliers=True):
     if outliers and outlier_sigma(m) > 0 and os.path.exists(m.path(OUTLIERS)):
         excl += [d["frame"] for d in jload(m, OUTLIERS).get("frames", [])]
     n = Night(c, m.cfg, pred, geom, excl, log)
+    n.rp_lit = par.get("rp")                               # expected Rp/R* (ExoClock) for the single-star test
     return n, c, pred, par
 
 
@@ -296,8 +315,9 @@ def cmd_compsearch(m, a):
     fl = n.flip_offsets()
     if fl:
         log(f"Flip-Versatz Ziel (Vorhersage aus {fl['n_stars']} Sternen): {fl['target_pred_ppt']:+.2f} +- {fl['scatter_ppt']:.2f} ppt")
-    allc, bests = {}, {}
     radii = m.cfg["search"]["radii"]
+    einzel = single_star_step(m, n, radii[len(radii) // 2])
+    allc, bests = {}, {}
     est = max(1, len(n.pool) * max(1, m.cfg["search"]["n_max"] - m.cfg["search"]["n_min"] - 1))   # rough evaluations per radius
     bar = progress.task("Ensemble-Suche", len(radii) * est, "Bewertungen")
     for ri, r in enumerate(radii):
@@ -309,11 +329,51 @@ def cmd_compsearch(m, a):
         log(f"  r={r}: bestes Ensemble {bests[r][0]}  OOT-RMS {bs:.3f} ppt")
     bar.done()
     top = sorted(allc.items(), key=lambda kv: kv[1])[:m.cfg["search"]["top"]]
-    res = dict(info=n.info, prefilter=n.prefilter_table, flip=fl, greedy={str(r): dict(comps=v[0], oot_rms_ppt=v[1]) for r, v in bests.items()},
+    res = dict(info=n.info, prefilter=n.prefilter_table, flip=fl, einzel=einzel, greedy={str(r): dict(comps=v[0], oot_rms_ppt=v[1]) for r, v in bests.items()},
                top=[dict(radius=r, comps=[n.names[j] for j in e], score=v, oot_rms_ppt=n.oot_rms(n.ir(r), list(e)),
                          asym=n.asym(list(e), n.ir(r))) for (r, e), v in top])
     jdump(res, m.path("compsearch.json"))
     log(f"Top {len(top)} Kombinationen -> compsearch.json")
+
+
+def search_opt(m, key, default=0.0, sec="search"):
+    try:
+        return float(m.cfg.get(sec, {}).get(key, default) or 0)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def single_star_step(m, n, r):
+    """Reviewer method, step 1: every comparison star alone.  Shows which star bends the depth; with
+    [search] einzel_tiefe_sigma > 0 such stars also leave the pool before the ensemble search."""
+    from .analysis import judge_single
+    k = search_opt(m, "einzel_tiefe_sigma")
+    if not n.pool:
+        return None
+    bar = progress.task("Einzelstern-Test", len(n.pool), "Sterne")
+    rows = []
+    for i, j in enumerate(n.pool):
+        rows += n.single_star(r, [j])
+        bar.update(n=i + 1)
+    bar.done()
+    jd = judge_single(rows, getattr(n, "rp_lit", None), k, n_keep=m.cfg["search"]["n_min"])
+    jd["radius"] = r
+    lit = f"{jd['rp_lit']:.4f}" if jd["rp_lit"] else "unbekannt"
+    log(f"Einzelstern-Test (r={r}, jeder Vergleichsstern allein): Rp/R* Median {jd['rp_median']:.4f}, Literatur {lit}")
+    for d in rows:
+        dl = "-" if d["dev_lit"] is None else f"{d['dev_lit']:+.1f}"
+        dm = "-" if d["dev_med"] is None else f"{d['dev_med']:+.1f}"
+        flag = "  VERWORFEN" if d["verworfen"] else "  auffaellig" if d["auffaellig"] else ""
+        log(f"  {d['name']}: Rp/R* {d['rp']:.4f} +- {d['rp_err']:.4f} (Lit {dl} sigma, Median {dm} sigma), "
+            f"O-C {d['OC_min']:+.1f} min{flag}")
+    drop = {d["idx"] for d in rows if d["verworfen"]}
+    if drop:
+        n.pool = [j for j in n.pool if j not in drop]
+        log(f"  Einzelstern-Grenze {k:g} sigma: {len(drop)} Stern(e) nicht in die Ensemble-Suche: "
+            + ", ".join(n.names[j] for j in sorted(drop)))
+    elif k > 0:
+        log(f"  Einzelstern-Grenze {k:g} sigma: kein Stern verworfen")
+    return jd
 
 
 def mcmc_step_cost(n, r, ens, pred, reps=5):
@@ -385,17 +445,29 @@ def cmd_fit(m, a):
     mc_s = cost * L * -(-k_ch // W)
     progress.debug(f"MCMC-Schritt ~{cost * 1e3:.0f} ms -> MCMC ~{progress.dur(mc_s)} ({k_ch} Ketten x {L} Schritte)")
 
-    jobs = [(("combo", i), parallel.fit_combo, (t["radius"], [idx[s] for s in t["comps"]])) for i, t in enumerate(cs["top"])]
-    for j in ens:
-        e2 = [k for k in ens if k != j]
-        if len(e2) >= 2:
-            jobs.append((("jk", n.names[j]), parallel.fit_one, (r, e2)))
+    combo_jobs = [(("combo", i), parallel.fit_combo, (t["radius"], [idx[s] for s in t["comps"]])) for i, t in enumerate(cs["top"])]
     nopre = n.t > pred["ingress"] + m.cfg["search"]["oot_margin_min"] / 1440
     tests_def = (("alle_fest", None, False), ("alle_frei", None, True), ("ohne_vor_ingress_fest", nopre, False),
                  ("ohne_vor_ingress_frei", nopre, True))
-    jobs += [(("test", lab), parallel.fit_one, (r, ens, mk, fr)) for lab, mk, fr in tests_def]
-    weight = lambda key: 2 if key[0] == "combo" else 1
-    bar = progress.task("Fits Top-Kombinationen", sum(weight(j[0]) for j in jobs), "Fits", then_s=mc_s, then="MCMC")
+    rp_lit = getattr(n, "rp_lit", None)
+    tc_half = search_opt(m, "tc_profil_min", 60, sec="fit") or 60.0
+
+    def phase2(r, ens):
+        """Jobs that need the chosen ensemble: jackknife, tests, single-star test, control fit, Tc profile."""
+        jobs = []
+        for j in ens:
+            e2 = [k for k in ens if k != j]
+            if len(e2) >= 2:
+                jobs.append((("jk", n.names[j]), parallel.fit_one, (r, e2)))
+        jobs += [(("test", lab), parallel.fit_one, (r, ens, mk, fr)) for lab, mk, fr in tests_def]
+        jobs += [(("einzel", j), parallel.fit_one, (r, [j])) for j in n.pool]
+        if rp_lit:
+            jobs.append((("rpfest",), parallel.fit_one, (r, ens, None, False, rp_lit)))
+        jobs.append((("tcprof",), parallel.tc_profile, (r, ens, tc_half, 1.0)))
+        return jobs
+    weight = lambda key: 2 if key[0] == "combo" else 10 if key[0] == "tcprof" else 1
+    total = sum(weight(j[0]) for j in combo_jobs + phase2(r, ens))
+    bar = progress.task("Fits Top-Kombinationen", total, "Fits", then_s=mc_s, then="MCMC")
 
     def done(key, res):
         bar.update(weight(key))
@@ -403,22 +475,57 @@ def cmd_fit(m, a):
             t = cs["top"][key[1]]
             progress.debug(f"r={t['radius']} {' '.join(t['comps'])}: O-C fest {(res[0]['Tc'] - pred['Tc']) * 1440:+.1f} min, "
                            f"frei {(res[1]['Tc'] - pred['Tc']) * 1440:+.1f} min")
-    log(f"Fits: {len(jobs)} Auftraege, " + (f"{W} Prozesse" if W > 1 else "seriell"))
-    chain_jobs = [(("chain", i), parallel.mcmc_chain, (r, ens, free_mc, L, 1 + i, 0.0 if i == 0 else 3.0)) for i in range(k_ch)]
+
+    def choose(out):
+        """Winner among the top combinations: smallest search score (OOT-RMS), with [search] tiefen_gewicht > 0 plus a
+        penalty for a depth that misses the expected Rp/R*: score x (1 + w (z/3)^2), z = (Rp/R* - Lit) / error."""
+        w = search_opt(m, "tiefen_gewicht")
+        zs, sc = [], []
+        for i, t in enumerate(cs["top"]):
+            f1 = out[("combo", i)][0]
+            z = (f1["rp"] - rp_lit) / f1["rp_err"] if (rp_lit and np.isfinite(f1["rp_err"]) and f1["rp_err"] > 0) else float("nan")
+            zs.append(float(z))
+            sc.append(t["score"] * (1 + w * (z / 3) ** 2) if (w > 0 and np.isfinite(z)) else t["score"])
+        i = int(np.argmin(sc)) if (w > 0 and rp_lit) else 0
+        wahl = dict(gewicht=w, platz=i + 1, z_rp=zs[i], z_rp_platz1=zs[0], z=zs, score=sc,
+                    text="kleinste Streuung ausserhalb des Transits (OOT-RMS)" if i == 0 and not w else
+                    f"OOT-RMS mit Tiefen-Gewicht {w:g}: Platz {i + 1} der OOT-Rangliste (Rp/R* {zs[i]:+.1f} sigma statt {zs[0]:+.1f} sigma)")
+        if w > 0 and not rp_lit:
+            wahl["text"] = "Tiefen-Gewicht ohne Literaturwert fuer Rp/R*: wie bisher nach OOT-RMS"
+        return i, wahl
+
+    def after_combos(out):
+        i, wahl = choose(out)
+        b = cs["top"][i]
+        if i:
+            log(f"Tiefen-Gewicht {wahl['gewicht']:g}: Ensemble von Platz {i + 1} statt Platz 1 "
+                f"(Rp/R* {wahl['z_rp']:+.1f} statt {wahl['z_rp_platz1']:+.1f} sigma vom Literaturwert)")
+            if k_out > 0:
+                log("  Hinweis: die Ausreisser wurden mit dem Ensemble von Platz 1 bestimmt")
+        return b, b["radius"], [idx[s] for s in b["comps"]], wahl
+
+    log(f"Fits: {len(combo_jobs)} Kombinationen + Pruefungen, " + (f"{W} Prozesse" if W > 1 else "seriell"))
     if W > 1:
         ctr = parallel.counter()
-        with parallel.executor(min(W, max(len(jobs), k_ch)), parallel.init_night, (n, ctr)) as ex:
-            out = parallel.run_jobs(ex, jobs, on_done=done)
+        with parallel.executor(min(W, max(len(combo_jobs), k_ch)), parallel.init_night, (n, ctr)) as ex:
+            out = parallel.run_jobs(ex, combo_jobs, on_done=done)
+            best, r, ens, wahl = after_combos(out)
+            out.update(parallel.run_jobs(ex, phase2(r, ens), on_done=done))
             bar.done()
+            chain_jobs = [(("chain", i), parallel.mcmc_chain, (r, ens, free_mc, L, 1 + i, 0.0 if i == 0 else 3.0)) for i in range(k_ch)]
             log(f"MCMC ({k_ch} Ketten x {L} Schritte = {k_ch * L}) ...")
             bar = progress.task("MCMC", k_ch * L, "Schritte")
             out.update(parallel.run_jobs(ex, chain_jobs, poll=lambda: bar.update(n=ctr.value)))
     else:
         parallel.init_night(n)
         out = {}
-        for key, fn, args in jobs:
+        for key, fn, args in combo_jobs:
+            out[key] = fn(*args); done(key, out[key])
+        best, r, ens, wahl = after_combos(out)
+        for key, fn, args in phase2(r, ens):
             out[key] = fn(*args); done(key, out[key])
         bar.done()
+        chain_jobs = [(("chain", i), parallel.mcmc_chain, (r, ens, free_mc, L, 1 + i, 0.0 if i == 0 else 3.0)) for i in range(k_ch)]
         log(f"MCMC ({k_ch} Ketten x {L} Schritte) ...")
         bar = progress.task("MCMC", k_ch * L, "Schritte")
         for i, (key, fn, args) in enumerate(chain_jobs):
@@ -432,7 +539,8 @@ def cmd_fit(m, a):
                          Tc_fix=f1["Tc"], Tc_err_fix_min=f1["Tc_err"] * 1440, OC_fix_min=(f1["Tc"] - pred["Tc"]) * 1440,
                          depth_fix_ppt=f1["depth_ppt"], flip_ppt=f1["flip_ppt"], Tc_free=f2["Tc"],
                          OC_free_min=(f2["Tc"] - pred["Tc"]) * 1440, depth_free_ppt=f2["depth_ppt"], ars_free=f2["ars"],
-                         inc_free=f2["inc"], fit_rms_ppt=f1["rms_ppt"]))
+                         inc_free=f2["inc"], fit_rms_ppt=f1["rms_ppt"], rp_fix=f1["rp"], rp_dev_sigma=wahl["z"][i],
+                         score_tiefe=wahl["score"][i]))
     with open(m.path("top50.csv"), "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys())); w.writeheader(); w.writerows(rows)
     pc = lambda k: np.percentile([r_[k] for r_ in rows], [16, 50, 84]).tolist()
@@ -448,8 +556,26 @@ def cmd_fit(m, a):
     mc = summarize_chains([out[("chain", i)] for i in range(k_ch)], free_mc)
     mc["OC_min"] = (mc["Tc"][1] - pred["Tc"]) * 1440
     mc["steps_per_chain"] = L
+    from .analysis import judge_single, single_row, tc_judge
+    cs_drop = {d["name"] for d in (cs.get("einzel") or {}).get("stars", []) if d.get("verworfen")}
+    ens_names = {n.names[j] for j in ens}
+    erows = [single_row(n.names[j], j, out[("einzel", j)], pred["Tc"]) for j in n.pool if ("einzel", j) in out]
+    einzel = judge_single(erows, rp_lit, search_opt(m, "einzel_tiefe_sigma"), m.cfg["search"]["n_min"], ens_names)
+    for d in einzel["stars"]:
+        d["verworfen"] = d["name"] in cs_drop                 # what the ensemble search really left out
+    einzel["radius"] = r
+    sig_tc = (mc["Tc"][2] - mc["Tc"][0]) / 2 * 1440
+    fa = out[("test", "alle_fest")]
+    oc_a = (fa["Tc"] - pred["Tc"]) * 1440
+    oc_rp = (out[("rpfest",)]["Tc"] - pred["Tc"]) * 1440 if ("rpfest",) in out else oc_a
+    tc_check = tc_judge(out[("tcprof",)], mc["beta"], oc_a, sig_tc, oc_rp, oc_a,
+                        dchi2_lim=search_opt(m, "tc_zweites_tal", 4, sec="fit") or 4.0)
+    tc_check["rp_fest"] = rp_lit
+    tc_check["rp_profil"] = out[("tcprof",)]["rp"]
     res = dict(best=dict(radius=r, comps=best["comps"], gaia=[str(c["star_gaia"][idx[s]]) for s in best["comps"]],
-                         oot_rms_ppt=best["oot_rms_ppt"], asym=n.asym(ens, n.ir(r))),
+                         oot_rms_ppt=best["oot_rms_ppt"], asym=n.asym(ens, n.ir(r)),
+                         wahl={k: v for k, v in wahl.items() if k not in ("z", "score")}),
+               einzel=einzel, tc_check=tc_check,
                top_summary=dict(OC_fix_min=pc("OC_fix_min"), OC_free_min=pc("OC_free_min"), Tc_fix=pc("Tc_fix"),
                                 Tc_free=pc("Tc_free"), depth_fix_ppt=pc("depth_fix_ppt"), depth_free_ppt=pc("depth_free_ppt")),
                jackknife=jk, tests=tests, mcmc=mc, ephemeris=pred, geometry=dict(ars=par["ars"], inc=par["inc"]),
@@ -462,6 +588,10 @@ def cmd_fit(m, a):
         rh = mc["rhat_max"]
         log(f"MCMC: {k_ch} Ketten, R-hat " + ", ".join(f"{k} {v:.3f}" for k, v in mc["rhat"].items())
             + ("  ok (< 1.05)" if rh < 1.05 else "  WARNUNG: >= 1.05, mehr Schritte (--mcmc-steps) verwenden"))
+    ne = sum(d["auffaellig"] for d in einzel["stars"])
+    log(f"Einzelstern-Test (r={r}): {len(einzel['stars'])} Sterne, {ne} auffaellig"
+        + (": " + ", ".join(d["name"] for d in einzel["stars"] if d["auffaellig"]) if ne else ""))
+    log(f"Ist Tc eindeutig? {tc_check['ampel'].upper()}: {tc_check['text']}")
     log(f"Top-{len(rows)}: O-C (fest) {res['top_summary']['OC_fix_min'][0]:+.1f}/{res['top_summary']['OC_fix_min'][1]:+.1f}/"
         f"{res['top_summary']['OC_fix_min'][2]:+.1f} min; Jackknife " + ", ".join(f"{d['drop']} {d['OC_min']:+.1f}" for d in jk))
 
@@ -509,6 +639,16 @@ def step_status(m, step, a, mode, prev_mtime):
         return False, "--new-stars", mt
     if step == "calibrate" and a.write:
         return False, "--write", mt
+    if step == "calibrate":                                # masters moved away and not beside the lights: find them again
+        try:
+            cj = json.load(open(outs[0], encoding="utf-8"))
+            gone = [k for k in ("bias", "flat", "dark") if (cj.get(k) or {}).get("path") and not os.path.exists(cj[k]["path"])
+                    and not any(os.path.exists(os.path.join(d, os.path.basename(cj[k]["path"].replace("\\", "/"))))
+                                for d in (m.lights, m.root) if d)]
+        except Exception:
+            gone = []
+        if gone:
+            return False, "Master nicht mehr vorhanden: " + ", ".join(gone), mt
     st = progress.load_state(m).get(step)
     if st:
         want = step_params(step, a, mode)
