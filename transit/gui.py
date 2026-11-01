@@ -18,7 +18,7 @@ import urllib.parse
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from .config import FITS_EXT, PIPE_DIR, find_lights, unwrap
+from .config import FITS_EXT, PIPE_DIR, find_lights, has_fits, lights_elsewhere, unwrap
 from .export import FILTER_EXOCLOCK
 
 BASE_DEFAULT = os.path.dirname(PIPE_DIR)                  # ...\auto
@@ -127,6 +127,20 @@ def lights_folder(p):
         if os.path.normcase(p) in {os.path.normcase(x) for x in e["alle"]} and e["n_lights"]:
             return e["lights_pfad"]
     return p
+
+
+def run_folder(p):
+    """Folder a new run of the measurement shown as p is written to: the local copy under ...\\auto when there is one
+    (the lights may stay on the NAS, they are only read from there), else the folder with the lights."""
+    from .finden import BASE, copies
+    nc = lambda x: os.path.normcase(os.path.abspath(x))
+    local = lambda x: nc(x).startswith(nc(BASE) + os.sep)
+    if local(p) and (os.path.isdir(os.path.join(p, "RESULT")) or is_measurement(p)):
+        return p
+    for c in copies(p):
+        if local(c):
+            return c
+    return lights_folder(p)
 
 
 def pick_folder():
@@ -333,12 +347,12 @@ def write_lauf_toml(path, sections, note):
 def start_run(q, launch=None):
     """q: messordner, lauf, basis (optional run to reuse photometry from), mode, workers + advanced settings.
     launch(p, lauf, mode, workers, new_stars) -> cmd replaces the plain start (used by the new page)."""
-    p = lights_folder(unwrap(os.path.abspath(q["messordner"])))   # results-only folder: run where the lights are
-    if not is_measurement(p):
+    shown = unwrap(os.path.abspath(q["messordner"]))
+    p = run_folder(shown)                                  # results stay local, lights may be read from the NAS
+    if not listable(p):
         raise ValueError(f"kein Messordner: {p}")
-    ld = find_lights(p)
-    if not any(f.lower().endswith(FITS_EXT) for f in os.listdir(ld)):
-        raise ValueError(f"In {p} liegen keine Lights mehr (nur Ergebnisse). Liegen sie am NAS? 'Ordner waehlen...' oder 'Suchen' benutzen.")
+    if not has_fits(find_lights(p)) and not lights_elsewhere(p):
+        raise ValueError(f"Zu {p} wurden keine Lights gefunden, weder dort noch am NAS. NAS verbunden? 'Ordner waehlen...' oder 'Suchen' benutzen.")
     lauf = (q.get("lauf") or time.strftime("gui_%Y%m%d_%H%M")).strip()
     if not lauf.replace("_", "").replace("-", "").isalnum():
         raise ValueError("Laufname nur aus Buchstaben, Ziffern, _ und -")
@@ -354,7 +368,9 @@ def start_run(q, launch=None):
                 or a.get("farbkamera") not in (None, ""))
     if basis:                                              # reuse photometry of an existing run (same mode)
         import shutil
-        src = os.path.join(p, "RESULT", basis)
+        from .finden import copies
+        src = next((d for d in (os.path.join(r, "RESULT", basis) for r in [p, shown] + copies(p)) if os.path.isdir(d)),
+                   os.path.join(p, "RESULT", basis))      # the basis run may lie in another copy (e.g. on the NAS)
         keep = ["inventory.json", "headers.csv", "gaia_field.csv", "gaia_details.json", "vsx_field.csv"]
         if not new_phot:                                   # changed candidates/annulus/masters -> new photometry
             keep += ["calib.json", "candidates.csv", "candidates_rejected.csv", f"cube_{mode}.npz"]
@@ -373,7 +389,7 @@ def start_run(q, launch=None):
            "camera": {"farbkamera": a.get("farbkamera")}, "gaia": {"quelle": a.get("gaia_quelle")}}
     write_lauf_toml(os.path.join(out, "lauf.toml"), sec, f"Lauf {lauf}" + (f", Photometrie aus {basis}" if basis else ""))
     if launch is not None:
-        return dict(ok=True, lauf=lauf, befehl=" ".join(launch(p, lauf, mode, q.get("workers"), new_stars)))
+        return dict(ok=True, lauf=lauf, pfad=p, befehl=" ".join(launch(p, lauf, mode, q.get("workers"), new_stars)))
     cmd = [sys.executable, "-m", "transit", "run", p, "--out", lauf, "--mode", mode]
     if q.get("workers"):
         cmd += ["--workers", str(int(q["workers"]))]
@@ -383,7 +399,7 @@ def start_run(q, launch=None):
     env = dict(os.environ, PYTHONPATH=PIPE_DIR + os.pathsep + os.environ.get("PYTHONPATH", ""), PYTHONIOENCODING="utf-8")
     JOBS[(os.path.normcase(p), lauf)] = subprocess.Popen(cmd, cwd=PIPE_DIR, stdout=log, stderr=subprocess.STDOUT, env=env,
                                                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    return dict(ok=True, lauf=lauf, befehl=" ".join(cmd))
+    return dict(ok=True, lauf=lauf, pfad=p, befehl=" ".join(cmd))
 
 
 def run_cli(args):
@@ -526,7 +542,7 @@ def hints(p):
     fs = sorted(f for f in os.listdir(ld) if f.lower().endswith(FITS_EXT)) if ld else []
     if not fs:
         out.append(dict(level="info", titel="Lights nicht in diesem Ordner",
-                        text="Hier liegen nur Ergebnisse. Für einen neuen Lauf werden die Lights am NAS verwendet, falls sie dort gefunden werden."))
+                        text="Hier liegen nur Ergebnisse. Ein neuer Lauf liest die Lights vom NAS, die Ergebnisse kommen in den lokalen RESULT-Ordner."))
     else:
         try:
             from astropy.io import fits
@@ -680,7 +696,7 @@ def start_neu(q):
     """Start from the new page: like start_run, with unbuffered console output, a gui_lauf.json and optional
     follow-up runs in other calibration modes (q["danach"] = ["bf"]) that start when this one has finished."""
     r = start_run(q, launch=_launch)
-    p = lights_folder(unwrap(os.path.abspath(q["messordner"])))
+    p = run_folder(unwrap(os.path.abspath(q["messordner"])))
     lauf, mode = r["lauf"], q.get("mode") or "f"
     json.dump(dict(mode=mode, workers=q.get("workers"), basis=q.get("basis"), gestartet=time.strftime("%Y-%m-%d %H:%M:%S"),
                    befehl=r["befehl"]), open(os.path.join(p, "RESULT", lauf, GUI_META), "w", encoding="utf-8"))
@@ -1204,7 +1220,7 @@ async function start(){
   const body={messordner:$('mess').value,planet:$('planet').value,filter:$('filter').value,mode:$('mode').value,
     lauf:$('lauf').value,basis:$('basis').value||null,workers:num('workers'),erweitert:er};
   const r=await (await fetch('/api/start',{method:'POST',headers:H,body:JSON.stringify(body)})).json();
-  $('startmsg').textContent=r.ok?('gestartet: '+r.lauf+'\n'+r.befehl):('Fehler: '+r.fehler);
+  $('startmsg').textContent=r.ok?('gestartet: '+r.lauf+(r.pfad?' in '+r.pfad:'')+'\n'+r.befehl):('Fehler: '+r.fehler);
   aktualisiere();
 }
 async function gueltig(l,p){ p=p||$('mess').value; if(!confirm('Lauf '+l+' als gueltige Messung dieser Nacht setzen? Die Upload-Datei unter RESULT\\ wird ersetzt.'))return;

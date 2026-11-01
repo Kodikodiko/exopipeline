@@ -63,6 +63,23 @@ def unwrap(p, depth=2):
     return q if ok(q) else p
 
 
+def has_fits(d):
+    try:
+        return bool(d) and any(f.lower().endswith(FITS_EXT) for f in os.listdir(d))
+    except OSError:
+        return False
+
+
+def lights_elsewhere(root):
+    """(copy root, light folder) of another copy of the measurement that still holds the lights, else None."""
+    from .finden import copies
+    for c in copies(root):
+        ld = find_lights(c)
+        if has_fits(ld):
+            return c, ld
+    return None
+
+
 class Measurement:
     """One observing night: <root>\\{LIGHTS|_work} read-only, outputs in CALIBRATED/SOLVED/AIJ/RESULT."""
 
@@ -71,8 +88,17 @@ class Measurement:
         if not os.path.isdir(self.root):
             raise SystemExit(f"Messordner nicht gefunden: {self.root}")
         self.lights = find_lights(self.root)
+        self.solved_dir = os.path.join(self.root, "SOLVED")
+        self.lights_root = self.root                       # folder that holds the lights (another copy, e.g. the NAS)
+        if not has_fits(self.lights) and os.path.isdir(os.path.join(self.root, "RESULT")):
+            other = lights_elsewhere(self.root)            # only RESULT kept here: read the lights from the copy,
+            if other:                                      # write all outputs here
+                self.lights_root, self.lights = other
+                if not os.path.isdir(self.solved_dir) and os.path.isdir(os.path.join(self.lights_root, "SOLVED")):
+                    self.solved_dir = os.path.join(self.lights_root, "SOLVED")
         if self.lights is None:
-            raise SystemExit(f"Kein Light-Ordner ({', '.join(LIGHT_DIR_NAMES)}) und keine FITS-Dateien in {self.root}")
+            raise SystemExit(f"Kein Light-Ordner ({', '.join(LIGHT_DIR_NAMES)}) und keine FITS-Dateien in {self.root}"
+                             " (auch in keiner Kopie der Messung, z. B. am NAS)")
         self.result = os.path.join(self.root, "RESULT")
         self.out = os.path.join(self.result, out_sub)      # where this tool writes its products
         self.cfg_path = os.path.join(self.result, "transit.toml")

@@ -566,7 +566,8 @@ async function start(){
   $('startbtn').disabled=true;
   try{ const r=await api('/api/start2',body);
     if(!r.ok){ toast('Nicht gestartet: '+(r.fehler||'unbekannter Fehler')); return; }
-    await aktualisiere(); ladeAktiv(); location.hash='#/lauf/'+encodeURIComponent(r.lauf);
+    if(r.pfad&&r.pfad!==S.pfad){ await waehle(r.pfad); ladeListe(); }   // run went to the local copy of the measurement
+    else await aktualisiere(); ladeAktiv(); location.hash='#/lauf/'+encodeURIComponent(r.lauf);
   } finally { $('startbtn').disabled=false; }
 }
 
