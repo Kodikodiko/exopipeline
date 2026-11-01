@@ -19,7 +19,7 @@ KEYS = ["DATE-OBS", "DATE-AVG", "EXPTIME", "FILTER", "IMAGETYP", "NAXIS1", "NAXI
 def read_headers(m, solved_dir=None):
     """Headers of all lights; a solved copy in SOLVED\\ (same file name) takes precedence for the WCS."""
     out = []
-    solved_dir = solved_dir or os.path.join(m.root, "SOLVED")
+    solved_dir = solved_dir or getattr(m, "solved_dir", os.path.join(m.root, "SOLVED"))
     for f in light_files(m):
         h = fits.getheader(f)
         typ = str(h.get("IMAGETYP", "LIGHT")).upper()

@@ -56,6 +56,9 @@ variab_beta = 1.5           # ... und rotem Rauschen (beta) ueber diesem Wert
 variab_bin_min = 10         # Mittelungsfenster [min] fuer die Kurzzeit-Variabilitaet
 airmass_max = 0             # > 0: Frames ueber dieser Airmass weglassen (Randpunkte mit starker Systematik), 0 = alle
 symmetry_weight = 0         # > 0: Ensemble-Suche bevorzugt um das Ziel symmetrisch verteilte Sterne (Meridian-Flip), z. B. 1
+einzel_tiefe_sigma = 0      # Einzelstern-Test (jeder Vergleichsstern allein): 0 = nur anzeigen; z. B. 3 = Sterne, deren Rp/R* allein > 3 sigma
+                            # vom Median aller Sterne UND vom Literaturwert abweicht, nicht in die Ensemble-Suche
+tiefen_gewicht = 0          # > 0: unter den Top-Ensembles gewinnt eher eines, dessen Rp/R* zum Literaturwert passt (Score x (1 + w (z/3)^2))
 
 [fit]
 u1 = 0.40
@@ -70,6 +73,8 @@ weights = "none"            # "none" = alle Bilder gleich genau; "modell" = Fehl
 aperture_cm = 15.0          # Teleskopoeffnung fuer das Szintillationsmodell (z. B. 15 cm)
 detrend_fwhm = false        # zusaetzlicher Detrending-Term FWHM (Seeing/Fokus); nur wenn der BIC besser wird
 ausreisser_sigma = 0        # 0 = aus; z. B. 3: Frames, deren Abweichung vom Transit-Fit > 3 sigma ist, werden entfernt (iterativ)
+tc_profil_min = 60          # Tc-Profil ("Ist Tc eindeutig?"): Fit bei festem Tc im Raster +- so viele Minuten um die Vorhersage
+tc_zweites_tal = 4          # Warnung, wenn ein zweites Tal im Tc-Profil weniger als so viel (Delta-chi2 / beta^2) schlechter ist
 
 [calib]
 library = 'C:\Photometry\calibration'

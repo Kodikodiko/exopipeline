@@ -163,6 +163,8 @@ Die Standardwerte stehen in `_pipeline\config.local.toml` (beim ersten Einrichte
 | variab_bin_min | 10 | Mittelungsfenster in Minuten für die Kurzzeit-Variabilität |
 | airmass_max | 0 | > 0: Frames über dieser Airmass werden weggelassen (Randpunkte mit starker Systematik, ExoClock-Tipp 6). Die Baseline vor dem Ingress sollte dabei nicht unter ca. 30 min fallen. |
 | symmetry_weight | 0 | > 0: Die Ensemble-Suche bevorzugt Vergleichssterne, die rund um das Ziel verteilt sind: Bewertung = OOT-RMS × (1 + Gewicht × Asymmetrie). Hilft beim Meridian-Flip, weil sich das Flat-Restmuster um 180° dreht (ExoClock-Tipp 4). Asymmetrie 0 = ausgeglichen, 1 = alle auf einer Seite; sie steht auf dem Ergebnisblatt. |
+| einzel_tiefe_sigma | 0 | Einzelstern-Test (Kapitel „Vergleichssterne nach Reviewer-Methode“): 0 = nur anzeigen. Sonst kommen Sterne, deren Rp/R* allein um mehr als so viele σ vom Median aller Sterne **und** vom Literaturwert abweicht, nicht in die Ensemble-Suche (es bleiben mindestens `n_min`). GUI: Erweitert → Vergleichssterne → Einzelstern-Grenze. |
+| tiefen_gewicht | 0 | 0 = Sieger ist das Ensemble mit der kleinsten Bewertung (OOT-RMS, ggf. × Symmetrie). > 0: unter den Top-Ensembles zählt zusätzlich die Abweichung z ihres Rp/R* vom Literaturwert: Bewertung × (1 + Gewicht × (z/3)²). Gewicht 1: 3σ daneben zählt wie doppelte Streuung. |
 | exclude_frames | [] | Dateinamen, die ausgeschlossen werden |
 | aij_table | "" | AIJ-Messtabelle; nur deren Frames werden verwendet |
 
@@ -177,6 +179,8 @@ Die Standardwerte stehen in `_pipeline\config.local.toml` (beim ersten Einrichte
 | airmass_order | 1 | Detrending in der Airmass: 1 = linear, 2 = quadratisch (ExoClock-Tipp 5; per BIC auf dem Ergebnisblatt vergleichen, kleiner ist besser) |
 | mcmc_chains | 0 | Zahl der unabhängigen Ketten; 0 = automatisch (seriell 1, parallel bis 16 mit je ≥ 2000 Schritten), Kapitel 11 |
 | ausreisser_sigma | 0 | 0 = aus. Sonst werden Frames, deren Abweichung vom Transit-Fit (bestes Ensemble, feste Geometrie) mehr als so viele robuste Standardabweichungen (1,4826 × MAD) beträgt, entfernt; der Fit wird wiederholt, bis nichts mehr herausfällt. Liste in `summary.md` und `ausreisser.json`, Upload-Datei und AIJ-Export ohne diese Frames. GUI: „Erweitert“ → Ausreisser entfernen (wenige 4σ / normal 3σ / viele 2,5σ). KPS-1b mit 3σ: 5 Frames (Wolken, 11,6 h), Streuung 4,9 statt 6,4 ‰, O-C −2,6 ± 1,8 min. |
+| tc_profil_min | 60 | „Ist Tc eindeutig?“: Fit bei festem Tc im Raster ± so viele Minuten um die Vorhersage (1-min-Schritte) |
+| tc_zweites_tal | 4 | Warnung, wenn ein zweites Tal im Tc-Profil weniger als so viel (Δχ²/β²) schlechter ist als das beste |
 
 ### [run]
 | Name | Standard | Wirkung |
@@ -822,3 +826,28 @@ Ein Stern gilt als **variabel**, wenn Ruhe > `variab_sigma` (3) **und** beta > `
 
 **Warum ähnliche Farbe (`color_tol`).** Die Luft dämpft blaues Licht stärker als rotes. In einem breiten Filter (Luminanz, Clear) ändert sich das Verhältnis Ziel ÷ Vergleich deshalb mit der Airmass um etwa k″ × Δ(Farbe) × Airmass. Mit k″ grob 0,01–0,05 mag pro Airmass und Farbeinheit sind das bei ΔBP-RP = 0,5 etwa 5–25 ppt pro Einheit Airmass (Größenordnung, nicht gemessen). Das ist fast linear in der Airmass und wird vom Airmass-Term des Fits aufgefangen. Schleierwolken und Feuchte ändern die Durchlässigkeit aber farbabhängig und unabhängig von der Airmass; das kürzt sich nur bei ähnlicher Farbe heraus. Der Spektraltyp zählt nur indirekt: Sterne im Instabilitätsstreifen (BP-RP etwa 0,2–0,7) sind oft δ-Scuti-Pulsatoren, M-Zwerge zeigen Flares.
 
+## Vergleichssterne nach Reviewer-Methode (Einzeltest, Tiefen-Gewicht, Tc-Profil)
+
+Anlass: Ein ExoClock-Reviewer hat KPS-1b zurückgegeben, weil das O-C weit von anderen Beobachtungen lag und die Daten am Egress streuten. Seine Vermutung: Der Fit hat ein lokales Minimum im Rauschen für Ingress oder Egress gehalten. Seine Methode: jeden Vergleichsstern einzeln rechnen, nach der Nähe von Rp/R* zum erwarteten Wert bewerten, die schlechtesten weglassen.
+
+Die Ruhe-Prüfung oben deckt nur seinen ersten Schritt ab. Die Ensemble-Suche wählt nach der Streuung **außerhalb** des Transits; ein Stern, der genau am Egress etwas tut, fällt dort nicht auf. Drei Ergänzungen schließen die Lücke. Die Prüfungen laufen immer, eingreifen tun sie nur, wenn du es einstellst.
+
+**1. Einzelstern-Test (immer, `compsearch` und `fit`).** Für jeden Stern, der die Ruhe-Prüfung bestanden hat, ein Transit-Fit mit nur diesem Stern als Vergleich (feste Geometrie). Pro Stern: Rp/R* mit Fehler, O-C, Abweichung zum Literaturwert und zum Median aller Sterne in σ des Sterns. **Auffällig** ist ein Stern, wenn beide Abweichungen über 3σ (bzw. `einzel_tiefe_sigma`) liegen. Beide braucht es, weil der Literaturwert in deinem Filter leicht anders sein kann: Liegen alle Sterne gemeinsam daneben, ist nicht ein Stern schuld. Mit `[search] einzel_tiefe_sigma` > 0 kommen auffällige Sterne nicht in die Ensemble-Suche. Zu sehen: Protokoll, `summary.md`, Ergebnisblatt (HTML), Spalte **Einzeltest** in der Vergleichsstern-Tabelle der Oberfläche, Prüfungsliste. `compsearch` rechnet beim mittleren Suchradius, `fit` noch einmal beim Radius des Siegers.
+
+**2. Tiefen-Gewicht (`[search] tiefen_gewicht`, Standard 0).** Die 50 besten Ensembles werden ohnehin gefittet. Mit Gewicht > 0 gewinnt unter ihnen nicht automatisch Platz 1, sondern das mit der kleinsten Bewertung × (1 + Gewicht × (z/3)²), z = (Rp/R* − Literatur) / Fehler. Bewusst nicht „Tiefe möglichst gleich Literatur“: das würde Rauschen auswählen, das zufällig die gewünschte Tiefe ergibt. Für Tc, den Messwert für ExoClock, ist der Eingriff unkritisch; die Tiefe ist danach aber nicht mehr ganz unabhängig gemessen. `top50.csv` hat dafür die Spalten `rp_dev_sigma` und `score_tiefe`, `fit.json` unter `best.wahl` den Platz und den Grund.
+
+**3. Ist Tc eindeutig? (immer, `fit`).** Zwei Prüfungen, zusammen eine Ampel:
+- *Tc-Profil:* Fit bei festgehaltenem Tc in 1-min-Schritten über ± `tc_profil_min` um die Vorhersage (nur Rp/R* und Basislinie frei). Δχ² wird durch β² geteilt, weil rotes Rauschen Täler schärfer aussehen lässt, als sie sind. Ein zweites Tal (mindestens 5 min entfernt, durch einen Rücken getrennt) mit Δχ² < `tc_zweites_tal` → gelb.
+- *Kontrollfit:* Rp/R* fest auf dem Literaturwert, nur Tc frei. Verschiebt sich das O-C um mehr als den MCMC-Fehler → gelb. Das passiert, wenn Tc und Tiefe über einen gestörten Ingress oder Egress gekoppelt sind.
+- Beides → rot. Bild `tc_profil.png` (Oberfläche: Ergebnis → Tab „Tc eindeutig?“), Zeile in `summary.md`, Abschnitt im HTML-Ergebnisblatt, Prüfungsliste.
+
+Warum das nötig ist: Die MCMC startet beim besten Fit. Liegt der im falschen Tal, bleibt sie dort; das O-C ist falsch, der Fehlerbalken trotzdem klein. Das Profil sieht das, die MCMC nicht.
+
+**Was es nicht kann.** Wolken am Egress lassen sich nicht wegrechnen. Zeigt die Ampel gelb oder rot und hilft auch ein anderes Ensemble nicht, ist die Nacht für ExoClock vermutlich nicht eindeutig.
+
+**Vorgehen nach einer Rückweisung wegen O-C:**
+1. Ergebnis → „Tc eindeutig?“ und Spalte Einzeltest ansehen.
+2. Neuer Lauf mit „Photometrie übernehmen von“ = bisheriger Lauf (geht schnell), Erweitert → Vergleichssterne: Einzelstern-Grenze „> 3 σ“ oder auffällige Sterne abwählen; optional Tiefen-Gewicht 1.
+3. O-C der Läufe vergleichen. Bleibt es stabil und wird die Ampel grün, den besseren Lauf gültig setzen.
+
+Test an künstlichen Daten (10 Vergleichssterne, einer mit 6 ppt Aufhellung über dem Egress und kleinem Rauschen, sodass er in jedes Ensemble mit kleiner OOT-RMS gerät; wahres O-C +2,0 min, Rp/R* 0,110): Standard wählt ihn (O-C +2,4 min, Tiefe 12,5 ppt), der Einzeltest zeigt ihn mit +12σ; mit Tiefen-Gewicht 1 Platz 8 ohne ihn (O-C +2,2 min, 12,2 ppt), mit Einzelstern-Grenze 3σ ebenso.
