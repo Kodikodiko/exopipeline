@@ -51,18 +51,32 @@ def vsx_field(m, ra, dec, radius_deg, log=None):
             if log:
                 log(f"  VSX ueber {h} nicht erreichbar ({type(e).__name__})")
             continue
-        keep = [c for c in COLS if c in t.colnames]
-        t = Table(t[keep])
-        for c in t.colnames:                                    # plain columns for the CSV cache
-            if hasattr(t[c], "filled"):
-                t[c] = t[c].filled("" if t[c].dtype.kind in "US" else np.nan)
-        t.write(cache, format="ascii.csv", overwrite=True)
+        try:
+            t = _plain(t)
+            t.write(cache, format="ascii.csv", overwrite=True)
+        except Exception as e:                                  # never stop the run over the variable-star catalogue
+            if log:
+                log(f"  [WARN] VSX-Antwort nicht lesbar ({type(e).__name__}: {e}) - weiter ohne VSX")
+            return None
         if log:
             log(f"  VSX: {len(t)} Eintraege im Feld")
         return t
     if log:
         log("  [WARN] VSX nicht erreichbar - Vergleichssterne nur mit dem Gaia-Flag auf bekannte Veraenderliche geprueft")
     return None
+
+
+def _plain(t):
+    """Wanted columns without masks, for the CSV cache: text gaps -> "", numbers -> NaN (integer columns become float,
+    e.g. the uint8 V flag, which cannot hold NaN)."""
+    t = Table(t[[c for c in COLS if c in t.colnames]])
+    for c in t.colnames:
+        if hasattr(t[c], "filled"):
+            if t[c].dtype.kind in "US":
+                t[c] = t[c].filled("")
+            else:
+                t[c] = np.ma.asarray(t[c], dtype=float).filled(np.nan)
+    return t
 
 
 def _txt(x):
