@@ -97,6 +97,22 @@ class Measurement:
     def path(self, name):
         return os.path.join(self.dir("out"), name)
 
+    def frame(self, fn):
+        """Path of one light frame, plate-solved copy first: in this folder, else in another copy of the measurement
+        (e.g. on the NAS when only RESULT is kept here).  Only read, never copied.  None = found nowhere."""
+        def look(root, lights):
+            return next((p for p in (os.path.join(root, "SOLVED", fn), os.path.join(lights, fn) if lights else "")
+                         if p and os.path.exists(p)), None)
+        hit = look(self.root, self.lights)
+        if hit:
+            return hit
+        from .finden import copies
+        for c in copies(self.root):
+            hit = look(c, find_lights(c))
+            if hit:
+                return hit
+        return None
+
 
 def write_measurement_toml(m, target_name, ra, dec, planet, extra=None):
     """Create RESULT\\transit.toml if missing (never overwrites)."""

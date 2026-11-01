@@ -87,12 +87,23 @@ li.done .num{background:var(--ok);color:#fff} li.cur .num{background:#fff;color:
 .pstep.cur{border:2px solid var(--acc);background:var(--accsoft);padding:11px}
 .pstep.err{border:2px solid var(--pr-f);padding:11px}
 .sdot{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:11px;font-weight:700;background:var(--pn-b);color:var(--pn-f)}
-pre.log{margin:0;padding:12px;border-radius:8px;background:var(--logbg);color:var(--logfg);white-space:pre-wrap;line-height:1.6;overflow-x:auto;font-family:Consolas,ui-monospace,monospace;font-size:12px;max-height:340px;overflow-y:auto}
+pre.log{margin:0;padding:12px;border-radius:8px;background:var(--logbg);color:var(--logfg);white-space:pre-wrap;line-height:1.6;overflow-x:auto;font-family:Consolas,ui-monospace,monospace;font-size:12px;height:340px;min-height:120px;overflow-y:auto;resize:vertical}
 .kv{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line2)}
 .kv>span:first-child{font-size:13px;color:var(--mut)}
 tr.sel td{background:var(--accsoft)} tr.best td{background:var(--pg-b)}
 tr.click{cursor:pointer}
 img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
+.bbox{position:relative;display:inline-block;max-width:100%;line-height:0}
+.bbox>a{display:block}
+.hz{position:absolute;border:0;padding:0;margin:0;background:transparent;cursor:help;border-radius:3px}
+.hz:hover,.hz:focus-visible,.hz.on{background:rgba(37,99,235,.07);outline:1px solid rgba(37,99,235,.35)}
+.hz>i{position:absolute;top:2px;right:2px;width:15px;height:15px;border-radius:50%;font:600 10px/15px system-ui,sans-serif;font-style:normal;
+  text-align:center;color:#fff;background:rgba(37,99,235,.75);opacity:0;transition:opacity .15s}
+.hz.c>i{width:12px;height:12px;font-size:8.5px;line-height:12px;top:1px;right:1px}
+.bbox:hover .hz>i,.hz:focus-visible>i,.hz.on>i{opacity:.8}
+.hpop{position:absolute;z-index:30;max-width:340px;padding:10px 12px;border-radius:8px;background:var(--card,#fff);color:var(--fg,#111);
+  border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:13px;line-height:1.45;text-align:left;pointer-events:none}
+.hpop b{display:block;margin-bottom:3px}
 /* drawer */
 #scrim{position:fixed;inset:0;background:rgba(10,14,20,.35);z-index:20}
 #drawer{position:fixed;top:0;right:0;bottom:0;width:min(720px,100%);background:var(--card);border-left:1px solid var(--line);z-index:21;display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(0,0,0,.12)}
@@ -279,7 +290,7 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
     <h2 style="font-size:18px">Mehr</h2>
     <a href="/handbuch" target="_blank">Handbuch (HANDBUCH.md)</a>
     <a href="/klassisch">Klassische Oberfläche öffnen</a>
-    <span class="hint" style="font-size:13px">Die klassische Oberfläche bleibt immer erreichbar: unter /klassisch, mit <span class="mono">transit gui --klassisch</span> oder per Doppelklick auf <span class="mono">transit_gui_klassisch.cmd</span>.</span>
+    <span class="hint" style="font-size:13px">Die klassische Oberfläche bleibt immer erreichbar: unter /klassisch oder mit <span class="mono">transit gui --klassisch</span>.</span>
    </section>
   </div>
  </main>
@@ -354,7 +365,8 @@ let S={liste:[],filter:'alle',such:'',pfad:null,M:null,lauf:null,L:null,erw:{},m
 function lsGet(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 async function api(url,body){
-  const r=await fetch(url,body===undefined?{}:{method:'POST',headers:H,body:JSON.stringify(body)});
+  let r; try{ r=await fetch(url,body===undefined?{}:{method:'POST',headers:H,body:JSON.stringify(body)}); }
+  catch(e){ return {fehler:'Keine Antwort von der Oberfläche (Fenster „Transit GUI“ noch offen?)'}; }
   let j={}; try{j=await r.json();}catch(e){j={fehler:'Antwort nicht lesbar ('+r.status+')'};}
   return j;
 }
@@ -551,7 +563,7 @@ async function start(){
 // ------------------------------------------------------------------ run view
 async function ladeLauf(){
   if(!S.pfad||!S.lauf) return;
-  const L=await api(`/api/lauf?pfad=${encodeURIComponent(S.pfad)}&lauf=${encodeURIComponent(S.lauf)}`);
+  const L=await api(`/api/lauf?pfad=${encodeURIComponent(S.pfad)}&lauf=${encodeURIComponent(S.lauf)}&voll=1`);
   if(L.fehler){ toast(L.fehler); return; }
   if(L.lauf!==S.lauf) return;
   S.L=L; zeigeLauf();
@@ -619,7 +631,8 @@ function zeigeLauf(){
   // heartbeat + log
   $('l-hb').innerHTML=laeuft&&hb!=null?`<span class="dot" style="background:${hb>120?'var(--pr-f)':'var(--ok)'}"></span>Lebenszeichen vor ${hb<90?Math.round(hb)+' s':mmss(hb)+' min'}`:'';
   const pre=$('l-log'), unten=pre.scrollTop+pre.clientHeight>=pre.scrollHeight-8;
-  pre.textContent=(L.log||[]).join('\n')||'(noch keine Ausgabe)'; if(unten) pre.scrollTop=pre.scrollHeight;
+  const txt=(L.log||[]).join('\n')||'(noch keine Ausgabe)';
+  if(pre.textContent!==txt){ const y=pre.scrollTop; pre.textContent=txt; pre.scrollTop=unten?pre.scrollHeight:y; }
   $('l-runlog').href=datei(L.pfad,L.lauf,'run.log');
   $('l-folge').innerHTML=(L.folgelauf||[]).map(f=>`<div style="border-top:1px solid var(--line2);padding-top:12px;display:flex;flex-direction:column;gap:6px"><b style="font-size:13px">Zweiter Lauf <a href="#/lauf/${encodeURIComponent(f)}">${esc(f)}</a></b><span class="hint" style="font-size:13px">wartet, startet danach und übernimmt die Gaia-Daten</span></div>`).join('');
   $('notify').checked=lsGet('transit.notify',false)&&('Notification' in window)&&Notification.permission==='granted';
@@ -694,11 +707,39 @@ function zeigeBlatt(){
   const B=$('blatt');
   if(B.dataset.key!==key){
     B.dataset.key=key; const v=Date.now();
-    const img=(f,alt)=>`<a href="${datei(p,s,f)}&v=${v}" target="_blank"><img class="blatt" alt="${alt} ${esc(s)}" src="${datei(p,s,f)}&v=${v}" onerror="this.parentNode.outerHTML='<span class=hint>Kein Bild vorhanden.</span>'"></a>`;
-    B.innerHTML=`<div data-tab="kurve">${img('ergebnisblatt.png','Ergebnisblatt mit Lichtkurve')}</div><div data-tab="feld">${img('ergebnisblatt_feld.png','Feldbild')}</div><div data-tab="sterne"></div>`;
-    ladeSterne(p,s,key);
+    const img=(f,alt,h)=>`<div class="bbox" data-hilfe="${h}"><a href="${datei(p,s,f)}&v=${v}" target="_blank"><img class="blatt" alt="${alt} ${esc(s)}" src="${datei(p,s,f)}&v=${v}" onerror="this.closest('.bbox').outerHTML='<span class=hint>Kein Bild vorhanden.</span>'"></a></div>`;
+    B.innerHTML=`<div data-tab="kurve">${img('ergebnisblatt.png','Ergebnisblatt mit Lichtkurve','blatt')}</div><div data-tab="feld">${img('ergebnisblatt_feld.png','Feldbild','feld')}</div><div data-tab="sterne"></div>`;
+    ladeSterne(p,s,key); ladeHilfe(p,s,key,v);
   }
   B.querySelectorAll('[data-tab]').forEach(d=>d.hidden=d.dataset.tab!==S.tab);
+}
+// Help on the result sheet: ergebnisblatt_hilfe.json holds rectangles (fractions of the PNG) with title and text; each
+// becomes an invisible area over the image with a small (i) that shows on hover over the sheet.  Hover or click shows the text.
+async function ladeHilfe(p,s,key,v){
+  let H; try{ const r=await fetch(datei(p,s,'ergebnisblatt_hilfe.json')+'&v='+v); if(!r.ok) return; H=await r.json(); }catch(e){ return; }
+  const B=$('blatt'); if(B.dataset.key!==key) return;
+  B.querySelectorAll('.bbox[data-hilfe]').forEach(bx=>{
+    const L=H[bx.dataset.hilfe]||[]; if(!L.length) return;
+    const pct=x=>(100*x).toFixed(2)+'%';
+    bx.insertAdjacentHTML('beforeend',L.map((h,i)=>{ const [x0,y0,x1,y1]=h.r;
+      return `<button type="button" class="hz${h.art==='block'?'':' c'}" data-i="${i}" aria-label="Hilfe: ${esc(h.titel)}" style="left:${pct(x0)};top:${pct(y0)};width:${pct(x1-x0)};height:${pct(y1-y0)}"><i aria-hidden="true">i</i></button>`; }).join(''));
+    let pop=null, fest=null;
+    const zeige=(b)=>{ const h=L[+b.dataset.i]; if(!pop){ pop=document.createElement('div'); pop.className='hpop'; pop.setAttribute('role','tooltip'); bx.appendChild(pop); }
+      pop.innerHTML=`<b>${esc(h.titel)}</b>${esc(h.text)}`; pop.hidden=false;
+      const W=bx.clientWidth, x=b.offsetLeft, y=b.offsetTop+b.offsetHeight+6, w=Math.min(340,W-8);
+      pop.style.left=Math.max(4,Math.min(x,W-w-4))+'px'; pop.style.top=(y+pop.offsetHeight>bx.clientHeight&&b.offsetTop>pop.offsetHeight+6?b.offsetTop-pop.offsetHeight-6:y)+'px'; };
+    const weg=()=>{ if(pop&&!fest) pop.hidden=true; };
+    bx.querySelectorAll('.hz').forEach(b=>{
+      b.addEventListener('mouseenter',()=>{ if(!fest) zeige(b); });
+      b.addEventListener('mouseleave',weg);
+      b.addEventListener('focus',()=>{ if(!fest) zeige(b); }); b.addEventListener('blur',weg);
+      b.addEventListener('click',ev=>{ ev.preventDefault(); ev.stopPropagation();
+        if(fest===b){ fest=null; b.classList.remove('on'); weg(); return; }
+        if(fest) fest.classList.remove('on'); fest=b; b.classList.add('on'); zeige(b); });
+    });
+    document.addEventListener('click',function zu(ev){ if(!bx.isConnected) return document.removeEventListener('click',zu);
+      if(fest&&!bx.contains(ev.target)){ fest.classList.remove('on'); fest=null; weg(); } });
+  });
 }
 async function ladeSterne(p,s,key){
   S.kc=S.kc||{};
@@ -708,7 +749,7 @@ async function ladeSterne(p,s,key){
   const t0=Date.now();
   const tick=()=>{ const b=box(); if(!b||S.kc[key]) return clearInterval(iv);
     const sek=Math.round((Date.now()-t0)/1000);
-    b.innerHTML=`<span class="hint">lade Vergleichssterne … ${sek} s${sek>=5?' (beim ersten Öffnen eines Laufs werden fehlende Gaia-Angaben nachgeladen, danach ist es gespeichert)':''}</span>`; };
+    b.innerHTML=`<span class="hint">lade Vergleichssterne … ${sek} s</span>`; };
   const iv=setInterval(tick,1000); tick();
   const K=await api(`/api/kandidaten?pfad=${encodeURIComponent(p)}&lauf=${encodeURIComponent(s)}`);
   clearInterval(iv);
@@ -802,7 +843,7 @@ function kandTabelle(K,edit){
       return `<tr>${edit?`<td><input type="checkbox" aria-label="${esc(k.name)} verwenden" style="width:18px;height:18px" ${ex.has(k.name)?'':'checked'} onchange="sternUmschalten('${esc(k.name)}',this.checked)"></td>`:''}<td>${esc(k.name)}${k.im_ensemble?' *':''}</td><td>${komma(k.G,1)}</td><td>${komma(k.bp_rp,2)}</td><td>${ru}</td><td>${va}</td><td>${rh}</td><td>${tw}</td></tr>`; }).join('')+
     '</tbody></table></div><span class="hint">* im Ensemble des Laufs. Ruhe = Streuung des Sterns gegen die übrigen Kandidaten (10-min-Mittel) geteilt durch den Median aller, 1 = typisch. Bekannte Veränderliche (Gaia, VSX) sind schon bei der Auswahl verworfen. Vorschlag: eigene Lichtkurve variabel und Transitfenster über 3 σ sind abgewählt.</span>';
 }
-function lcBild(K,p,l,offen){ if(!K.lcbild) return ''; const u=datei(p,l,'vergleichssterne_lc.png');
+function lcBild(K,p,l,offen){ if(!K.lcbild) return K.kandidaten.some(k=>k.ruhe!=null)?'':'<p class="hint">Ruhe-Werte und das Bild mit der Lichtkurve jedes Vergleichssterns gibt es erst für Läufe ab dem 1. November 2026. Dieser Lauf ist älter. Starte ihn neu, um sie zu sehen.</p>'; const u=datei(p,l,'vergleichssterne_lc.png');
   return `<details ${offen?'open':''}><summary style="cursor:pointer;font-size:13px">Lichtkurve jedes Vergleichssterns (gegen die übrigen)</summary><a href="${u}" target="_blank"><img class="blatt" style="margin-top:8px" alt="Lichtkurven der einzelnen Vergleichssterne" src="${u}&t=${Date.now()}"></a></details>`; }
 function sternUmschalten(n,an){ const s=new Set(S.erw.exclude||[]); if(an) s.delete(n); else s.add(n); S.erw.exclude=[...s]; erwMarkieren(); }
 

@@ -112,7 +112,8 @@ THEMEN = {
   transit report erzeugt RESULT\\<lauf>\\ergebnisblatt.png / .pdf / .html, Kopie in exoclock_paket\\
   Inhalt: Lichtkurve (Einzelpunkte grau, 10-min-Mittel, Modell, Residuen, Kontakte gemessen/vorhergesagt),
     Tabelle "Dein Wert vs. Literatur" mit Abweichung in sigma und Ampel (gruen < 2, gelb 2-3, rot > 3),
-    massstaeblicher Stern mit Planet, Jupiter und Erde, O-C aller eigenen Messungen (_pipeline\\logbuch.csv),
+    massstaeblicher Stern (Farbe aus Teff) mit Planet (gemessenes Rp/R* und b, Literatur gestrichelt), Jupiter und Erde,
+    O-C aller eigenen Messungen (_pipeline\\logbuch.csv),
     Planetenprofil (Literatur), Fusszeile mit Geraet/Ort/Version.
   Seite 2 (ergebnisblatt_feld.png, PDF Seite 2): gestretchtes Feldbild, Norden oben/Osten links, Kompass, 10'-Massstab;
     Ziel rot beschriftet, Vergleichssterne C1.. blau in Aperturgroesse, nicht genutzte grau, verworfene x.

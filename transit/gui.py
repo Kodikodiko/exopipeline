@@ -254,7 +254,7 @@ def _candidates(p, lauf, d):
         from .config import Measurement
         from .feld import gaia_details
         det = gaia_details(Measurement(p, lauf), [r["source_id"] for r in rows], print, netz=False)   # no waiting on Gaia here
-    except Exception as e:
+    except (Exception, SystemExit) as e:                   # SystemExit: lights moved away (Measurement needs them)
         print("Gaia:", e)
     pre = {}
     cj = os.path.join(d, "compsearch.json")
@@ -408,11 +408,12 @@ def jload(path, default=None):
 
 
 def tail(path, n=14):
-    """Last n lines of a console file; progress bars (\\r) collapse to their newest state."""
+    """Last n lines of a console file (n=None: the whole file); progress bars (\\r) collapse to their newest state."""
     try:
         with open(path, "rb") as fh:
-            fh.seek(0, 2)
-            fh.seek(max(0, fh.tell() - 24000))
+            if n is not None:
+                fh.seek(0, 2)
+                fh.seek(max(0, fh.tell() - 24000))
             txt = fh.read().decode("utf-8", errors="replace")
     except OSError:
         return []
@@ -422,7 +423,7 @@ def tail(path, n=14):
         line = next((s for s in reversed(line) if s.strip()), "")
         if line.strip():
             out.append(line.rstrip())
-    return out[-n:]
+    return out if n is None else out[-n:]
 
 
 def planet_name(p):
@@ -598,7 +599,8 @@ def runs_detail(p):
     return runs
 
 
-def run_detail(p, lauf):
+def run_detail(p, lauf, voll=False):
+    """voll=True: the whole console log instead of the last 14 lines (scrollable log of the new GUI)."""
     d = os.path.join(p, "RESULT", lauf)
     st = jload(os.path.join(d, "status.json"))
     toml = {}
@@ -609,7 +611,8 @@ def run_detail(p, lauf):
         pass
     q = (toml.get("gaia", {}).get("quelle") or defaults(p)["gaia_quelle"])
     job = JOBS.get((os.path.normcase(p), lauf))
-    log = tail(os.path.join(d, "gui_konsole.txt")) or [l[20:] if l[:2] == "20" else l for l in tail(os.path.join(d, "run.log"))]
+    n = None if voll else 14
+    log = tail(os.path.join(d, "gui_konsole.txt"), n) or [l[20:] if l[:2] == "20" else l for l in tail(os.path.join(d, "run.log"), n)]
     others = [r for r in runs_detail(p) if r["lauf"] != lauf]
     return dict(lauf=lauf, pfad=p, status=st, meta=jload(os.path.join(d, GUI_META)), einstellungen=toml,
                 gaia=dict(quelle=q, timeout=defaults(p)["gaia_timeout"]), log=log, jetzt=time.time(),
@@ -799,7 +802,7 @@ class H(BaseHTTPRequestHandler):
                                 vorgaben=defaults(p), cpu=os.cpu_count(),
                                 upload=sorted(os.path.basename(f) for f in glob.glob(os.path.join(p, "RESULT", "*_exoclock_JDUTC.txt")))))
             elif u.path == "/api/lauf":
-                self._json(run_detail(os.path.abspath(q["pfad"]), q["lauf"]))
+                self._json(run_detail(os.path.abspath(q["pfad"]), q["lauf"], q.get("voll") == "1"))
             elif u.path == "/api/aktiv":
                 self._json(active_runs())
             elif u.path == "/api/vorgaben":
@@ -862,7 +865,7 @@ class H(BaseHTTPRequestHandler):
                 self.wfile.write(b)
             else:
                 self.send_error(404)
-        except Exception as e:
+        except (Exception, SystemExit) as e:               # SystemExit (e.g. Measurement) would drop the connection unanswered
             self._json(dict(fehler=str(e)), 500)
 
     def do_POST(self):
@@ -917,7 +920,7 @@ class H(BaseHTTPRequestHandler):
                 self._json(dict(ok=True))
             else:
                 self.send_error(404)
-        except Exception as e:
+        except (Exception, SystemExit) as e:
             self._json(dict(ok=False, fehler=str(e)), 400)
 
 

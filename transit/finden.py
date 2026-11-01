@@ -120,6 +120,32 @@ def search(name, log=print):
     return hits
 
 
+def copies(root, log=lambda *x: None):
+    """Other folders of the same measurement (archive path from the logbook first, then local/NAS folders of the same
+    name), e.g. the NAS copy holding the lights when root only keeps RESULT.  Only folders that exist right now."""
+    from .ergebnisblatt import logbook_read
+    nc = lambda x: os.path.normcase(os.path.abspath(x))
+    me, name = nc(root), os.path.basename(os.path.normpath(root)).lower()
+    out = []
+
+    def add(p):
+        if p and p != "-" and nc(p) != me and nc(p) not in map(nc, out) and os.path.isdir(p):
+            out.append(os.path.abspath(p))
+    try:
+        for r in logbook_read():
+            if nc(r["messordner"]) == me:
+                add(r.get("archiv"))
+    except Exception:
+        pass
+    for refresh in (False, True):                          # NAS list may be old: rebuild once
+        for p, _ in all_measurements(refresh, log):
+            if os.path.basename(os.path.normpath(p)).lower() == name:
+                add(p)
+        if len(out) > 0:
+            break
+    return out
+
+
 def ask(frage):
     try:
         return input(frage).strip().lower()

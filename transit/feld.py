@@ -236,7 +236,12 @@ def draw_page(fig, m, n, c, fr, cs, ens, planet, star, log=print):
         near = n.sel
     fi = int(np.argmin(np.where(near, c["fwhm"], np.inf)))
     fn = str(c["frame_file"][fi])
-    path = next(p for p in (os.path.join(m.root, "SOLVED", fn), os.path.join(m.lights, fn)) if os.path.exists(p))
+    path = m.frame(fn)                                     # local, else the NAS copy of the measurement
+    if path is None:
+        from .finden import nas_root
+        raise FileNotFoundError(f"{fn} weder lokal noch am NAS ({nas_root() or '[paths] archiv_wurzel fehlt'}) gefunden - NAS verbunden?")
+    if not os.path.normcase(path).startswith(os.path.normcase(m.root)):
+        log(f"  Feldbild aus {path}")
     img = read_data(path).astype(np.float32)
     w = WCS(fits.getheader(path))
     fac = max(1, int(math.ceil(max(img.shape) / 1400)))

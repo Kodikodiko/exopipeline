@@ -32,7 +32,7 @@ Geschätzter Aufwand: 1 Sitzung.
 ## Später: ExoClock-Kommentar vervollständigen
 Geschätzter Aufwand: ½ Sitzung.
 - `transit kommentar` nennt Datenlücken bisher nur mit Dauer; Uhrzeit (UT) ergänzen.
-- Entfernte Ausreißer (Anzahl, Sigma-Schwelle aus `ausreisser.json`) und Wolken-Frames erwähnen.
+- Sigma-Clipping immer dokumentieren: Schwelle und Anzahl der entfernten Punkte aus `ausreisser.json` (z. B. „3σ-Clipping gegen den Transit-Fit, 4 Punkte entfernt“), bei wenigen Punkten mit Uhrzeit (UT); ohne Clipping „kein Sigma-Clipping“ bzw. „0 Punkte entfernt“. Dasselbe für Wolken-Frames. Hat höchste Priorität bei der 300-Zeichen-Grenze, weil ExoClock-Prüfer danach fragen.
 - Farbkamera-Hinweis (`BAYERPAT` im Header, Debayer/Binning) automatisch einfügen.
 - 300-Zeichen-Grenze einhalten: Reihenfolge nach Wichtigkeit, Rest kürzen.
 
@@ -64,21 +64,21 @@ Geschätzter Aufwand: 1–2 Sitzungen.
 - Lauf per GitHub Actions bei jedem PR (Windows, später auch Linux).
 - Dient auch als Abnahmetest für Linux-Version, englische Version und Stacken.
 
-## Später: Live-Protokoll komplett scrollbar
+## Erledigt (2026-11-01): Live-Protokoll komplett scrollbar
 Geschätzter Aufwand: ½ Sitzung.
 - In der neuen GUI (`gui_neu.py`, Laufseite „Protokoll (live)“) soll der gesamte Verlauf des Laufs scrollbar sein, nicht nur die letzten Zeilen.
 - Derzeit liefert `run_detail` in `gui.py` über `tail(…, n=14)` nur die letzten 14 Zeilen aus `gui_konsole.txt` bzw. `run.log`; das Feld `#l-log` zeigt nur diese.
 - Umsetzung: ganzes Protokoll liefern (bei sehr langen Läufen ggf. inkrementell ab einer Zeilennummer nachladen statt jedes Mal komplett), `#l-log` mit fester Höhe und `overflow:auto`; automatisch nach unten mitscrollen nur, wenn man schon unten steht (vorhandene Logik in `gui_neu.py` beibehalten).
 - Klassische GUI (`/klassisch`) unverändert lassen.
 
-## Später: FITS bei Bedarf auch vom NAS lesen
+## Erledigt (2026-11-01): FITS bei Bedarf auch vom NAS lesen
 Geschätzter Aufwand: ½ Sitzung.
 - Schritte, die nachträglich einzelne Frames brauchen (z. B. das Feldbild im Ergebnisblatt, `feld.draw_page`), sollen die FITS auch finden, wenn die Messung archiviert ist und lokal gelöscht wurde (`transit archiv --loeschen`).
 - Derzeit sucht `draw_page` nur in `SOLVED\` und `LIGHTS` des Messordners; fehlt die Datei dort, bricht es mit `StopIteration` ab.
 - Umsetzung: gemeinsame Suchfunktion für Frames, die nacheinander lokal, dann den im Logbuch vermerkten Archivpfad und zuletzt `[paths] archiv_wurzel` prüft (wie `resolve(…, nas)` für Messordner). Nur die benötigte Datei lesen, nichts zurückkopieren.
 - NAS nicht erreichbar → verständliche Meldung („NAS verbunden?“) statt Absturz; Ergebnisblatt notfalls ohne Feldbild erzeugen.
 
-## Später: Transit-Skizze im Ergebnisblatt realistisch und aus den Messwerten
+## Erledigt (2026-11-01): Transit-Skizze im Ergebnisblatt realistisch und aus den Messwerten
 Geschätzter Aufwand: ½–1 Sitzung.
 - Anlass: Die Skizze (rechts oben im Ergebnisblatt) sieht von Lauf zu Lauf praktisch gleich aus, obwohl sich die Werte ändern; vor allem `b` bleibt immer gleich.
 - Ursache: Der MCMC-Fit hält die Geometrie (a/R*, i) auf den Literaturwerten fest; die Skizze rechnet `b = a/R* · cos i` aus dieser festen Geometrie (`b_fix` in `ergebnisblatt.py`). `b` ist damit für einen Planeten immer derselbe Literaturwert. Rp/R* kommt zwar aus dem Fit, ändert sich zwischen Läufen aber nur um wenige Prozent und ist im Bild kaum zu sehen.
@@ -86,7 +86,7 @@ Geschätzter Aufwand: ½–1 Sitzung.
 - Realistischer Stern: Farbe aus der Sterntemperatur (T_eff aus NASA/ExoClock) statt fester Orange-Palette, Randverdunkelung mit den tatsächlichen Koeffizienten des Fits (bereits so) und weniger gesättigt; Planet als Scheibe mit Größe Rp/R* aus dem Fit, Transitsehne als Spur über die ganze Sternscheibe.
 - Größenverhältnisse: Stern, Planet, Jupiter und Erde maßstabsgetreu (bereits über R* aus der Literatur); bei Bedarf Zahlen dazu (Rp in R_Jup, Tiefe in ‰) und optional die Literatur-Rp/R* als Umriss zum Vergleich mit dem gemessenen Wert.
 
-## Später: Hilfe direkt im Ergebnisblatt
+## Erledigt (2026-11-01): Hilfe direkt im Ergebnisblatt
 Geschätzter Aufwand: 1 Sitzung.
 - In der GUI beim Ergebnisblatt zu jedem Element (Lichtkurve, Residuen, Skizze, Parametertabelle, Kopfzeile mit Tc/O−C/STD/SNR, Feldbild) eine Erklärung anzeigen: per Mouse-over oder Klick auf ein dezentes Symbol (z. B. kleines „ⓘ“).
 - Alle Spaltenköpfe der Parametertabelle („Groesse“, „Dein Wert“, „Literatur“, „Abw. sigma“, „Quelle“, „Hinweis“) und möglichst auch die Zeilen (Rp/R*, b, a/R*, i, Tiefe, T14 …) mit kurzer Erklärung versehen.
