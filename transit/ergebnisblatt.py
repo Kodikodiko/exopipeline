@@ -690,7 +690,8 @@ def make_sheet(m, n, c, log):
     fig.text(0.06, 1 - 0.3 / H, f"Ergebnisblatt {planet}", fontsize=22, weight="bold", va="top")
     fig.text(0.06, 1 - 0.68 / H, f"Nacht {night}  |  Lauf {lauf} (Kalibrierung {c['calib']})  |  {fr['info']['frames_used']} Frames",
              fontsize=10.5, va="top")
-    fig.text(0.06, 1 - 0.9 / H, f"Ensemble {n.r_text(r_px)}: {' '.join(best['comps'])}", fontsize=10.5, va="top")
+    fig.text(0.06, 1 - 0.9 / H, f"Ensemble {n.r_text(r_px)}: {' '.join(best['comps'])}"
+             + (" (von Hand gewaehlt)" if fr["info"].get("ensemble_fest") else ""), fontsize=10.5, va="top")
     kopf = fig.text(0.97, 1 - 0.3 / H, f"Tc = {tc:.5f} BJD_TDB\n+{(mc['Tc'][2] - tc) * 1440:.1f} / -{(tc - mc['Tc'][0]) * 1440:.1f} min,  "
              f"O-C {mc['OC_min']:+.1f} min\nSTD {sig_res:.2f} ‰,  SNR {snr:.1f}", fontsize=13, ha="right", va="top", weight="bold")
 
@@ -906,7 +907,7 @@ th{{background:#e3e8f0}} .dot{{display:inline-block;width:11px;height:11px;borde
 .bad{{color:#a33}} img{{max-width:100%;border:1px solid #ddd}} .foot{{color:#666;font-size:12px;margin-top:14px}}
 </style></head><body>
 <h1>Ergebnisblatt {planet}</h1>
-<div class=sub>Nacht {night} &middot; Lauf {lauf} (Kalibrierung {c['calib']}) &middot; {fr['info']['frames_used']} Frames &middot; Ensemble {n.r_text(r_px)}: {' '.join(best['comps'])}</div>
+<div class=sub>Nacht {night} &middot; Lauf {lauf} (Kalibrierung {c['calib']}) &middot; {fr['info']['frames_used']} Frames &middot; Ensemble {n.r_text(r_px)}: {' '.join(best['comps'])}{' (von Hand gew&auml;hlt)' if fr['info'].get('ensemble_fest') else ''}</div>
 <div class=res>Tc = {tc:.5f} BJD_TDB (+{(mc['Tc'][2] - tc) * 1440:.1f} / &minus;{(tc - mc['Tc'][0]) * 1440:.1f} min), O&minus;C {mc['OC_min']:+.1f} min, Tiefe {d_obs * 1e3:.2f} &plusmn; {d_e * 1e3:.2f} ppt, STD {sig_res:.2f} &permil;, SNR {snr:.1f}</div>
 <h2>Dein Wert vs. Literatur</h2>
 <table><tr><th>Gr&ouml;&szlig;e</th><th>Dein Wert</th><th>Literatur</th><th>Abw. [&sigma;]</th><th>Quelle</th><th>Hinweis</th></tr>

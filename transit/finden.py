@@ -138,12 +138,28 @@ def copies(root, log=lambda *x: None):
     except Exception:
         pass
     for refresh in (False, True):                          # NAS list may be old: rebuild once
-        for p, _ in all_measurements(refresh, log):
+        ms = [p for p, _ in all_measurements(refresh, log)]
+        for p in ms:
             if os.path.basename(os.path.normpath(p)).lower() == name:
                 add(p)
+        if not out:                                        # name spelled differently (HAT-42b / HAT42b / HAT-P-42b):
+            k = key(name)                                  # same planet key, and the same night when both are known
+            for p in ms:
+                if nc(p) != me and key(os.path.basename(os.path.normpath(p))) == k and same_night(root, p):
+                    add(p)
         if len(out) > 0:
             break
     return out
+
+
+def same_night(a, b):
+    """True unless both folders have a known night and the nights differ."""
+    try:
+        from .gui import meta
+        na, nb = meta(a)[1], meta(b)[1]
+    except Exception:
+        return True
+    return not (na and nb and na != nb)
 
 
 def ask(frage):

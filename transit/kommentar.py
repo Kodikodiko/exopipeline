@@ -43,8 +43,16 @@ def make(out, cfg=None):
     checks = json.dumps(inv.get("checks", []))
     if info.get("flip_mode", "none") != "none" and "im/nahe am Transit" in checks:
         r.append("Meridian flip during the transit; the flux step was corrected with a prior measured on the comparison stars.")
-    if info.get("excluded_stars"):
-        r.append(f"Comparison star(s) {', '.join(info['excluded_stars'])} excluded (variable in the transit window).")
+    r.append(clipping_text(out, cfg))                     # reviewers ask for it: always stated
+    if info.get("ensemble_fest"):
+        r.append(f"Comparison stars selected manually ({', '.join(info['ensemble_fest'])}).")
+    comps = comps_text(out, info, fr)
+    if comps:
+        r.append(comps)
+    tc = fr.get("tc_check") or {}
+    if tc.get("ampel") in ("gelb", "rot"):
+        r.append("Tc profile shows a second, almost equal minimum: the timing may be ambiguous."
+                 if tc.get("taeler") else "Tc shifts when the depth is fixed to the literature value: timing depends on the depth.")
     want, eff = cj.get("mode"), cj.get("mode_effektiv") or cj.get("mode")
     if eff in ("raw", "b"):
         r.append("No flat-field correction (no matching flat available).")
@@ -77,6 +85,43 @@ def make(out, cfg=None):
             break
         text = (text + " " + x).strip()
     return text or "No special remarks."
+
+
+def clipping_text(out, cfg):
+    """Sigma clipping against the transit fit, from ausreisser.json (written only when the option was on)."""
+    sig = float((cfg.get("fit") or {}).get("ausreisser_sigma") or 0)
+    ar = _j(out, "ausreisser.json")
+    if not sig or not ar:
+        return "No sigma clipping."
+    fr = ar.get("frames", [])
+    n = len(fr)
+    when = ""
+    if 0 < n <= 3:
+        from astropy.time import Time
+        when = " (" + ", ".join(Time(f["bjd_tdb"], format="jd").datetime.strftime("%H:%M") for f in fr) + " UT, approx.)"
+    return f"{ar.get('sigma', sig):g}-sigma clipping against the transit fit: {n} point{'s' if n != 1 else ''} removed{when}."
+
+
+def comps_text(out, info, fr):
+    """Comparison stars left out on purpose: by the observer, by the noise/variability pre-filter, by the single-star test."""
+    cs = _j(out, "compsearch.json")
+    pre = [p["name"] for p in cs.get("prefilter", []) if p.get("rejected")]
+    var = [p["name"] for p in cs.get("prefilter", []) if p.get("rejected") and p.get("variabel")]
+    ein = [s["name"] for s in (fr.get("einzel") or cs.get("einzel") or {}).get("stars", []) if s.get("verworfen")]
+    own = list(info.get("excluded_stars") or [])
+    parts = []
+    if own:
+        parts.append(f"{', '.join(own)} excluded by the observer")
+    noisy = [x for x in pre if x not in var]
+    if var:
+        parts.append(f"{', '.join(var)} rejected as variable")
+    if noisy:
+        parts.append(f"{', '.join(noisy)} rejected as too noisy")
+    if ein:
+        parts.append(f"{', '.join(ein)} rejected (depth from that star alone far off)")
+    if not parts:
+        return ""
+    return "Comparison stars: " + "; ".join(parts) + "."
 
 
 def baseline_min(t, pred, cfg):

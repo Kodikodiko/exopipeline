@@ -32,7 +32,7 @@ Geschätzter Aufwand: 1 Sitzung.
 ## Später: ExoClock-Kommentar vervollständigen
 Geschätzter Aufwand: ½ Sitzung.
 - `transit kommentar` nennt Datenlücken bisher nur mit Dauer; Uhrzeit (UT) ergänzen.
-- Sigma-Clipping immer dokumentieren: Schwelle und Anzahl der entfernten Punkte aus `ausreisser.json` (z. B. „3σ-Clipping gegen den Transit-Fit, 4 Punkte entfernt“), bei wenigen Punkten mit Uhrzeit (UT); ohne Clipping „kein Sigma-Clipping“ bzw. „0 Punkte entfernt“. Dasselbe für Wolken-Frames. Hat höchste Priorität bei der 300-Zeichen-Grenze, weil ExoClock-Prüfer danach fragen.
+- ~~Sigma-Clipping immer dokumentieren~~ erledigt 2026-11-01 (kommentar.clipping_text; Wolken-Frames noch offen). Vergleichssterne: verworfene (Vorfilter, Einzeltest, vom Beobachter) stehen jetzt auch im Kommentar.
 - Farbkamera-Hinweis (`BAYERPAT` im Header, Debayer/Binning) automatisch einfügen.
 - 300-Zeichen-Grenze einhalten: Reihenfolge nach Wichtigkeit, Rest kürzen.
 
