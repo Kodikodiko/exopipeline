@@ -122,10 +122,14 @@ def lights_folder(p):
     """Folder with the lights of the measurement shown as p (may be the NAS copy when p only holds results)."""
     if find_lights(p) and any(f.lower().endswith(FITS_EXT) for f in os.listdir(find_lights(p))):
         return p
-    from .finden import all_measurements
+    from .finden import all_measurements, copies
     for e in grouped(all_measurements(False, log=lambda *x: None)):
         if os.path.normcase(p) in {os.path.normcase(x) for x in e["alle"]} and e["n_lights"]:
             return e["lights_pfad"]
+    for c in copies(p):                                    # archive path from the logbook, same folder name locally/NAS
+        ld = find_lights(c)                                # (rebuilds an old NAS list once)
+        if ld and any(f.lower().endswith(FITS_EXT) for f in os.listdir(ld)):
+            return c
     return p
 
 
@@ -324,6 +328,10 @@ def start_run(q, launch=None):
     launch(p, lauf, mode, workers, new_stars) -> cmd replaces the plain start (used by the new page)."""
     p = lights_folder(unwrap(os.path.abspath(q["messordner"])))   # results-only folder: run where the lights are
     if not is_measurement(p):
+        if listable(p):
+            from .finden import nas_root
+            raise ValueError(f"In {p} liegen nur Ergebnisse, die Lights wurden auch am NAS ({nas_root() or 'kein [paths] archiv_wurzel'}) "
+                             "nicht gefunden. NAS verbunden? Sonst den Ordner mit den Lights waehlen.")
         raise ValueError(f"kein Messordner: {p}")
     ld = find_lights(p)
     if not any(f.lower().endswith(FITS_EXT) for f in os.listdir(ld)):
@@ -361,7 +369,7 @@ def start_run(q, launch=None):
            "camera": {"farbkamera": a.get("farbkamera")}, "gaia": {"quelle": a.get("gaia_quelle")}}
     write_lauf_toml(os.path.join(out, "lauf.toml"), sec, f"Lauf {lauf}" + (f", Photometrie aus {basis}" if basis else ""))
     if launch is not None:
-        return dict(ok=True, lauf=lauf, befehl=" ".join(launch(p, lauf, mode, q.get("workers"), new_stars)))
+        return dict(ok=True, lauf=lauf, pfad=p, befehl=" ".join(launch(p, lauf, mode, q.get("workers"), new_stars)))
     cmd = [sys.executable, "-m", "transit", "run", p, "--out", lauf, "--mode", mode]
     if q.get("workers"):
         cmd += ["--workers", str(int(q["workers"]))]
@@ -371,7 +379,7 @@ def start_run(q, launch=None):
     env = dict(os.environ, PYTHONPATH=PIPE_DIR + os.pathsep + os.environ.get("PYTHONPATH", ""), PYTHONIOENCODING="utf-8")
     JOBS[(os.path.normcase(p), lauf)] = subprocess.Popen(cmd, cwd=PIPE_DIR, stdout=log, stderr=subprocess.STDOUT, env=env,
                                                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    return dict(ok=True, lauf=lauf, befehl=" ".join(cmd))
+    return dict(ok=True, lauf=lauf, pfad=p, befehl=" ".join(cmd))
 
 
 def run_cli(args):

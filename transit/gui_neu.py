@@ -556,7 +556,9 @@ async function start(){
   $('startbtn').disabled=true;
   try{ const r=await api('/api/start2',body);
     if(!r.ok){ toast('Nicht gestartet: '+(r.fehler||'unbekannter Fehler')); return; }
-    await aktualisiere(); ladeAktiv(); location.hash='#/lauf/'+encodeURIComponent(r.lauf);
+    if(r.pfad&&r.pfad!==S.pfad){ toast('Lights liegen am NAS: Lauf läuft in '+r.pfad); await waehle(r.pfad); }   // results-only folder
+    else await aktualisiere();
+    ladeAktiv(); location.hash='#/lauf/'+encodeURIComponent(r.lauf);
   } finally { $('startbtn').disabled=false; }
 }
 
