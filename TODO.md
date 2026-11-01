@@ -1,5 +1,9 @@
 # TODO – geplante Erweiterungen (nicht umgesetzt)
 
+## Als Nächstes: Vergleichssterne per Haken – Abnahme am echten Lauf
+Dokumentation ist erledigt (2026-11-01: Handbuch-Kapitel „Vergleichssterne von Hand wählen“, Parametertabelle `[search] ensemble`, `config.example.toml`, `transit hilfe vergleichssterne`, ⓘ an „wählen“, „O-C (schnell)“, „Rp/R*“, Tooltips an den Knöpfen, Ergebnisblatt-Hilfe). Offen:
+- Ablauf einmal an einem echten Lauf (z. B. HAT-P-42b) durchspielen und zwei Screenshots (Tabelle mit Haken, Vorschau) ins Handbuch.
+
 ## Später: Linux-Version
 Geschätzter Aufwand: 1–2 Sitzungen.
 - Python-venv mit denselben Paketen wie unter Windows, dazu `python3-tk` (Ordnerdialog der GUI).

@@ -165,6 +165,7 @@ Die Standardwerte stehen in `_pipeline\config.local.toml` (beim ersten Einrichte
 | symmetry_weight | 0 | > 0: Die Ensemble-Suche bevorzugt Vergleichssterne, die rund um das Ziel verteilt sind: Bewertung = OOT-RMS × (1 + Gewicht × Asymmetrie). Hilft beim Meridian-Flip, weil sich das Flat-Restmuster um 180° dreht (ExoClock-Tipp 4). Asymmetrie 0 = ausgeglichen, 1 = alle auf einer Seite; sie steht auf dem Ergebnisblatt. |
 | einzel_tiefe_sigma | 0 | Einzelstern-Test (Kapitel „Vergleichssterne nach Reviewer-Methode“): 0 = nur anzeigen. Sonst kommen Sterne, deren Rp/R* allein um mehr als so viele σ vom Median aller Sterne **und** vom Literaturwert abweicht, nicht in die Ensemble-Suche (es bleiben mindestens `n_min`). GUI: Erweitert → Vergleichssterne → Einzelstern-Grenze. |
 | tiefen_gewicht | 0 | 0 = Sieger ist das Ensemble mit der kleinsten Bewertung (OOT-RMS, ggf. × Symmetrie). > 0: unter den Top-Ensembles zählt zusätzlich die Abweichung z ihres Rp/R* vom Literaturwert: Bewertung × (1 + Gewicht × (z/3)²). Gewicht 1: 3σ daneben zählt wie doppelte Streuung. |
+| ensemble | (leer) | Vergleichssterne **von Hand**, z. B. `ensemble = ["G03", "G08", "G12"]` (Namen wie in der Vergleichsstern-Tabelle). Gesetzt: keine Ensemble-Suche, alle Radien werden nur mit diesen Sternen bewertet, der Einzeltest zeigt an, verwirft aber nichts, `fit.json` → `info.ensemble_fest`, Ergebnisblatt „(von Hand gewählt)“, ExoClock-Kommentar „Comparison stars selected manually (…)“. Normalerweise nicht von Hand eintragen, sondern in der Oberfläche über Ergebnis → Vergleichssterne → **Als neuen Lauf rechnen** (Kapitel „Vergleichssterne von Hand wählen“). Leer = automatische Suche. |
 | exclude_frames | [] | Dateinamen, die ausgeschlossen werden |
 | aij_table | "" | AIJ-Messtabelle; nur deren Frames werden verwendet |
 
@@ -631,7 +632,7 @@ Die neue Oberfläche hat oben vier Bereiche (**Planen**, **Auswerten**, **Logbuc
 - **Auswerten:** links die Messungen nach Monat, mit Suche (Enter sucht auch am NAS) und Filtern (Neu, Ohne gültig, Gültig). Rechts die Schrittleiste *Daten → Lauf starten → Vergleichen → Hochladen*, Hinweise aus dem Header (Farbkamera, unklarer Filter, Lights am NAS), das Formular **Neuer Lauf** und die **Läufe dieser Nacht**. Mit dem Haken „zusätzlich … starten“ wird nach dem ersten Lauf automatisch ein zweiter mit der anderen Kalibrierung (f ↔ bf) gerechnet; er übernimmt die Gaia-Abfrage. Laufnamen: `gui_<Datum>_<Zeit>_<Kalibrierung>`.
 - **Erweitert** öffnet eine Seitenleiste mit fünf Gruppen (Kalibrierung, Kamera & Gaia, Vergleichssterne, Apertur, Fit & Ausreißer). Geänderte Felder sind blau markiert und stehen als Zusammenfassung im Formular; leere Felder zeigen den Standard als grauen Text. „als meine Vorgabe merken“ speichert die Werte im Browser.
 - **Lauf (Details):** alle Schritte mit Dauer, der laufende Schritt mit Balken und Restzeit. Schritte ohne Prozentangabe (z. B. die Gaia-Abfrage) zeigen eine Stoppuhr und das Zeitlimit; „Jetzt auf VizieR/ESA wechseln“ stoppt die Abfrage, trägt `[gaia] quelle` in `lauf.toml` ein und setzt den Lauf fort. Darunter die letzten Zeilen der Konsole (live), das Lebenszeichen und auf Wunsch eine Browser-Benachrichtigung, wenn der Lauf fertig ist. Das **Protokoll (live)** enthält die ganze Ausgabe des Laufs und ist scrollbar (Höhe am unteren Rand ziehbar); es scrollt nur mit, solange man ganz unten steht.
-- **Vergleichen:** Kennzahlen aller fertigen Läufe nebeneinander (niedrigstes OOT-RMS ist markiert), Ergebnisblatt (Lichtkurve, Feld, Vergleichssterne), Prüfliste (Planungs-Warnungen, Drift, R-hat) und **Als gültige Messung dieser Nacht setzen** (mit Rückgängig). Für den gültigen Lauf: jedes ExoClock-Feld mit Kopierknopf, der Kommentar zum Bearbeiten und der Haken **Bei ExoClock hochgeladen** (Datei `RESULT\<lauf>\hochgeladen.json`). **Hilfe im Ergebnisblatt:** Fährt die Maus über das Blatt, erscheinen kleine ⓘ-Symbole; ein Klick auf ein ⓘ zu einem Bereich (Lichtkurve, Residuen, Skizze, Kopfzeile, O-C, Profil, jeder Spaltenkopf und jede Zeile der Tabelle, auf der Feld-Seite Bild und Spaltenköpfe) zeigt eine Erklärung. Die Lage der Bereiche schreibt `report` in `ergebnisblatt_hilfe.json`; ältere Läufe bekommen die Hilfe nach `transit report` neu. PNG und PDF bleiben unverändert. Auch alle Spaltenköpfe der Tabellen in der Oberfläche (Vergleichssterne, Läufe vergleichen, Logbuch, Beobachtungsvorschlag) haben ein ⓘ; die Erklärung erscheint nur nach Klick und schließt mit einem weiteren Klick.
+- **Vergleichen:** Kennzahlen aller fertigen Läufe nebeneinander (niedrigstes OOT-RMS ist markiert), Ergebnisblatt (Lichtkurve, Feld, Vergleichssterne), Prüfliste (Planungs-Warnungen, Drift, R-hat) und **Als gültige Messung dieser Nacht setzen** (mit Rückgängig). Im Reiter **Vergleichssterne** des Ergebnisblatts lassen sich die Sterne per Haken neu wählen, mit Sekunden-Vorschau und Knopf für einen neuen Lauf (Kapitel „Vergleichssterne von Hand wählen“). Für den gültigen Lauf: jedes ExoClock-Feld mit Kopierknopf, der Kommentar zum Bearbeiten und der Haken **Bei ExoClock hochgeladen** (Datei `RESULT\<lauf>\hochgeladen.json`). **Hilfe im Ergebnisblatt:** Fährt die Maus über das Blatt, erscheinen kleine ⓘ-Symbole; ein Klick auf ein ⓘ zu einem Bereich (Lichtkurve, Residuen, Skizze, Kopfzeile, O-C, Profil, jeder Spaltenkopf und jede Zeile der Tabelle, auf der Feld-Seite Bild und Spaltenköpfe) zeigt eine Erklärung. Die Lage der Bereiche schreibt `report` in `ergebnisblatt_hilfe.json`; ältere Läufe bekommen die Hilfe nach `transit report` neu. PNG und PDF bleiben unverändert. Auch alle Spaltenköpfe der Tabellen in der Oberfläche (Vergleichssterne, Läufe vergleichen, Logbuch, Beobachtungsvorschlag) haben ein ⓘ; die Erklärung erscheint nur nach Klick und schließt mit einem weiteren Klick.
 
 Die folgenden Abschnitte beschreiben die **klassische** Oberfläche.
 
@@ -760,7 +761,7 @@ Siehe auch `TODO.md` (geplante Erweiterungen).
 
 `.\transit kommentar <Messordner>` (Standard: gültiger Lauf, sonst `--lauf`) erzeugt einen **kurzen** englischen Kommentar und kopiert ihn in die Zwischenablage. Er steht auch am Ende von `exoclock_formular.txt` (bei jedem `export`) und in der GUI im Bereich **ExoClock-Upload** (Formularwerte, Textfeld, Knöpfe „Kommentar kopieren“ und „Upload-Ordner öffnen“).
 
-Inhalt: nur, was ExoClock nicht selbst sieht – höchstens ca. 300 Zeichen, wichtigstes zuerst: Meridian-Flip im Transit und wie korrigiert; von Hand ausgeschlossene Vergleichssterne; fehlender Flat oder Flat älter als 60 Tage; wechselnde Belichtungszeiten; sehr kurze Belichtung/Szintillation oder große Zeitunsicherheit; Datenlücken; Filter nicht im FITS-Header. Nicht enthalten: Bildzahl, Belichtung, Zeitformat, eigene Fitwerte, Standardmethodik. Ist nichts besonders: „No special remarks.“ Eigener Zusatz (z. B. „Replaces my earlier submission.“): `[export] kommentar_zusatz = "…"` in `RESULT\transit.toml` oder `lauf.toml`. Bereits von Hand angepasste Formular-Kommentare werden nur überschrieben, wenn `export` für diesen Lauf neu läuft.
+Inhalt: nur, was ExoClock nicht selbst sieht – höchstens ca. 300 Zeichen, wichtigstes zuerst: Meridian-Flip mit Lage zum Transit (z. B. „Meridian flip 41 min before ingress“ oder „during the transit, 75 min after ingress“; Flip-Zeit = Mitte der Pause zwischen den Seiten, wie in der Prüfliste) und wie die Stufe korrigiert wurde; von Hand ausgeschlossene Vergleichssterne; fehlender Flat oder Flat älter als 60 Tage; wechselnde Belichtungszeiten; sehr kurze Belichtung/Szintillation oder große Zeitunsicherheit; Datenlücken (die Pause beim Flip zählt nicht als Lücke); Filter nicht im FITS-Header. Nicht enthalten: Bildzahl, Belichtung, Zeitformat, eigene Fitwerte, Standardmethodik. Ist nichts besonders: „No special remarks.“ Eigener Zusatz (z. B. „Replaces my earlier submission.“): `[export] kommentar_zusatz = "…"` in `RESULT\transit.toml` oder `lauf.toml`. Bereits von Hand angepasste Formular-Kommentare werden nur überschrieben, wenn `export` für diesen Lauf neu läuft.
 
 ## 20. Beobachtungsvorschlag (`transit plan`)
 
@@ -847,7 +848,63 @@ Warum das nötig ist: Die MCMC startet beim besten Fit. Liegt der im falschen Ta
 
 **Vorgehen nach einer Rückweisung wegen O-C:**
 1. Ergebnis → „Tc eindeutig?“ und Spalte Einzeltest ansehen.
-2. Neuer Lauf mit „Photometrie übernehmen von“ = bisheriger Lauf (geht schnell), Erweitert → Vergleichssterne: Einzelstern-Grenze „> 3 σ“ oder auffällige Sterne abwählen; optional Tiefen-Gewicht 1.
+2. Neuer Lauf mit „Photometrie übernehmen von“ = bisheriger Lauf (geht schnell), Erweitert → Vergleichssterne: Einzelstern-Grenze „> 3 σ“ oder auffällige Sterne abwählen; optional Tiefen-Gewicht 1. Oder gezielt von Hand: Ergebnis → Vergleichssterne → Haken setzen → Vorschau → Als neuen Lauf rechnen (nächstes Kapitel).
 3. O-C der Läufe vergleichen. Bleibt es stabil und wird die Ampel grün, den besseren Lauf gültig setzen.
 
 Test an künstlichen Daten (10 Vergleichssterne, einer mit 6 ppt Aufhellung über dem Egress und kleinem Rauschen, sodass er in jedes Ensemble mit kleiner OOT-RMS gerät; wahres O-C +2,0 min, Rp/R* 0,110): Standard wählt ihn (O-C +2,4 min, Tiefe 12,5 ppt), der Einzeltest zeigt ihn mit +12σ; mit Tiefen-Gewicht 1 Platz 8 ohne ihn (O-C +2,2 min, 12,2 ppt), mit Einzelstern-Grenze 3σ ebenso.
+
+
+## Vergleichssterne von Hand wählen (Haken, Vorschau, neuer Lauf)
+
+Wofür: Die automatische Suche nimmt das Ensemble mit der kleinsten Streuung außerhalb des Transits. Sie weiß nicht, was du in der Tabelle siehst, etwa einen Stern mit gelber Ruhe oder einer Abweichung im Transitfenster. So geht auch der ExoClock-Reviewer vor: Sterne einzeln ansehen, die schlechten weglassen, neu rechnen. Diese Funktion macht das in wenigen Klicks, ohne den alten Lauf zu verändern.
+
+### Ablauf
+
+1. **Lauf öffnen:** Auswerten → Messung → Vergleichen → in den Kennzahlen den Lauf anklicken → Reiter **Vergleichssterne** im Ergebnisblatt.
+2. **Haken setzen:** Spalte **wählen**. Vorbelegt sind die Sterne, die der Lauf verwendet hat (mit `*` markiert). Jeder andere Kandidat lässt sich dazunehmen, jeder gewählte abwählen. Über der Tabelle steht die aktuelle Auswahl; **wie im Lauf** setzt die Haken zurück.
+3. **Vorschau berechnen:** dauert wenige Sekunden. Die Tabelle darunter hat zwei Zeilen, **Lauf** (die Sterne des Laufs) und **Auswahl** (deine Haken), dazu eine kleine Lichtkurve beider (grau = Lauf, blau = Auswahl, rot = Modell).
+4. **Als neuen Lauf rechnen …:** startet einen vollständigen Lauf mit genau diesen Sternen. Name `gui_<Datum>_<Zeit>_<Kalibrierung>_hand`. Er übernimmt die Photometrie (Cube) und alle Einstellungen des Ausgangslaufs (Ausreißer, Airmass, Apertur …), nur `[search] ensemble` kommt dazu. Danach laufen Fit, MCMC, alle Prüfungen, Ergebnisblatt und Export wie bei jedem Lauf. Der alte Lauf bleibt unverändert.
+5. **Vergleichen und entscheiden:** Den neuen Lauf in den Kennzahlen mit dem alten vergleichen und den besseren **gültig** setzen.
+
+### Was die Vorschau rechnet und was nicht
+
+- Ein einzelner Kleinste-Quadrate-Fit (Tc und Rp/R* frei, Geometrie fest), auf dem Radius des Laufs, mit denselben weggelassenen Ausreißern und demselben Flip-Modell. Beide Zeilen werden mit genau diesem schnellen Fit gerechnet, damit sie vergleichbar sind. Darum weicht das O-C der Zeile „Lauf“ etwas vom O-C des Laufs (MCMC) ab; das steht unter der Tabelle.
+- **Nicht** enthalten: MCMC und damit realistische Fehlerbalken (der Fehler in der Vorschau ist meist zu klein), Jackknife, Tc-Profil, Einzeltest, Ergebnisblatt, Upload-Datei. Die Vorschau ist nur zum Ausprobieren; für ExoClock zählt erst der neue Lauf.
+- Sie schreibt nur `RESULT\<lauf>\vorschau.png` und verändert sonst nichts am Lauf (kein Status, kein Logbuch).
+- Kommandozeile: `transit vorschau <Messordner> --out <lauf> --sterne G03,G08,G12 [--radius 14]` gibt eine Zeile `VORSCHAU_JSON {...}` aus.
+
+### Die Vorschau-Tabelle lesen (in dieser Reihenfolge)
+
+| Spalte | Bedeutung | Gut |
+|---|---|---|
+| OOT-RMS | Streuung außerhalb des Transits | kleiner als beim Lauf oder gleich |
+| β | rotes Rauschen (1 = weiß) | nahe 1; deutlich > 1 heißt: Wolken, Drift oder ein unruhiger Stern im Ensemble |
+| O-C (schnell) | Transitmitte minus Vorhersage | erst ansehen, wenn RMS und β passen |
+| Rp/R* | Tiefe, in Klammern Abstand zum Literaturwert in σ | innerhalb von etwa 2 σ |
+
+Erst die Datenqualität (OOT-RMS, β), dann das Ergebnis. Wird die Streuung deutlich größer, war das Weglassen kein Gewinn, auch wenn das O-C „schöner“ aussieht.
+
+### Gute und schlechte Gründe zum Abwählen
+
+Gut, weil sie nichts mit dem Ergebnis des Planeten zu tun haben:
+- **Ruhe** gelb oder rot (der Stern streut gegen die anderen deutlich mehr als typisch) oder „variabel“.
+- **Transitfenster** rot: Der Stern ändert sich genau während des Transits um mehr als 3 σ.
+- **Einzeltest** auffällig oder verworfen: Mit diesem Stern allein kommt eine ganz andere Tiefe heraus.
+- RUWE über 1,4 (Doppelstern möglich), Nachbar im Aperturring, Rand des Bildes.
+- In der Lichtkurve des Sterns (Bild unter der Tabelle) sichtbare Sprünge oder Trends.
+
+Schlecht: Sterne so lange tauschen, bis O-C oder Tiefe zur Erwartung passen. Dann sucht man sich das Ergebnis aus, und genau das bemängeln ExoClock-Reviewer. Bei 30 Kandidaten findet sich fast immer eine Kombination mit „passendem“ O-C, auch wenn die Nacht schlecht war.
+
+Faustregeln: mindestens 3 Sterne behalten, eher helle, farblich ähnliche (BP-RP nahe am Ziel). Bringt kein Abwählen eine kleinere Streuung und bleibt das O-C über alle sinnvollen Kombinationen gleich, liegt die Abweichung an der Nacht (Wolken, Flip im Transit, tiefe Baseline) und nicht an den Vergleichssternen.
+
+### Wo die Wahl sichtbar ist
+
+- `RESULT\<lauf>\lauf.toml`: `[search] ensemble = [...]` und eine Kommentarzeile mit den Sternen.
+- `fit.json` → `info.ensemble_fest`, Protokoll: „Vergleichssterne von Hand gewaehlt … keine Ensemble-Suche“.
+- Ergebnisblatt (Kopfzeile): „Ensemble …: G03 G08 … (von Hand gewählt)“.
+- ExoClock-Kommentar: „Comparison stars selected manually (G03, G08, …).“ Das ist ehrlich und genau das, was der Reviewer wissen will.
+
+### Unterschied zu „Erweitert → Vergleichssterne“ beim neuen Lauf
+
+Dort schließt man Sterne **aus** (`[comps] exclude_stars`); unter den übrigen sucht das Werkzeug weiter selbst das beste Ensemble. Mit den Haken im Ergebnis legst du das Ensemble **fest**; gesucht wird nicht mehr.
+

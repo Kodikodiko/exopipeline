@@ -59,6 +59,9 @@ symmetry_weight = 0         # > 0: Ensemble-Suche bevorzugt um das Ziel symmetri
 einzel_tiefe_sigma = 0      # Einzelstern-Test (jeder Vergleichsstern allein): 0 = nur anzeigen; z. B. 3 = Sterne, deren Rp/R* allein > 3 sigma
                             # vom Median aller Sterne UND vom Literaturwert abweicht, nicht in die Ensemble-Suche
 tiefen_gewicht = 0          # > 0: unter den Top-Ensembles gewinnt eher eines, dessen Rp/R* zum Literaturwert passt (Score x (1 + w (z/3)^2))
+# ensemble = ["G03", "G08", "G12"]   # Vergleichssterne von Hand: keine Ensemble-Suche, Vermerk in Ergebnisblatt und
+                            # ExoClock-Kommentar. Normalerweise ueber die Oberflaeche setzen (Ergebnis -> Vergleichssterne
+                            # -> Haken -> "Als neuen Lauf rechnen"). Handbuch: "Vergleichssterne von Hand waehlen".
 
 [fit]
 u1 = 0.40
