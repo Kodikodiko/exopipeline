@@ -63,3 +63,10 @@ Geschätzter Aufwand: 1–2 Sitzungen.
 - `pytest`-Tests: komplette Kette `calibrate` … `fit` muss innerhalb kleiner Toleranzen die Referenz liefern; dazu schnelle Einzeltests (Modell, Zeitumrechnung, Ensemble-Wahl).
 - Lauf per GitHub Actions bei jedem PR (Windows, später auch Linux).
 - Dient auch als Abnahmetest für Linux-Version, englische Version und Stacken.
+
+## Später: Live-Protokoll komplett scrollbar
+Geschätzter Aufwand: ½ Sitzung.
+- In der neuen GUI (`gui_neu.py`, Laufseite „Protokoll (live)“) soll der gesamte Verlauf des Laufs scrollbar sein, nicht nur die letzten Zeilen.
+- Derzeit liefert `run_detail` in `gui.py` über `tail(…, n=14)` nur die letzten 14 Zeilen aus `gui_konsole.txt` bzw. `run.log`; das Feld `#l-log` zeigt nur diese.
+- Umsetzung: ganzes Protokoll liefern (bei sehr langen Läufen ggf. inkrementell ab einer Zeilennummer nachladen statt jedes Mal komplett), `#l-log` mit fester Höhe und `overflow:auto`; automatisch nach unten mitscrollen nur, wenn man schon unten steht (vorhandene Logik in `gui_neu.py` beibehalten).
+- Klassische GUI (`/klassisch`) unverändert lassen.
