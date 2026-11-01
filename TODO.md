@@ -30,7 +30,8 @@ Geschätzter Aufwand: 2–3 Sitzungen (Handbuch allein etwa eine).
 Geschätzter Aufwand: 1 Sitzung.
 - Je Frame den Gesamtfluss der Vergleichssterne mit dem gleitenden Median vergleichen; Einbruch über einer Schwelle (z. B. `[fit] wolken_schwelle = 0.3` = 30 %) → Frame als „Wolke“ markieren.
 - Markierte Frames im Ergebnisblatt farbig zeigen und im Bericht/`summary.md` als Zeitbereiche nennen (z. B. „Wolken 22:41–22:58 UT, 14 Frames“).
-- Optional automatisch aus dem Fit nehmen (eigene Option, Standard aus), analog zu `ausreisser.json`.
+- Optional automatisch aus dem Fit nehmen (eigene Option, Standard aus), analog zu `ausreisser.json`; vor Vergleichsstern-Suche und Fit, damit beide nicht von Wolken verbogen werden.
+- Wolken-Frames mit UT-Fenstern im ExoClock-Kommentar nennen (wie das Sigma-Clipping).
 - Anlass: KPS-1b (2026-06-05), dort mussten die Wolken-Frames von Hand entfernt werden.
 
 ## Später: ExoClock-Kommentar vervollständigen
@@ -67,6 +68,51 @@ Geschätzter Aufwand: 1–2 Sitzungen.
 - `pytest`-Tests: komplette Kette `calibrate` … `fit` muss innerhalb kleiner Toleranzen die Referenz liefern; dazu schnelle Einzeltests (Modell, Zeitumrechnung, Ensemble-Wahl).
 - Lauf per GitHub Actions bei jedem PR (Windows, später auch Linux).
 - Dient auch als Abnahmetest für Linux-Version, englische Version und Stacken.
+
+## Später: Numerik-Paket aus dem externen Review (Flip-Prior, β, Belichtungszeit)
+Geschätzter Aufwand: ½ Sitzung. Quelle: externes Review vom 2026-11-01, Bewertung https://claude.ai/artifact/JDNPA2Afu2k1xj7HLNiPq6
+- **Flip-Prior richtig gewichten (Prio hoch):** `lin_solve` gewichtet die Prior-Zeile mit festem `SIG_RES = 6e-3`. Richtig ist das nur bei 6 ppt Streuung; KELT-7b (σ ≈ 20 ppt) ist der Prior dadurch ~11× zu schwach, HAT-P-42b 1,6× und WASP-135b 2,5× zu stark. Streuung σ₀ der Nacht (OOT, in der MCMC `sig`) übergeben statt `SIG_RES`. Der Prior-Term in `lnp` selbst stimmt.
+- **Flip-Ebene bei wenigen Sternen absichern (Prio hoch):** In `flip_offsets` wird bei ≤ 3 Sternen `scatter = 0` → `sd = 0` → `wp = inf`; bei 1 Stern ist `others` leer (Division durch 0); `np.std` ohne `ddof`. Ab 5 Sternen Ebene mit `ddof=3`, darunter gewichtetes Mittel, bei 0 Sternen `flip = "free"` mit Warnung; Untergrenze `median(e)`. Die feste Pixelmitte 3112/2084 ist egal (Ebene wird an der Zielposition ausgewertet).
+- **β über Zeitfenster statt Frames:** `beta_factor` bündelt 5–20 aufeinanderfolgende Frames und übergeht Lücken. Zeitvektor übergeben, Bin-Breiten 5–30 min (höchstens Gesamtdauer/4), nur Bins mit ≥ 3 Punkten, Fallback auf die Frame-Logik. Auch in `comp_check`; Schwelle `kb` danach gegenprüfen. An den bisherigen Nächten ändert das wenig (β ≈ 1 auch zeitbasiert).
+- **Echte Belichtungszeit an `model()`:** Die Verschmierung nimmt immer 120 s an, kein Aufruf übergibt `texp`. `self.texp` aus `c["exptime"]` in `Night` (Skalar oder je Frame) und an fit, tc_profile, mcmc_chain und single_star weitergeben. `exptime` im Cube speichern ist optional (headers.csv reicht).
+- Abnahme: HAT-P-42b, KELT-7b, WASP-52b neu rechnen und O−C, σ(Tc), Tiefe mit dem Logbuch vergleichen.
+
+## Später: Randverdunkelung automatisch aus Sternparametern
+Geschätzter Aufwand: 1 Sitzung.
+- `[fit] u1/u2 = "auto"`: quadratische Koeffizienten aus `teff`, `logg`, `meta` (stehen im ExoClock-Cache) und dem Filter, über eine kleine eingebaute Claret-Tabelle (keine exotethys/pylightcurve). Clear/Luminanz wie R behandeln und das dokumentieren. Zahlen in `lauf.toml` haben Vorrang; Fallback 0.40/0.25.
+- Verwendete Werte und Herkunft in `fit.json`, `summary.md` und Ergebnisblatt ausweisen.
+- Betrifft nicht den Upload (ExoClock fittet selbst), aber die eigene Tiefe und damit Einzelsterntest und `tiefen_gewicht` (Fehlalarme bei heißen/kühlen Sternen, z. B. KELT-7 6789 K, WASP-52 5000 K).
+
+## Später: Exzentrische Bahnen bei fester Geometrie
+Geschätzter Aufwand: ½ Sitzung.
+- `eccentricity`, `periastron`, `sma_over_rs_adjusted` in `ephem.planet_params` mitlesen (205 ExoClock-Planeten mit e > 0; von den eigenen Zielen K2-115b e = 0.14, TOI-628b e = 0.072).
+- Effektive Kreisbahn: (a/R*)_eff = a/R* · (1 + e sin ω)/√(1 − e²), b = a/R* · cos i · (1 − e²)/(1 + e sin ω). Achtung: Die Formel im externen Review ist verkehrt herum.
+- Vorher klären, was `sma_over_rs_adjusted = True` bedeutet (vermutlich schon umgerechnet → dann nicht doppelt korrigieren). Auch `ergebnisblatt.durations` anpassen.
+
+## Später: FWHM-Schätzer ohne Abschneiden
+Geschätzter Aufwand: ½ Sitzung.
+- `measure_star`: `np.clip(…, 0)` mit r²-Gewicht überschätzt die FWHM bei schwachen Sternen, die feste Maske `r < 12 px` unterschätzt sie ab FWHM ~10 px (Monokamera).
+- FWHM = 2 · r₅₀ aus Ringflüssen ohne clip, Maskenradius an die Sterngröße anpassen. Danach eine Nacht mit mitwachsender Apertur (k · FWHM) vergleichen.
+
+## Später: Robustheits-Zeile im Fit (weniger Varianten-Läufe)
+Geschätzter Aufwand: ½–1 Sitzung.
+- Mit dem Ensemble des Hauptlaufs zusätzlich rechnen: `airmass_order = 2`, `detrend_fwhm = true` (mit ΔBIC), `weights = "modell"`, strengerer Airmass-Schnitt (z. B. 2.0). Tc/O−C, Tiefe, RMS je Variante als kleine Tabelle in `summary.md` und GUI, dazu eine Zeile „alle Varianten innerhalb ± x min“.
+- Diese Optionen stecken in `Night.__init__` (X, sel): je Variante eine eigene `Night`, kein MCMC.
+- Anlass: Logbuch mit 16 Läufen (KPS-1b), 10 (HAT-P-33b), 9 (HAT-P-42b), viele davon solche Varianten.
+
+## Später: Kalibrier-Warnung bei negativem Hintergrund
+Geschätzter Aufwand: ¼ Sitzung.
+- An 3 Frames (Anfang, Mitte, Ende) prüfen, ob `Light − Bias` negativen Himmelshintergrund ergibt (Offset/Temperatur passt nicht zum Bias) → Warnung in Konsole, GUI und Ergebnisblatt.
+- Keine automatische Wahl bf/f: entscheidend bleibt der Vergleich von OOT-RMS und O−C der beiden parallelen Läufe.
+
+## Später: Upload-Karte in der GUI
+Geschätzter Aufwand: ½ Sitzung. Optional.
+- Reiter „Hochladen“: Werte aus `exoclock_formular.txt` als Liste mit Kopier-Knopf je Feld (Dateipfad der `*_exoclock_JDUTC.txt`, Filtername, Belichtung), Kommentar editierbar mit Zeichenzähler (≤ 300), Link zur ExoClock-Planetenseite.
+- Haken „bei ExoClock hochgeladen“ als neue Logbuch-Spalte (`eingetragen` ist der Zeitpunkt des Logbuch-Eintrags, kein Upload-Status). Alte Logbücher ohne Spalte weiter lesbar halten.
+
+## Später: Kleinigkeiten aus dem externen Review
+- Export: Fehler der Flip-Stufe mit in die Kopfzeile der ExoClock-Datei schreiben („… ppt ± … ppt“). Methode nicht ändern.
+- MCMC: Proposal aus der Kovarianz des Fits (Cholesky), nur für `free = true`, erst wenn R-hat dort auffällt.
 
 ## Erledigt (2026-11-01): Live-Protokoll komplett scrollbar
 Geschätzter Aufwand: ½ Sitzung.
