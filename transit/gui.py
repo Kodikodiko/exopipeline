@@ -429,6 +429,7 @@ def allowed_file(path):
 
 # ------------------------------------------------------------------ new GUI (page in gui_neu.py; the classic page stays at /klassisch)
 UPLOAD_MARK = "hochgeladen.json"          # RESULT\<lauf>\hochgeladen.json: {"datum": ...} once the user ticked "hochgeladen"
+HIDE_MARK = "versteckt.json"              # RESULT\<lauf>\versteckt.json: run hidden in the list (nothing deleted)
 GUI_META = "gui_lauf.json"                # RESULT\<lauf>\gui_lauf.json: how the GUI started the run (mode, workers, ...)
 WAITING = {}                              # (messordner, lauf) -> dict of the queued start (second calibration variant)
 STOPPED = set()                           # (messordner, lauf) stopped by the user: queued follow-up runs are dropped
@@ -643,6 +644,7 @@ def runs_detail(p):
         ar = os.path.join(d, "ausreisser.json")
         r["ausreisser"] = len(jload(ar).get("frames", [])) if os.path.exists(ar) else None
         r["hochgeladen"] = jload(os.path.join(d, UPLOAD_MARK)).get("datum", "")
+        r["versteckt"] = os.path.exists(os.path.join(d, HIDE_MARK))
         if r.get("oc") is not None:
             r["pruefungen"] = run_checks(r, jload(os.path.join(d, "inventory.json")), d)
         if (os.path.normcase(p), r["lauf"]) in WAITING:
@@ -809,6 +811,23 @@ def mark_uploaded(q):
     return dict(ok=True)
 
 
+def mark_hidden(q):
+    """Hide a run in the lists of the new page or show it again; only a marker file, the run itself stays."""
+    p = os.path.abspath(q["messordner"])
+    lauf = str(q["lauf"])
+    if not lauf or os.sep in lauf or "/" in lauf or lauf in (".", ".."):
+        raise ValueError(f"ungueltiger Laufname: {lauf}")
+    d = os.path.join(p, "RESULT", lauf)
+    if not os.path.isdir(d):
+        raise ValueError(f"Lauf {lauf} nicht gefunden")
+    f = os.path.join(d, HIDE_MARK)
+    if q.get("wert"):
+        json.dump(dict(datum=time.strftime("%Y-%m-%d %H:%M")), open(f, "w", encoding="utf-8"))
+    elif os.path.exists(f):
+        os.remove(f)
+    return dict(ok=True)
+
+
 # ------------------------------------------------------------------ HTTP
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
@@ -934,6 +953,8 @@ class H(BaseHTTPRequestHandler):
                 self._json(switch_gaia(q))
             elif self.path == "/api/hochgeladen":
                 self._json(mark_uploaded(q))
+            elif self.path == "/api/verstecken":
+                self._json(mark_hidden(q))
             elif self.path == "/api/ordner":
                 p = unwrap(os.path.normpath(pick_folder() or "."))
                 if p in ("", "."):

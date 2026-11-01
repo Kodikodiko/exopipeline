@@ -177,7 +177,7 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
      </div>
     </section>
     <section class="card" aria-labelledby="h-laeufe" style="display:flex;flex-direction:column;gap:12px;padding-bottom:8px">
-     <div class="between"><h2 id="h-laeufe" style="font-size:18px">Läufe dieser Nacht</h2><a href="#/vergleich">Vergleichen und hochladen</a></div>
+     <div class="between"><h2 id="h-laeufe" style="font-size:18px">Läufe dieser Nacht</h2><span class="row" style="gap:16px"><button id="l-versteckt" class="lnk" hidden onclick="S.zeigeVersteckt=!S.zeigeVersteckt;zeigeLaeufe()"></button><a href="#/vergleich">Vergleichen und hochladen</a></span></div>
      <div class="scroll"><table style="min-width:640px"><thead><tr><th>Lauf</th><th>Zustand</th><th>O-C</th><th title="Rauschen außerhalb des Transits">OOT-RMS</th><th title="rotes Rauschen, 1 = weiß">β</th><th title="ExoClock-Kriterium: grün unter 2, gelb 2–3, rot ab 3">Drift</th><th></th></tr></thead><tbody id="laeufe"></tbody></table></div>
     </section>
    </div>
@@ -520,13 +520,23 @@ function zeigeFuss(){
   $('starttxt').textContent=n===2?'2 Läufe starten':'Lauf starten';
 }
 function zeigeLaeufe(){
-  const L=[...(S.M.laeufe||[])].sort((a,b)=>String(b.lauf).localeCompare(String(a.lauf)));
-  if(!L.length){ $('laeufe').innerHTML='<tr><td colspan="7" class="hint">Noch keine Läufe.</td></tr>'; return; }
+  const alle=[...(S.M.laeufe||[])].sort((a,b)=>String(b.sortzeit||'').localeCompare(String(a.sortzeit||''))||String(b.lauf).localeCompare(String(a.lauf)));
+  const nv=alle.filter(l=>l.versteckt).length, L=S.zeigeVersteckt?alle:alle.filter(l=>!l.versteckt);
+  const vb=$('l-versteckt'); vb.hidden=!nv; vb.textContent=S.zeigeVersteckt?'versteckte ausblenden':`${nv} versteckte zeigen`;
+  if(!L.length){ $('laeufe').innerHTML=`<tr><td colspan="7" class="hint">${nv?'Alle Läufe sind versteckt.':'Noch keine Läufe.'}</td></tr>`; return; }
   $('laeufe').innerHTML=L.map(l=>{
-    const fertig=l.oc!==undefined;
-    return `<tr><td><b>${esc(l.lauf)}</b> <span class="hint">${esc(MODNAME[l.modus]||l.modus||'')}</span> ${l.status==='gueltig'?'<span class="pill pg">gültig</span>':''}</td>
+    const fertig=l.oc!==undefined, gl=l.status==='gueltig', lf=l.zustand==='laeuft'||l.zustand==='wartet';
+    const knopf=l.versteckt?`<button class="lnk" onclick="verstecke('${esc(l.lauf)}',false)">wieder zeigen</button>`:
+      gl||lf?'':`<button class="lnk" title="Lauf in dieser Liste und im Vergleich ausblenden. Es wird nichts gelöscht." onclick="verstecke('${esc(l.lauf)}',true)">verstecken</button>`;
+    return `<tr${l.versteckt?' style="opacity:.55"':''}><td><b>${esc(l.lauf)}</b> <span class="hint">${esc(MODNAME[l.modus]||l.modus||'')}</span> ${gl?'<span class="pill pg">gültig</span>':''}${l.versteckt?' <span class="pill pn">versteckt</span>':''}</td>
       <td>${zustandPill(l)}</td><td>${fertig?ocTxt(l):''}</td><td>${fertig?komma(l.oot_rms,2)+' ppt':''}</td><td>${fertig?komma(l.beta,2):''}</td><td>${fertig?ampel(l.drift):''}</td>
-      <td style="text-align:right">${fertig?`<a href="#/vergleich" onclick="S.sel='${esc(l.lauf)}'">Ergebnis</a>`:`<a href="#/lauf/${encodeURIComponent(l.lauf)}">Details</a>`}</td></tr>`; }).join('');
+      <td style="text-align:right;white-space:nowrap">${knopf} ${fertig?`<a href="#/vergleich" onclick="S.sel='${esc(l.lauf)}'">Ergebnis</a>`:`<a href="#/lauf/${encodeURIComponent(l.lauf)}">Details</a>`}</td></tr>`; }).join('');
+}
+async function verstecke(lauf,v){
+  const r=await api('/api/verstecken',{messordner:S.M.pfad,lauf,wert:v});
+  if(!r.ok){ toast(r.fehler||'Fehler'); return; }
+  await aktualisiere();
+  if(v) toast(`${lauf} ist versteckt.`,'Rückgängig',()=>verstecke(lauf,false)); else toast(`${lauf} wird wieder gezeigt.`);
 }
 function zustandPill(l){
   if(l.zustand==='laeuft'){ const st=SCHRITT[l.schritt]||l.schritt||''; return `<span class="pill pb">${esc(st)}${l.task?' · '+esc(l.task):''}${l.prozent!=null&&l.task?' '+Math.round(l.prozent)+' %':''}</span>`+(l.heartbeat_alter>120?' <span class="pill pr">hängt?</span>':''); }
@@ -691,7 +701,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) document
 function zeigeVergleich(poll){
   if(!S.M){ $('v-leer').hidden=false; $('v-inhalt').hidden=true; return; }
   const zeit=l=>String(l.sortzeit||'')+'|'+String(l.lauf);      // first start of the run (server: sortzeit)
-  const L=S.M.laeufe.filter(l=>l.oc!==undefined).sort((a,b)=>S.kzAuf?zeit(a).localeCompare(zeit(b)):zeit(b).localeCompare(zeit(a)));
+  const L=S.M.laeufe.filter(l=>l.oc!==undefined&&(!l.versteckt||S.zeigeVersteckt||l.status==='gueltig'||l.lauf===S.sel)).sort((a,b)=>S.kzAuf?zeit(a).localeCompare(zeit(b)):zeit(b).localeCompare(zeit(a)));
   $('kz-lauf').setAttribute('aria-sort',S.kzAuf?'ascending':'descending');
   $('v-leer').hidden=!!L.length; $('v-inhalt').hidden=!L.length; if(!L.length) return;
   const best=L.reduce((a,b)=>(+b.oot_rms<+a.oot_rms?b:a));
