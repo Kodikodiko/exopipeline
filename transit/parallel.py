@@ -10,7 +10,7 @@ import time
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 
 THREAD_VARS = ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS")
-SCALARS = ("Tc", "Tc_err", "rp", "depth_ppt", "ars", "inc", "rms_ppt", "flip_ppt", "bic")
+SCALARS = ("Tc", "Tc_err", "rp", "rp_err", "depth_ppt", "ars", "inc", "rms_ppt", "flip_ppt", "bic")
 
 _G = {}
 
@@ -69,8 +69,12 @@ def fit_combo(radius, ens):
     return slim(n.fit(radius, ens)), slim(n.fit(radius, ens, free=True))
 
 
-def fit_one(radius, ens, mask=None, free=False):
-    return slim(_G["n"].fit(radius, ens, mask=mask, free=free))
+def fit_one(radius, ens, mask=None, free=False, rp_fix=None):
+    return slim(_G["n"].fit(radius, ens, mask=mask, free=free, rp_fix=rp_fix))
+
+
+def tc_profile(radius, ens, half_min, step_min):
+    return _G["n"].tc_profile(radius, ens, half_min, step_min)
 
 
 def mcmc_chain(radius, ens, free, nstep, seed, jitter):

@@ -217,7 +217,7 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
    <div id="v-leer" class="card" hidden><p style="margin:0">Noch kein fertiger Lauf. <a href="#/auswerten">Lauf starten</a></p></div>
    <div id="v-inhalt" style="display:flex;flex-direction:column;gap:20px">
     <section class="card" aria-labelledby="h-kz" style="display:flex;flex-direction:column;gap:12px">
-     <div class="between"><h2 id="h-kz" style="font-size:18px">Kennzahlen</h2><span class="hint" style="font-size:13px">Auswahl nur nach Datenqualität, nie nach der Literatur-Tiefe</span></div>
+     <div class="between"><h2 id="h-kz" style="font-size:18px">Kennzahlen</h2><span class="hint" style="font-size:13px">Auswahl nach Datenqualität und Prüfungen, nicht danach, welche Tiefe am besten zur Literatur passt</span></div>
      <div class="scroll"><table style="min-width:860px"><thead><tr><th>Lauf</th><th>Kalibr.</th><th>O-C</th><th title="Rauschen außerhalb des Transits">OOT-RMS</th><th title="rotes Rauschen, 1 = weiß">β</th><th title="ExoClock-Kriterium">Drift</th><th>Rp/Rs</th><th>Ausreißer</th><th>Prüfungen</th><th></th></tr></thead><tbody id="kz"></tbody></table></div>
     </section>
     <div class="row" style="align-items:flex-start;gap:20px">
@@ -320,6 +320,10 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
    <div class="g3"><label class="lbl">hell ΔG<input class="inp" data-k="dmag_bright" type="number" step="0.1"></label><label class="lbl">schwach ΔG<input class="inp" data-k="dmag_faint" type="number" step="0.1"></label>
     <label class="lbl">Nachbar px<input class="inp" data-k="neighbour_px" type="number"></label><label class="lbl">Rand px<input class="inp" data-k="edge_px" type="number"></label></div>
    <span class="hint">Fenster für Gaia-Vergleichssterne relativ zum Ziel. Ampel: RUWE über 1,4 (Doppelstern?), Gaia VARIABLE, Transitfenster-Test über 3 σ.</span>
+   <div class="lbl" role="group" aria-label="Einzelstern-Grenze" data-h="einzel_tiefe_sigma">Einzelstern-Grenze<div class="seg" id="seg-ein"></div>
+    <span class="hint">Jeder Vergleichsstern wird allein gegen das Ziel gerechnet. Gibt einer allein eine ganz andere Transittiefe, verbiegt er auch das Ensemble.</span></div>
+   <div class="g3"><label class="lbl">Tiefen-Gewicht<input class="inp" data-k="tiefen_gewicht" type="number" step="0.5" min="0"></label></div>
+   <span class="hint">Tiefen-Gewicht über 0: unter den besten Ensembles gewinnt eher eines, dessen Rp/R* zum erwarteten Wert passt.</span>
    <div id="kand"></div></section>
   <section id="g-ape" data-g="ape"><div class="sec-h"><h3>Apertur <span class="gz"></span></h3><button class="lnk" onclick="gruppeReset('ape')">Zurücksetzen</button></div>
    <div class="g3"><label class="lbl">Modus<select class="inp" data-k="aperture_mode"><option value="">Standard</option><option value="beides">beides</option><option value="fest">fest</option><option value="variabel">mitwachsend</option></select></label>
@@ -354,12 +358,13 @@ const MODI=[['f','Flat'],['bf','Bias + Flat'],['bfd','+ Dark'],['raw','keine']];
 const MODNAME={f:'Flat',bf:'Bias + Flat',bfd:'Bias + Flat + Dark',raw:'ohne Kalibrierung'};
 const SCHRITT={inventory:'Inventur',solve:'Plate-Solve',calibrate:'Kalibrieren',cube:'Photometrie',compsearch:'Vergleichssterne',fit:'Fit (MCMC)',export:'Export',report:'Ergebnisblatt'};
 const STEPS=['inventory','calibrate','cube','compsearch','fit','export','report'];
-const GRUPPEN={kal:['flat','bias','dark','workers'],kam:['farbkamera','gaia_quelle'],ver:['dmag_bright','dmag_faint','neighbour_px','edge_px','exclude'],ape:['aperture_mode','ap_min','ap_max','annulus'],
+const GRUPPEN={kal:['flat','bias','dark','workers'],kam:['farbkamera','gaia_quelle'],ver:['dmag_bright','dmag_faint','neighbour_px','edge_px','einzel_tiefe_sigma','tiefen_gewicht','exclude'],ape:['aperture_mode','ap_min','ap_max','annulus'],
   fit:['ausreisser_sigma','airmass_order','flip','fix_geometry','airmass_max','mcmc_steps','symmetry_weight']};
 const GNAME={kal:'Kalibrierung',kam:'Kamera & Gaia',ver:'Vergleichssterne',ape:'Apertur',fit:'Fit & Ausreißer'};
 const ELBL={flat:'Flat',bias:'Bias',dark:'Dark',workers:'Prozesse',farbkamera:'Farbkamera',gaia_quelle:'Gaia-Quelle',dmag_bright:'hell ΔG',dmag_faint:'schwach ΔG',neighbour_px:'Nachbar',edge_px:'Rand',
-  aperture_mode:'Apertur',ap_min:'Apertur von',ap_max:'Apertur bis',annulus:'Ring',ausreisser_sigma:'Ausreißer',airmass_order:'Detrending',flip:'Flip',fix_geometry:'Geometrie',airmass_max:'Airmass-Grenze',mcmc_steps:'MCMC',symmetry_weight:'Symmetrie',exclude:'ohne Sterne'};
+  aperture_mode:'Apertur',ap_min:'Apertur von',ap_max:'Apertur bis',annulus:'Ring',ausreisser_sigma:'Ausreißer',airmass_order:'Detrending',flip:'Flip',fix_geometry:'Geometrie',airmass_max:'Airmass-Grenze',mcmc_steps:'MCMC',symmetry_weight:'Symmetrie',exclude:'ohne Sterne',einzel_tiefe_sigma:'Einzelstern-Grenze',tiefen_gewicht:'Tiefen-Gewicht'};
 const AUS=[['','aus'],['4','wenige > 4 σ'],['3','normal > 3 σ'],['2.5','viele > 2,5 σ']];
+const EIN=[['','nur anzeigen'],['4','verwerfen > 4 σ'],['3','verwerfen > 3 σ']];
 const ICHK='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>';
 const ICOPY='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>';
 const IWARN='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:1px"><path d="M12 3 2 20h20z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>';
@@ -543,7 +548,8 @@ function erweitertBody(){
   const e=S.erw, num=k=>e[k]===undefined||e[k]===''?null:+e[k];
   const er={flat:e.flat||null,bias:e.bias||null,dark:e.dark||null,dmag_bright:num('dmag_bright'),dmag_faint:num('dmag_faint'),neighbour_px:num('neighbour_px'),edge_px:num('edge_px'),
     airmass_order:num('airmass_order'),airmass_max:num('airmass_max'),flip:e.flip||null,fix_geometry:e.fix_geometry==='false'?false:e.fix_geometry==='true'?true:null,
-    mcmc_steps:num('mcmc_steps'),symmetry_weight:num('symmetry_weight'),gaia_quelle:e.gaia_quelle||null,farbkamera:e.farbkamera||null,ausreisser_sigma:num('ausreisser_sigma')};
+    mcmc_steps:num('mcmc_steps'),symmetry_weight:num('symmetry_weight'),gaia_quelle:e.gaia_quelle||null,farbkamera:e.farbkamera||null,ausreisser_sigma:num('ausreisser_sigma'),
+    einzel_tiefe_sigma:num('einzel_tiefe_sigma'),tiefen_gewicht:num('tiefen_gewicht')};
   if(e.annulus) er.annulus=String(e.annulus).split(',').map(Number);
   if(e.exclude!==undefined) er.exclude_stars=e.exclude;
   const amin=num('ap_min'),amax=num('ap_max');
@@ -692,7 +698,7 @@ function zeigeVergleich(poll){
       <td style="white-space:nowrap"><button class="btn sec sm" onclick="event.stopPropagation();aij('${esc(l.lauf)}')">In AIJ öffnen</button></td></tr>`; }).join('');
   const s=L.find(l=>l.lauf===S.sel);
   $('h-blatt').textContent='Ergebnisblatt '+s.lauf;
-  $('tabs').innerHTML=[['kurve','Lichtkurve'],['feld','Feld'],['sterne','Vergleichssterne']].map(([k,t])=>`<button role="tab" aria-selected="${S.tab===k}" class="btn sm ${S.tab===k?'':'sec'}" onclick="S.tab='${k}';zeigeBlatt()">${t}</button>`).join('');
+  $('tabs').innerHTML=[['kurve','Lichtkurve'],['feld','Feld'],['sterne','Vergleichssterne'],['tc','Tc eindeutig?']].map(([k,t])=>`<button role="tab" aria-selected="${S.tab===k}" class="btn sm ${S.tab===k?'':'sec'}" onclick="S.tab='${k}';zeigeBlatt()">${t}</button>`).join('');
   if(!poll) zeigeBlatt();
   $('pruef').innerHTML=(s.pruefungen||[]).map(p=>`<li style="display:flex;gap:10px;align-items:flex-start"><span class="pill ${p.level==='ok'?'pg':p.level==='bad'?'pr':'py'}">${p.level==='ok'?'ok':p.level==='bad'?'rot':'prüfen'}</span><span>${esc(p.text)}</span></li>`).join('')||'<li class="hint">keine Angaben</li>';
   $('gueltigbox').innerHTML=s.status==='gueltig'?`<div class="row" style="gap:8px"><span class="pill pg" style="font-size:13px;padding:6px 10px">${ICHK} gültige Messung dieser Nacht</span></div><span class="hint" style="font-size:13px">Ein anderer Lauf kann jederzeit stattdessen gültig gesetzt werden.</span>`:
@@ -706,13 +712,13 @@ function waehleLauf(l){ S.sel=l; zeigeVergleich(); }
 // is fetched in the background as soon as the run is selected and kept for the session (S.kc).
 function zeigeBlatt(){
   const s=S.sel, p=S.M.pfad, lr=(S.M.laeufe||[]).find(l=>l.lauf===s)||{}, key=[p,s,lr.oc,lr.oot_rms,lr.beta].join('|');
-  document.querySelectorAll('#tabs button').forEach(b=>{ const on=b.textContent===({kurve:'Lichtkurve',feld:'Feld',sterne:'Vergleichssterne'})[S.tab];
+  document.querySelectorAll('#tabs button').forEach(b=>{ const on=b.textContent===({kurve:'Lichtkurve',feld:'Feld',sterne:'Vergleichssterne',tc:'Tc eindeutig?'})[S.tab];
     b.setAttribute('aria-selected',on); b.classList.toggle('sec',!on); });
   const B=$('blatt');
   if(B.dataset.key!==key){
     B.dataset.key=key; const v=Date.now();
     const img=(f,alt,h)=>`<div class="bbox" data-hilfe="${h}"><a href="${datei(p,s,f)}&v=${v}" target="_blank"><img class="blatt" alt="${alt} ${esc(s)}" src="${datei(p,s,f)}&v=${v}" onerror="this.closest('.bbox').outerHTML='<span class=hint>Kein Bild vorhanden.</span>'"></a></div>`;
-    B.innerHTML=`<div data-tab="kurve">${img('ergebnisblatt.png','Ergebnisblatt mit Lichtkurve','blatt')}</div><div data-tab="feld">${img('ergebnisblatt_feld.png','Feldbild','feld')}</div><div data-tab="sterne"></div>`;
+    B.innerHTML=`<div data-tab="kurve">${img('ergebnisblatt.png','Ergebnisblatt mit Lichtkurve','blatt')}</div><div data-tab="feld">${img('ergebnisblatt_feld.png','Feldbild','feld')}</div><div data-tab="sterne"></div><div data-tab="tc"><p class="hint" style="margin:0 0 8px">Wie gut passt das Modell, wenn Tc an jeder Stelle festgehalten wird? Ein klares Tal = Tc ist eindeutig. Ein zweites, fast gleich tiefes Tal (orange Marke) = der Fit hätte auch eine andere Flanke nehmen können, meist wegen Rauschen oder Wolken bei Ingress/Egress. Grüne Linie: O-C, wenn Rp/R* auf den Literaturwert festgesetzt wird. Liegt sie weit vom roten Band (MCMC), hängt Tc an der Tiefe.</p>${img('tc_profil.png','Tc-Profil','tc')}</div>`;
     ladeSterne(p,s,key); ladeHilfe(p,s,key,v);
   }
   B.querySelectorAll('[data-tab]').forEach(d=>d.hidden=d.dataset.tab!==S.tab);
@@ -729,7 +735,7 @@ const SPALTE={
   'Drift':'ExoClock-Kriterium: Abweichung von Rp/R* vom Literaturwert in Einheiten des Fehlers. Grün unter 2, gelb 2–3, rot ab 3.',
   'Rp/Rs':'Gemessener Planetenradius relativ zum Sternradius (aus der Transittiefe).',
   'Ausreißer':'Wie viele Messpunkte das Sigma-Clipping gegen den Transit-Fit entfernt hat (Schwelle in ausreisser.json).',
-  'Prüfungen':'Ergebnis der automatischen Prüfungen: Planung (Baseline, Airmass, Flip), Drift und Konvergenz (R-hat).',
+  'Prüfungen':'Ergebnis der automatischen Prüfungen: Planung (Baseline, Airmass, Flip), Drift, Konvergenz (R-hat), „Tc eindeutig?“ (Tc-Profil und Kontrollfit) und Einzeltest der Vergleichssterne.',
   'Planet':'Planet in ExoClock-Schreibweise.',
   'Nacht':'Beobachtungsnacht (Datum des Abends).',
   'Status':'gültig = der Lauf, der für diese Nacht zählt (Upload, O-C-Diagramm); variante = weitere Auswertung derselben Nacht.',
@@ -743,6 +749,7 @@ const SPALTE={
   'Gaia':'Variabilitätskennung aus Gaia/VSX. VARIABLE = bekannter Veränderlicher, ungeeignet.',
   'Ruhe':'Streuung des Sterns gegen die übrigen Kandidaten (10-min-Mittel), geteilt durch den Median aller. 1 = typisch, über 2 auffällig.',
   'Transitfenster':'Scheinbarer „Transit“ dieses Sterns im Zeitfenster des Planeten (ppt ± Fehler). Sollte null sein; über 3 σ rot.',
+  'Einzeltest':'Transit-Fit mit nur diesem Stern als Vergleich: Abweichung seines Rp/R* vom Median aller Sterne, in Einheiten seines Fehlers. Grün = passt; gelb = auffällig (über 3 σ zum Median und zur Literatur); rot = in der Ensemble-Suche verworfen. Maus über dem Wert: Rp/R* und O-C dieses Sterns.',
   'Score':'Gesamtwertung des Vorschlags aus ExoClock-Priorität, Signal-Rausch-Verhältnis, Abdeckung und Wetter.',
   'Prio':'ExoClock-Priorität: alert, high, medium, low.',
   'mag':'Helligkeit des Sterns (V, mag).',
@@ -758,7 +765,7 @@ const SPALTE={
 let thPop=null, thFest=null;
 function thZeige(b){
   if(!thPop){ thPop=document.createElement('div'); thPop.className='hpop fix'; thPop.setAttribute('role','tooltip'); document.body.appendChild(thPop); }
-  thPop.innerHTML=`<b>${esc(b.dataset.titel)}</b>${esc(SPALTE[b.dataset.titel])}`; thPop.hidden=false;
+  thPop.innerHTML=`<b>${esc(b.dataset.titel)}</b>${esc(SPALTE[b.dataset.titel])}`; thPop.style.maxWidth=''; thPop.hidden=false;
   const r=b.getBoundingClientRect(), w=Math.min(340,innerWidth-16);
   thPop.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';
   thPop.style.top=(r.bottom+6+thPop.offsetHeight>innerHeight?r.top-thPop.offsetHeight-6:r.bottom+6)+'px';
@@ -779,6 +786,61 @@ addEventListener('scroll',()=>{ if(thPop&&!thPop.hidden){ if(thFest){ thFest.cla
 new MutationObserver(ms=>{ for(const m of ms) for(const n of m.addedNodes) if(n.nodeType===1) spaltenHilfe(n); })
   .observe(document.documentElement,{childList:true,subtree:true});
 addEventListener('DOMContentLoaded',()=>spaltenHilfe(document));
+
+
+// Help for every field of the advanced settings: what it does, what changes, when to set it.  A small (i) next to the
+// label, only a click shows the text (same popup as the column help).
+const ERW_HILFE={
+ 'g-kal':['Kalibrierung','Welche Master-Bilder (Flat, Bias, Dark) die Pipeline von den Lights abzieht bzw. durch die sie teilt.','Leer lassen ist der Normalfall: die Pipeline sucht passende Master in der Kalibrierbibliothek.','Nur ändern, wenn sie falsche Master nimmt oder du bewusst einen bestimmten Master testen willst.'],
+ flat:['Flat','Pfad zu einem Master-Flat. Teilt Vignettierung und Staub aus den Bildern heraus.','Ein falsches Flat erzeugt Helligkeitsfehler, die mit der Sternposition wandern (vor allem nach dem Meridian-Flip).','Nur wenn die automatische Wahl nicht passt (anderer Filter, andere Kamera-Drehung).'],
+ bias:['Bias','Pfad zu einem Master-Bias (Grundrauschen der Kamera bei Belichtung 0).','Wirkt nur bei Kalibrierung „Bias + Flat“ oder „+ Dark“.','Nur wenn die automatische Wahl nicht passt (anderer Gain oder Offset).'],
+ dark:['Dark','Pfad zu einem Master-Dark (Dunkelstrom). Wird auf die Belichtungszeit skaliert.','Wirkt nur bei Kalibrierung „+ Dark“. Bei gekühlten CMOS-Kameras meist kleiner Effekt.','Nur wenn die automatische Wahl nicht passt (andere Temperatur).'],
+ workers:['Prozesse','Wie viele Prozessorkerne parallel rechnen (Photometrie, Fits, MCMC).','Mehr = schneller, aber der PC ist während des Laufs stärker ausgelastet. Am Ergebnis ändert sich nichts.','Kleiner setzen, wenn du nebenbei am PC arbeiten willst.'],
+ 'g-kam':['Kamera & Gaia','Wie die Bilder gelesen werden und woher die Sternkatalogdaten kommen.','Beeinflusst die Photometrie bzw. nur die Erreichbarkeit des Katalogs.','Farbkamera: bei fremden Daten prüfen. Gaia-Quelle: wenn ein Dienst nicht antwortet.'],
+ farbkamera:['Farbkamera','Farbkamera-Bilder (Bayer-Matrix) werden zu 2×2-Superpixeln zusammengefasst, damit jeder Bildpunkt alle Farben enthält.','Ohne das springt die Helligkeit von Pixel zu Pixel und die Lichtkurve wird sehr verrauscht (so bei KPS-1b gesehen).','„automatisch“ erkennt es am Header (BAYERPAT). Nur ändern, wenn der Header fehlt oder falsch ist.'],
+ gaia_quelle:['Gaia-Quelle','Über welchen Dienst die Gaia-Sterne (Positionen, Helligkeit, Farbe, Variabilität) geholt werden.','Kein Einfluss aufs Ergebnis, nur auf die Erreichbarkeit. Bei Ausfall nimmt die Pipeline den anderen Dienst.','Wenn ein Lauf lange bei der Gaia-Abfrage hängt.'],
+ 'g-ver':['Vergleichssterne','Welche Sterne als Vergleich in Frage kommen und wie das Ensemble gewählt wird. Das ist der Teil mit dem größten Einfluss auf Rauschen und O-C.','Andere Sterne ändern das Rauschen, die Tiefe und manchmal Tc.','Wenn ein Reviewer das O-C oder das Rauschen anzweifelt, oder ein Stern im Bild unten auffällt.'],
+ dmag_bright:['hell ΔG','Wie viel heller (in mag, negativ) ein Kandidat höchstens sein darf als das Ziel.','Größerer Spielraum bringt hellere, rauschärmere Sterne, die aber eher sättigen.','Wenn zu wenige Kandidaten gefunden werden oder helle Sterne sättigen.'],
+ dmag_faint:['schwach ΔG','Wie viel schwächer (in mag) ein Kandidat höchstens sein darf.','Schwache Sterne rauschen stark und verschlechtern das Ensemble.','Erhöhen nur, wenn das Feld sonst zu wenige Sterne hat.'],
+ neighbour_px:['Nachbar px','Kandidaten mit einem helleren oder ähnlich hellen Nachbarn näher als so viele Pixel werden verworfen.','Nachbarn in der Apertur verfälschen die Helligkeit, besonders wenn das Seeing schwankt.','Größer bei schlechtem Seeing oder großen Aperturen; kleiner in sehr dichten Feldern.'],
+ edge_px:['Rand px','Mindestabstand eines Kandidaten zum Bildrand.','Sterne nahe am Rand wandern bei Nachführfehlern oder nach dem Flip hinaus oder liegen in der Vignettierung.','Größer, wenn die Nachführung driftet; kleiner bei kleinem Feld.'],
+ einzel_tiefe_sigma:['Einzelstern-Grenze','Methode des ExoClock-Reviewers: jeder Vergleichsstern wird allein gegen das Ziel gerechnet und gibt eine eigene Transittiefe (Rp/R*). „nur anzeigen“ zeigt das Ergebnis in der Tabelle unten und im Ergebnisblatt. Mit einer Grenze kommen Sterne, deren Tiefe allein um mehr als so viele σ vom Median aller Sterne UND vom Literaturwert abweicht, nicht in die Ensemble-Suche.','Ein Stern, der allein eine ganz andere Tiefe gibt, verbiegt auch das Ensemble (Tiefe und oft Tc). Es bleiben immer mindestens so viele Sterne, wie die Suche braucht.','Standard „nur anzeigen“. „> 3 σ“ wählen, wenn der Einzeltest auffällige Sterne zeigt und du sie nicht einzeln abwählen willst, oder bei einer Rückweisung wegen O-C.'],
+ tiefen_gewicht:['Tiefen-Gewicht','Normal gewinnt das Ensemble mit der kleinsten Streuung außerhalb des Transits. Mit einem Gewicht über 0 zählt zusätzlich, wie gut sein Rp/R* zum erwarteten Wert passt: Streuung × (1 + Gewicht × (Abweichung in σ / 3)²).','Gewicht 1: ein Ensemble mit 3 σ Abweichung zählt wie eines mit doppelter Streuung. Achtung: die Tiefe wird damit nicht mehr ganz unabhängig gemessen. Für Tc (das, was ExoClock braucht) ist das unkritisch.','Standard 0. Auf 1 setzen, wenn die Tiefe deutlich von der Literatur abweicht oder Tc unsicher ist („Tc eindeutig?“ gelb/rot). Ergebnis mit dem Lauf ohne Gewicht vergleichen.'],
+ 'g-ape':['Apertur','Wie groß der Kreis ist, in dem die Sternhelligkeit gemessen wird, und wo der Himmelshintergrund gemessen wird.','Zu klein: Seeing-Schwankungen verlieren Licht. Zu groß: mehr Himmelsrauschen und Nachbarsterne.','Die Pipeline probiert mehrere Radien und wählt nach der Streuung. Nur ändern, wenn alle Radien schlecht sind.'],
+ aperture_mode:['Modus','Fest: ein Radius für die ganze Nacht. Mitwachsend: Radius = k × FWHM in jedem Bild. Beides: beide treten gegeneinander an.','Mitwachsend hilft bei stark wechselndem Seeing oder Fokus.','Standard „beides“ lassen. „fest“ zum Vergleich mit AstroImageJ-Auswertungen.'],
+ ap_min:['von × FWHM','Kleinster getesteter Radius, als Vielfaches der FWHM.','Kleinere Radien: weniger Himmelsrauschen bei schwachen Sternen, aber empfindlich auf Seeing.','Bei schwachen Zielen etwas kleiner (1,5).'],
+ ap_max:['bis × FWHM','Größter getesteter Radius, als Vielfaches der FWHM.','Größere Radien: robust bei Seeing, aber mehr Hintergrund und Nachbarn.','Bei hellen Zielen oder unruhigem Seeing größer (4–5).'],
+ annulus:['Ring innen,außen px','Innerer und äußerer Radius des Rings, in dem der Himmelshintergrund gemessen wird.','Der Ring muss frei von Sternlicht sein, sonst wird der Stern zu dunkel gemessen.','Größer, wenn die Sterne sehr groß sind (Defokus) oder Nachbarn im Ring liegen.'],
+ 'g-fit':['Fit & Ausreißer','Wie das Transitmodell an die Lichtkurve angepasst wird.','Beeinflusst Tc, Tiefe und die Fehlerbalken.','Meist Standard. Siehe die einzelnen Felder.'],
+ ausreisser_sigma:['Ausreißer entfernen','Bilder, deren Abweichung vom Transit-Fit größer als so viele σ ist, werden entfernt und der Fit wiederholt.','Entfernt Wolken, Flugzeuge, Windstöße. Zu streng („viele“) entfernt auch echte Daten und macht die Fehler zu klein.','„normal“ bei einzelnen Ausreißern; aus lassen bei sauberen Nächten. Die entfernten Bilder stehen in ausreisser.json.'],
+ airmass_order:['Detrending','Wie die Helligkeitsänderung durch die Luftmasse (Extinktion) modelliert wird: linear oder quadratisch.','Quadratisch fängt gekrümmte Verläufe ab, kann aber auch einen Teil der Transittiefe schlucken.','Quadratisch nur, wenn die Lichtkurve einen klaren Bogen zeigt und der BIC besser wird.'],
+ flip:['Meridian-Flip','Wie der Helligkeitssprung beim Meridian-Flip behandelt wird. Prior: aus den Vergleichssternen geschätzt. Frei: im Fit bestimmt. Ignorieren: kein Sprung.','Frei kann mit dem Transit verwechselt werden, wenn der Flip im Transit liegt.','Standard „Prior“. „frei“ nur, wenn der Prior offensichtlich falsch ist.'],
+ fix_geometry:['Geometrie','a/R* und Inklination aus ExoClock festhalten oder frei mitfitten.','Frei braucht sehr gute Daten, sonst werden Tc und Tiefe unsicherer.','Für ExoClock fast immer „fest“.'],
+ airmass_max:['Airmass-Grenze','Bilder über dieser Luftmasse werden weggelassen.','Tief am Horizont sind Szintillation und Extinktion stark; weglassen senkt das Rauschen, kürzt aber die Baseline.','Wenn der Rand der Nacht sichtbar stark streut. Mindestens 30 min Baseline vor dem Ingress lassen.'],
+ mcmc_steps:['MCMC-Schritte','Wie viele Zufallsschritte die MCMC für die Fehlerbalken macht.','Mehr = stabilere Fehler, längere Rechenzeit. Tc selbst ändert sich kaum.','Erhöhen, wenn R-hat über 1,05 liegt.'],
+ symmetry_weight:['Symmetrie-Gewicht','Bevorzugt Ensembles, deren Sterne rund um das Ziel verteilt sind statt auf einer Seite.','Gleicht Flat-Fehler aus, die sich beim Meridian-Flip umdrehen.','Auf 1 setzen bei Nächten mit Flip und auffälligem Sprung.']
+};
+function hilfeHtml(k){ const h=ERW_HILFE[k]; return `<b>${esc(h[0])}</b>${esc(h[1])}<br><br><b>Auswirkung</b>${esc(h[2])}<br><br><b>Wann ändern?</b>${esc(h[3])}`; }
+function knopfNachText(el,k){ const t=[...el.childNodes].find(n=>n.nodeType===3&&n.textContent.trim()); if(!t||!ERW_HILFE[k]) return;
+  const sp=document.createElement('span'); sp.style.whiteSpace='nowrap'; sp.textContent=t.textContent.trim(); t.replaceWith(sp);
+  sp.insertAdjacentHTML('beforeend',erwHilfeKnopf(k)); }
+function erwHilfeKnopf(k){ return `<button type="button" class="thi" data-erw="${esc(k)}" aria-label="Erklärung: ${esc(ERW_HILFE[k][0])}">i</button>`; }
+function erwHilfe(){
+  const D=$('drawer'); if(!D||D.dataset.hilfe) return; D.dataset.hilfe='1';
+  D.querySelectorAll('section[data-g]').forEach(sec=>{ const k='g-'+sec.dataset.g, h3=sec.querySelector('h3'); if(ERW_HILFE[k]&&h3) h3.querySelector('.gz').insertAdjacentHTML('beforebegin',erwHilfeKnopf(k)); });
+  D.querySelectorAll('[data-k]').forEach(el=>{ const lab=el.closest('label'); if(lab) knopfNachText(lab,el.dataset.k); });
+  const aus=$('seg-aus'); if(aus&&!aus.parentNode.dataset.h) aus.parentNode.dataset.h='ausreisser_sigma';
+  D.querySelectorAll('[data-h]').forEach(g=>knopfNachText(g,g.dataset.h));
+  D.querySelectorAll('button[data-erw]').forEach(b=>b.addEventListener('click',ev=>{ ev.preventDefault(); ev.stopPropagation();
+    if(thFest) thFest.classList.remove('on');
+    if(thFest===b){ thFest=null; thWeg(); return; } thFest=b; b.classList.add('on');
+    if(!thPop){ thPop=document.createElement('div'); thPop.className='hpop fix'; thPop.setAttribute('role','tooltip'); document.body.appendChild(thPop); }
+    thPop.innerHTML=hilfeHtml(b.dataset.erw); thPop.style.maxWidth='420px'; thPop.hidden=false;
+    const r=b.getBoundingClientRect(), w=Math.min(420,innerWidth-16);
+    thPop.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';
+    thPop.style.top=(r.bottom+6+thPop.offsetHeight>innerHeight?Math.max(8,r.top-thPop.offsetHeight-6):r.bottom+6)+'px'; }));
+}
+addEventListener('DOMContentLoaded',erwHilfe);
 
 // Help on the result sheet: ergebnisblatt_hilfe.json holds rectangles (fractions of the PNG) with title and text; each
 // gets a small (i) in its corner, visible while the mouse is over the sheet.  Only a click on the (i) shows the text.
@@ -850,17 +912,18 @@ async function hochgeladen(v){
 // ------------------------------------------------------------------ advanced settings (drawer)
 function drawerAuf(){
   const V=S.M?S.M.vorgaben:{};
-  const ph={dmag_bright:V.dmag_bright,dmag_faint:V.dmag_faint,neighbour_px:V.neighbour_px,edge_px:V.edge_px,airmass_max:V.airmass_max||'keine',mcmc_steps:V.mcmc_steps,symmetry_weight:V.symmetry_weight,
+  const ph={dmag_bright:V.dmag_bright,dmag_faint:V.dmag_faint,neighbour_px:V.neighbour_px,edge_px:V.edge_px,airmass_max:V.airmass_max||'keine',mcmc_steps:V.mcmc_steps,symmetry_weight:V.symmetry_weight,tiefen_gewicht:V.tiefen_gewicht,
     annulus:(V.annulus||[]).join(','),ap_min:(V.k_fwhm||[])[0],ap_max:(V.k_fwhm||[]).slice(-1)[0],workers:'auto ('+V.workers+')'};
   document.querySelectorAll('#drawer [data-k]').forEach(el=>{ const k=el.dataset.k; if(ph[k]!=null&&el.tagName==='INPUT') el.placeholder=String(ph[k]).replace('.',',');
     el.value=S.erw[k]??''; el.oninput=el.onchange=()=>{ S.erw[k]=el.value; erwMarkieren(); }; });
   const std={gaia_quelle:V.gaia_quelle==='esa'?'ESA-Archiv':'VizieR',aperture_mode:V.aperture_mode,airmass_order:V.airmass_order==2?'quadratisch':'linear',flip:V.flip,fix_geometry:V.fix_geometry?'fest':'frei'};
   for(const [k,t] of Object.entries(std)){ const o=document.querySelector(`#drawer [data-k="${k}"] option[value=""]`); if(o) o.textContent='Standard ('+t+')'; }
   $('h-gaia').textContent='Standard '+(V.gaia_quelle==='esa'?'ESA-Archiv':'VizieR')+'; der andere Dienst, wenn einer nicht antwortet';
-  zeigeAus(); erwMarkieren(); ladeKand();
+  zeigeAus(); zeigeEin(); erwMarkieren(); ladeKand();
   $('scrim').hidden=false; $('drawer').hidden=false; $('drawer').querySelector('button').focus();
 }
 function zeigeAus(){ const v=String(S.erw.ausreisser_sigma||''); $('seg-aus').innerHTML=AUS.map(([k,t])=>`<button class="${v===k?'on':''}" aria-pressed="${v===k}" onclick="S.erw.ausreisser_sigma='${k}';zeigeAus();erwMarkieren()">${t}</button>`).join(''); }
+function zeigeEin(){ const v=String(S.erw.einzel_tiefe_sigma||''); $('seg-ein').innerHTML=EIN.map(([k,t])=>`<button class="${v===k?'on':''}" aria-pressed="${v===k}" onclick="S.erw.einzel_tiefe_sigma='${k}';zeigeEin();erwMarkieren()">${t}</button>`).join(''); }
 function geaendert(k){ const v=S.erw[k]; return k==='exclude'?Array.isArray(v)&&S.K&&!gleich(v,vorschlagAus(S.K)):v!==undefined&&v!==''&&v!==null; }
 function gleich(a,b){ return JSON.stringify([...a].sort())===JSON.stringify([...b].sort()); }
 function erwMarkieren(){
@@ -873,7 +936,7 @@ function erwMarkieren(){
   if(a&&b&&fw){ const rr=(S.K.radii||[]).filter(r=>r>=a*fw&&r<=b*fw); const ks=[]; for(let k=a;k<=b+1e-9;k+=0.5) ks.push(komma(k,1)); $('ap-vorschau').textContent=`Vorschau: feste Radien ${rr.join(', ')||'keine'} px bei FWHM ${komma(fw,1)} px · k = ${ks.join(', ')}`; }
   zeigeErwChips(); zeigeFuss();
 }
-function chipWert(k){ const v=S.erw[k]; if(k==='exclude') return v.join(', ')||'keiner'; if(k==='ausreisser_sigma') return '> '+String(v).replace('.',',')+' σ'; if(k==='gaia_quelle') return v==='esa'?'ESA-Archiv':'VizieR';
+function chipWert(k){ const v=S.erw[k]; if(k==='exclude') return v.join(', ')||'keiner'; if(k==='ausreisser_sigma'||k==='einzel_tiefe_sigma') return '> '+String(v).replace('.',',')+' σ'; if(k==='gaia_quelle') return v==='esa'?'ESA-Archiv':'VizieR';
   if(k==='airmass_order') return v==2?'quadratisch':'linear'; if(k==='fix_geometry') return v==='false'?'frei':'fest'; return String(v); }
 function zeigeErwChips(){
   const ks=Object.values(GRUPPEN).flat().filter(geaendert);
@@ -885,27 +948,31 @@ function drawerZu(ok){ if(ok&&$('merken').checked){ const e=Object.assign({},S.e
   $('scrim').hidden=true; $('drawer').hidden=true; zeigeErwChips(); zeigeFuss(); }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('drawer').hidden) drawerZu(); });
 const istVar=k=>k.var&&String(k.var).toUpperCase().startsWith('VARIABLE');
-function vorschlagAus(K){ return K.kandidaten.filter(k=>!k.ziel&&(k.ausgeschlossen||istVar(k)||k.tw_flag||k.variabel)).map(k=>k.name); }
+function vorschlagAus(K){ return K.kandidaten.filter(k=>!k.ziel&&(k.ausgeschlossen||istVar(k)||k.tw_flag||k.variabel||k.ein_weg)).map(k=>k.name); }
 async function ladeKand(){
-  const b=$('f_basis').value;
-  if(!b){ $('kand').innerHTML='<span class="hint">Für die Liste der Vergleichssterne unter „Photometrie übernehmen von“ einen Lauf wählen.</span>'; return; }
+  let b=$('f_basis').value, auto='';
+  if(!b){ const L=(S.M.laeufe||[]).filter(l=>l.oc!=null||l.zustand==='fertig').sort((x,y)=>String(y.gestartet||y.lauf).localeCompare(String(x.gestartet||x.lauf)));
+    const same=L.find(l=>!l.modus||l.modus===S.mode);
+    if(same){ $('f_basis').value=same.lauf; b=same.lauf; zeigeFuss(); auto=`„Photometrie übernehmen von“ ist jetzt <b>${esc(b)}</b> (neuester fertiger Lauf mit dieser Kalibrierung). Das spart die Photometrie; „neu messen“ kannst du dort wieder wählen.`; } }
+  if(!b){ $('kand').innerHTML='<span class="hint">Die Liste der Vergleichssterne gibt es, sobald ein Lauf mit dieser Kalibrierung fertig ist (oder unter „Photometrie übernehmen von“ einen Lauf wählen).</span>'; return; }
   if(!S.K){ $('kand').innerHTML='<span class="hint">lade Kandidaten (Gaia-Abfrage beim ersten Mal) …</span>';
     const K=await api(`/api/kandidaten?pfad=${encodeURIComponent(S.pfad)}&lauf=${encodeURIComponent(b)}`);
     if(K.fehler){ $('kand').innerHTML=`<span class="hint">${esc(K.fehler)}</span>`; return; } S.K=K; }
   if(S.erw.exclude===undefined) S.erw.exclude=vorschlagAus(S.K);
-  $('kand').innerHTML=kandTabelle(S.K,true)+lcBild(S.K,S.pfad,b)+(S.K.feldbild?`<details><summary style="cursor:pointer;font-size:13px">Feldbild zeigen</summary><img class="blatt" style="margin-top:8px" alt="Feldbild mit Vergleichssternen" src="${datei(S.pfad,b,'ergebnisblatt_feld.png')}"></details>`:'');
+  $('kand').innerHTML=(auto?`<p class="hint" style="margin:6px 0">${auto}</p>`:'')+kandTabelle(S.K,true)+lcBild(S.K,S.pfad,b)+(S.K.feldbild?`<details><summary style="cursor:pointer;font-size:13px">Feldbild zeigen</summary><img class="blatt" style="margin-top:8px" alt="Feldbild mit Vergleichssternen" src="${datei(S.pfad,b,'ergebnisblatt_feld.png')}"></details>`:'');
   erwMarkieren();
 }
 function kandTabelle(K,edit){
   const ex=new Set(edit?S.erw.exclude||[]:K.kandidaten.filter(k=>k.ausgeschlossen).map(k=>k.name));
-  return `<div class="scroll"><table><thead><tr>${edit?'<th>an</th>':''}<th>Stern</th><th>G</th><th>BP-RP</th><th>RUWE</th><th>Gaia</th><th>Ruhe</th><th>Transitfenster</th></tr></thead><tbody>`+
+  return `<div class="scroll"><table><thead><tr>${edit?'<th>an</th>':''}<th>Stern</th><th>G</th><th>BP-RP</th><th>RUWE</th><th>Gaia</th><th>Ruhe</th><th>Transitfenster</th><th>Einzeltest</th></tr></thead><tbody>`+
     K.kandidaten.filter(k=>!k.ziel).map(k=>{
       const ru=k.ruwe==null?'<span class="pill pn">–</span>':`<span class="pill ${k.ruwe>1.4?'py':'pg'}">${komma(k.ruwe,2)}</span>`;
       const va=istVar(k)?'<span class="pill pr">VARIABLE</span>':'<span class="pill pg">ok</span>';
       const rh=k.ruhe==null?'<span class="pill pn">–</span>':`<span class="pill ${k.variabel||k.verworfen?'pr':k.ruhe>2?'py':'pg'}" title="${esc(k.verworfen||('Streuung der 10-min-Mittel '+komma(k.bin_ppt,2)+' ppt, β '+komma(k.beta,1)))}">${komma(k.ruhe,1)}${k.variabel?' · variabel':k.verworfen?' · verworfen':''}</span>`;
       const tw=k.tw==null?'<span class="hint">nur Ensemble</span>':`<span class="pill ${k.tw_flag?'pr':'pg'}">${komma(k.tw,1)} ± ${komma(k.tw_e,1)}</span>`;
-      return `<tr>${edit?`<td><input type="checkbox" aria-label="${esc(k.name)} verwenden" style="width:18px;height:18px" ${ex.has(k.name)?'':'checked'} onchange="sternUmschalten('${esc(k.name)}',this.checked)"></td>`:''}<td>${esc(k.name)}${k.im_ensemble?' *':''}</td><td>${komma(k.G,1)}</td><td>${komma(k.bp_rp,2)}</td><td>${ru}</td><td>${va}</td><td>${rh}</td><td>${tw}</td></tr>`; }).join('')+
-    '</tbody></table></div><span class="hint">* im Ensemble des Laufs. Ruhe = Streuung des Sterns gegen die übrigen Kandidaten (10-min-Mittel) geteilt durch den Median aller, 1 = typisch. Bekannte Veränderliche (Gaia, VSX) sind schon bei der Auswahl verworfen. Vorschlag: eigene Lichtkurve variabel und Transitfenster über 3 σ sind abgewählt.</span>';
+      const et=k.ein_med==null?'<span class="pill pn">–</span>':`<span class="pill ${k.ein_weg?'pr':k.ein_auff?'py':'pg'}" title="${esc('Rp/R* allein '+komma(k.ein_rp,4)+', O-C '+komma(k.ein_oc,1)+' min, Abweichung zur Literatur '+(k.ein_lit==null?'–':komma(k.ein_lit,1)+' σ'))}">${komma(k.ein_med,1)} σ${k.ein_weg?' · verworfen':k.ein_auff?' · auffällig':''}</span>`;
+      return `<tr>${edit?`<td><input type="checkbox" aria-label="${esc(k.name)} verwenden" style="width:18px;height:18px" ${ex.has(k.name)?'':'checked'} onchange="sternUmschalten('${esc(k.name)}',this.checked)"></td>`:''}<td>${esc(k.name)}${k.im_ensemble?' *':''}</td><td>${komma(k.G,1)}</td><td>${komma(k.bp_rp,2)}</td><td>${ru}</td><td>${va}</td><td>${rh}</td><td>${tw}</td><td>${et}</td></tr>`; }).join('')+
+    '</tbody></table></div><span class="hint">* im Ensemble des Laufs. Ruhe = Streuung des Sterns gegen die übrigen Kandidaten (10-min-Mittel) geteilt durch den Median aller, 1 = typisch. Bekannte Veränderliche (Gaia, VSX) sind schon bei der Auswahl verworfen. Vorschlag: eigene Lichtkurve variabel, Transitfenster über 3 σ und im Einzeltest verworfene Sterne sind abgewählt. Einzeltest = Abweichung der Tiefe vom Median aller Sterne, wenn der Stern allein als Vergleich dient.</span>';
 }
 function lcBild(K,p,l,offen){ if(!K.lcbild) return K.kandidaten.some(k=>k.ruhe!=null)?'':'<p class="hint">Ruhe-Werte und das Bild mit der Lichtkurve jedes Vergleichssterns gibt es erst für Läufe ab dem 1. November 2026. Dieser Lauf ist älter. Starte ihn neu, um sie zu sehen.</p>'; const u=datei(p,l,'vergleichssterne_lc.png');
   return `<details ${offen?'open':''}><summary style="cursor:pointer;font-size:13px">Lichtkurve jedes Vergleichssterns (gegen die übrigen)</summary><a href="${u}" target="_blank"><img class="blatt" style="margin-top:8px" alt="Lichtkurven der einzelnen Vergleichssterne" src="${u}&t=${Date.now()}"></a></details>`; }

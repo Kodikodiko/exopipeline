@@ -457,6 +457,45 @@ def depth_checks(m, n, c, fr, inv, best, ens, r_lab, pix_arcsec):
     return out
 
 
+# ------------------------------------------------------------------ reviewer checks (HTML)
+AMPEL_FARBE = {"gruen": "#2e7d32", "gelb": "#d4a017", "rot": "#c62828"}
+
+
+def tc_html(m, fr):
+    tc = fr.get("tc_check")
+    if not tc:
+        return ""
+    img = ""
+    p = m.path("tc_profil.png")
+    if os.path.exists(p):
+        img = f'<img alt="Tc-Profil" src="data:image/png;base64,{base64.b64encode(open(p, "rb").read()).decode()}">'
+    col = AMPEL_FARBE.get(tc["ampel"], "#888")
+    return (f"<h2>Ist Tc eindeutig?</h2><p><span class=dot style='background:{col}'></span> <b>{tc['ampel'].upper()}</b>: "
+            f"{tc['text']}. O&minus;C mit Rp/R* frei {tc['oc_frei_min']:+.1f} min, mit Rp/R* fest auf Literatur "
+            f"{tc['oc_rp_fest_min']:+.1f} min (Fehler {tc['sigma_tc_min']:.1f} min).</p>"
+            "<p>Kurve: wie gut das Modell passt, wenn Tc an jeder Stelle festgehalten wird. Ein Tal = eindeutig; ein zweites, "
+            "fast gleich tiefes Tal = der Fit h&auml;tte auch eine andere Flanke nehmen k&ouml;nnen.</p>" + img)
+
+
+def einzel_html(fr):
+    e = fr.get("einzel")
+    if not e or not e.get("stars"):
+        return ""
+    fm = lambda v: "&ndash;" if v is None else f"{v:+.1f}"
+    lit = f"{e['rp_lit']:.4f}" if e.get("rp_lit") else "unbekannt"
+    rows = "".join(
+        f"<tr{' style=background:#f6c1bd' if d['verworfen'] else ' style=background:#fbe7b5' if d['auffaellig'] else ''}>"
+        f"<td>{d['name']}{' *' if d['im_ensemble'] else ''}</td><td>{d['rp']:.4f} &plusmn; {d['rp_err']:.4f}</td><td>{fm(d['dev_lit'])}</td>"
+        f"<td>{fm(d['dev_med'])}</td><td>{d['OC_min']:+.1f}</td>"
+        f"<td>{'verworfen' if d['verworfen'] else 'auff&auml;llig' if d['auffaellig'] else 'ok'}</td></tr>"
+        for d in sorted(e["stars"], key=lambda d: -abs(d["dev_med"] or 0)))
+    return (f"<h2>Vergleichssterne im Einzeltest</h2><p>Transit-Fit mit jedem Stern allein (r = {e['radius']}). Rp/R* Literatur {lit}, "
+            f"Median aller Sterne {e['rp_median']:.4f}. Auff&auml;llig: Abweichung zur Literatur und zum Median &uuml;ber "
+            f"{e['grenze_sigma']:g}&sigma;. * = im Ensemble.</p>"
+            "<table><tr><th>Stern</th><th>Rp/R*</th><th>Abw. Lit. [&sigma;]</th><th>Abw. Median [&sigma;]</th><th>O&minus;C min</th><th>Status</th></tr>"
+            f"{rows}</table>")
+
+
 # ------------------------------------------------------------------ main
 def make_sheet(m, n, c, log):
     fr = json.load(open(m.path("fit.json"), encoding="utf-8"))
@@ -881,6 +920,8 @@ th{{background:#e3e8f0}} .dot{{display:inline-block;width:11px;height:11px;borde
 <th>Peak max</th><th>RUWE</th><th>Var.</th><th>Nachb. &lt;10&Prime;</th><th>Streu. ppt</th><th>Anteil %</th><th>JK &Delta;O&minus;C min</th><th>Transitfenster ppt</th><th>Begr&uuml;ndung</th></tr>
 {ctab}</table>
 <p>Nicht genutzt, aber geeignet: {', '.join(cunused) or '&ndash;'}. Verworfen (Auswahl):</p><ul>{rtab}</ul>
+{tc_html(m, fr)}
+{einzel_html(fr)}
 <h2>Blatt</h2><img alt="Ergebnisblatt {planet}" src="data:image/png;base64,{b64}">
 <h2>Feld</h2><img alt="Feld {planet}" src="data:image/png;base64,{b64f}">
 <div class=foot>{src}<br>{foot.replace(chr(10), '<br>')}</div>

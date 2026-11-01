@@ -76,6 +76,60 @@ def plot_comp_lcs(m, n, pred, ensemble=(), log=None, name="vergleichssterne_lc.p
     return name
 
 
+AMPEL = {"gruen": "GRUEN", "gelb": "GELB", "rot": "ROT"}
+
+
+def tc_lines(fr):
+    """summary.md: 'is Tc unique?' traffic light and the ensemble choice."""
+    tc = fr.get("tc_check")
+    out = []
+    w = fr["best"].get("wahl")
+    if w and w.get("gewicht"):
+        out.append(f"- Ensemble-Wahl: {w['text']}")
+    if tc:
+        out.append(f"- **Ist Tc eindeutig? {AMPEL.get(tc['ampel'], tc['ampel'])}**: {tc['text']} "
+                   f"(O-C mit Rp/R* frei {tc['oc_frei_min']:+.1f} min, mit Rp/R* fest {tc['oc_rp_fest_min']:+.1f} min; tc_profil.png)")
+    return out
+
+
+def einzel_lines(fr):
+    e = fr.get("einzel")
+    if not e or not e.get("stars"):
+        return []
+    lit = f"{e['rp_lit']:.4f}" if e.get("rp_lit") else "unbekannt"
+    fm = lambda v: "-" if v is None else f"{v:+.1f}"
+    return ["", f"## Vergleichssterne im Einzeltest (jeder Stern allein, r = {e['radius']}; Rp/R* Literatur {lit}, Median {e['rp_median']:.4f})", "",
+            f"Auffaellig = Abweichung zur Literatur UND zum Median ueber {e['grenze_sigma']:g} sigma.", "",
+            "| Stern | Rp/R* | Abw. Lit [sigma] | Abw. Median [sigma] | O-C [min] | Ensemble | Status |", "|---|---|---|---|---|---|---|"] + [
+        f"| {d['name']} | {d['rp']:.4f} +- {d['rp_err']:.4f} | {fm(d['dev_lit'])} | {fm(d['dev_med'])} | {d['OC_min']:+.1f} | "
+        f"{'ja' if d['im_ensemble'] else '-'} | {'verworfen' if d['verworfen'] else 'auffaellig' if d['auffaellig'] else 'ok'} |"
+        for d in sorted(e["stars"], key=lambda d: -abs(d["dev_med"] or 0))]
+
+
+def plot_tc_profile(m, fr):
+    """tc_profil.png: Delta-chi2 against Tc (fit at fixed Tc, only Rp/R* and the baseline free)."""
+    tc = fr.get("tc_check")
+    if not tc:
+        return
+    g = np.asarray(tc["grid_min"]); d = np.asarray(tc["dchi2"])
+    mc = fr["mcmc"]; pred = fr["ephemeris"]
+    fig, a = plt.subplots(figsize=(8, 3.6))
+    a.plot(g, d, "-", color="C0", lw=1.6, label="Fit bei festem Tc (Rp/R* und Baseline frei)")
+    lo, hi = ((mc["Tc"][0] - pred["Tc"]) * 1440, (mc["Tc"][2] - pred["Tc"]) * 1440)
+    a.axvspan(lo, hi, color="C3", alpha=.15, label=f"MCMC 16-84 %: O-C {mc['OC_min']:+.1f} min")
+    a.axvline(0, color="k", ls=":", lw=.8, label="Vorhersage")
+    a.axvline(tc["oc_rp_fest_min"], color="C2", ls="--", lw=1, label=f"Rp/R* fest: {tc['oc_rp_fest_min']:+.1f} min")
+    a.axhline(tc["dchi2_grenze"], color="0.5", ls="--", lw=.8, label=f"Grenze zweites Tal (Δχ² {tc['dchi2_grenze']:g})")
+    for v in tc["taeler"]:
+        a.plot(v["min"], v["dchi2"], "v", color="C1", ms=9)
+    a.set_ylim(-0.5, max(25.0, 6 * tc["dchi2_grenze"]))        # the bottom matters: valleys near 0, not the far walls
+    col = {"gruen": "#2e7d32", "gelb": "#b8860b", "rot": "#c62828"}.get(tc["ampel"], "k")
+    a.set_title(f"Ist Tc eindeutig? {AMPEL.get(tc['ampel'], tc['ampel'])} - {tc['text']}", fontsize=9, color=col)
+    a.set_xlabel("Tc - Vorhersage [min]"); a.set_ylabel("Δχ² (÷ β²)")
+    a.legend(fontsize=7, loc="upper right")
+    fig.tight_layout(); fig.savefig(m.path("tc_profil.png"), dpi=120); plt.close(fig)
+
+
 def make_report(m, n, c, log):
     fr = json.load(open(m.path("fit.json"), encoding="utf-8"))
     inv = json.load(open(m.path("inventory.json"), encoding="utf-8"))
@@ -152,6 +206,10 @@ def make_report(m, n, c, log):
     a.legend(fontsize=8, loc="upper left")
     fig.tight_layout(); fig.savefig(m.path("fwhm.png"), dpi=120); plt.close(fig)
     try:
+        plot_tc_profile(m, fr)
+    except Exception as e:
+        log(f"  [WARN] tc_profil.png nicht erstellt: {e}")
+    try:
         plot_comp_lcs(m, n, pred, best["comps"])
     except Exception as e:
         log(f"  [WARN] vergleichssterne_lc.png nicht erstellt: {e}")
@@ -174,7 +232,7 @@ def make_report(m, n, c, log):
           f"- Top-{len(rows)} O-C (fest) 16/50/84 %: {ts['OC_fix_min'][0]:+.1f} / {ts['OC_fix_min'][1]:+.1f} / {ts['OC_fix_min'][2]:+.1f} min; "
           f"frei: {ts['OC_free_min'][0]:+.1f} / {ts['OC_free_min'][1]:+.1f} / {ts['OC_free_min'][2]:+.1f} min",
           "- Jackknife: " + ", ".join(f"ohne {d['drop']} {d['OC_min']:+.1f} min" for d in fr["jackknife"]),
-          "- Tests: " + ", ".join(f"{k} {v['OC_min']:+.1f} min" for k, v in fr["tests"].items()), "",
+          "- Tests: " + ", ".join(f"{k} {v['OC_min']:+.1f} min" for k, v in fr["tests"].items())] + tc_lines(fr) + ["",
           "## Daten", "",
           f"- Frames: {fr['info']['frames_used']} von {fr['info']['frames_total']} (ausgeschlossen: Liste {fr['info']['excluded_list']}, "
           f"Saettigung {fr['info']['excluded_saturation']}); OOT {fr['info']['n_oot']} ({fr['info']['n_oot_pre']} vor, {fr['info']['n_oot_post']} nach)",
@@ -191,7 +249,8 @@ def make_report(m, n, c, log):
             f"| {d['name']} | {d['rms_ppt']:.2f} | {d['bin_ppt']:.2f} | {d['ruhe']:.1f} | {d['beta']:.2f} | "
             f"{p['grund'] or ('Ensemble' if d['name'] in best['comps'] else 'ok')} |"
             for d, p in zip(cl["stars"], n.prefilter_table)]
-    md += ["", "Plots: lightcurve.png, tc_hist.png, linearity.png, flip_offset.png, vergleichssterne_lc.png. "
+    md += einzel_lines(fr)
+    md += ["", "Plots: lightcurve.png, tc_hist.png, tc_profil.png, linearity.png, flip_offset.png, vergleichssterne_lc.png. "
                "Daten: fit.json, top50.csv, compsearch.json."]
     md += ["", "Ergebnisblatt: ergebnisblatt.png / .pdf / .html (auch in exoclock_paket\\)."]
     with open(m.path("summary.md"), "w", encoding="utf-8") as fh:

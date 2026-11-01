@@ -304,7 +304,11 @@ class Night:
         return {k: v for k, v in seen.items() if s["n_min"] <= len(k) <= s["n_max"]}, tuple(sorted(cur)), best
 
     # ---------------------------------------------------------------- transit fit
-    def fit(self, r, ens, mask=None, free=False):
+    def fit(self, r, ens, mask=None, free=False, rp_fix=None):
+        """Transit fit: Tc and Rp/R* free (geometry fixed or free).  rp_fix = a number: Rp/R* held at that value,
+        only Tc free (control fit: does Tc move when the depth is forced to the literature value?)."""
+        if free and rp_fix is not None:
+            raise ValueError("rp_fix only with fixed geometry")
         ir = self.ir(r)
         m_ = np.ones(self.sel.sum(), bool) if mask is None else mask
         f = self.rel(ir, ens)[m_]; tt = self.t[m_]; X = self.X[m_]
@@ -321,6 +325,8 @@ class Night:
         def resid(q):
             if free:
                 dt, rp, ars, inc = q
+            elif rp_fix is not None:
+                (dt,), rp, (ars, inc) = q, rp_fix, self.geom
             else:
                 (dt, rp), (ars, inc) = q, self.geom
             mm = model(tt, Tc0 + dt, P, rp, ars, inc, u1, u2)
@@ -328,10 +334,14 @@ class Night:
             return np.concatenate([(f - mm * (X @ co)) * wt, pres])
         best = None
         for dt in STARTS:
-            q0 = [dt, 0.09] + ([self.geom[0], min(self.geom[1], 89.5)] if free else [])
-            lo = [-0.04, 0.02] + ([self.ars_lim[0], min(75.0, self.geom[1] - 5)] if free else [])
-            hi = [0.04, 0.25] + ([self.ars_lim[1], 90] if free else [])
-            rr = least_squares(resid, q0, bounds=(lo, hi), x_scale=[0.002, 0.005] + ([0.5, 1] if free else []))
+            if rp_fix is not None:
+                q0, lo, hi, xs = [dt], [-0.04], [0.04], [0.002]
+            else:
+                q0 = [dt, 0.09] + ([self.geom[0], min(self.geom[1], 89.5)] if free else [])
+                lo = [-0.04, 0.02] + ([self.ars_lim[0], min(75.0, self.geom[1] - 5)] if free else [])
+                hi = [0.04, 0.25] + ([self.ars_lim[1], 90] if free else [])
+                xs = [0.002, 0.005] + ([0.5, 1] if free else [])
+            rr = least_squares(resid, q0, bounds=(lo, hi), x_scale=xs)
             if best is None or rr.cost < best.cost:
                 best = rr
         nres = len(f)
@@ -345,16 +355,57 @@ class Night:
             cov, err = None, np.full(len(best.x), np.nan)
         q = best.x.copy()
         q[0] += Tc0
+        rp = float(rp_fix) if rp_fix is not None else float(q[1])
+        rp_err = 0.0 if rp_fix is not None else float(err[1])
         ars, inc = (q[2], q[3]) if free else self.geom
-        mm = model(tt, q[0], P, q[1], ars, inc, u1, u2)
+        mm = model(tt, q[0], P, rp, ars, inc, u1, u2)
         co, _ = self.lin_solve(f, mm, X, pr, wt)
         # res is noise-normalised (res / s); the BIC includes sum(ln s), so weighted and unweighted fits compare directly
-        return dict(Tc=float(q[0]), Tc_err=float(err[0]), rp=float(q[1]), depth_ppt=float(q[1] ** 2 * 1e3),
+        return dict(Tc=float(q[0]), Tc_err=float(err[0]), rp=rp, rp_err=rp_err, depth_ppt=float(rp ** 2 * 1e3),
                     ars=float(ars), inc=float(inc), rms_ppt=float(np.std(res) * 1e3),
                     flip_ppt=float(co[self.fc] / co[0] * 1e3) if (self.fc is not None and X.shape[1] > self.fc) else 0.0, prior=pr,
                     f=f, t=tt, model=mm, base=X @ co, res=res, s=s, mask=m_, ncol=X.shape[1],
                     bic=float(nres * np.log((res ** 2).sum() / nres) + 2 * np.log(s).sum() + k * np.log(nres)),
                     errs=[float(e) for e in err], cov=None if cov is None else cov.tolist())
+
+    # ---------------------------------------------------------------- single-star test (reviewer method)
+    def single_star(self, r, stars=None):
+        """Transit fit with each comparison star alone (fixed geometry).  A star that on its own gives a clearly wrong
+        depth or Tc also bends the ensemble.  Per star: Rp/R*, its error, depth, O-C, scatter."""
+        out = []
+        for j in (self.pool if stars is None else stars):
+            try:
+                f = self.fit(r, [j])
+            except Exception as e:                          # one bad star must not stop the run
+                self.log(f"  [WARN] Einzeltest {self.names[j]}: {e}")
+                continue
+            out.append(single_row(self.names[j], j, f, self.pred["Tc"]))
+        return out
+
+    # ---------------------------------------------------------------- Tc profile (is Tc unique?)
+    def tc_profile(self, r, ens, half_min=60.0, step_min=1.0):
+        """Fit quality as a function of a fixed Tc: at every Tc of a grid around the prediction only Rp/R* and the
+        baseline are fitted.  One clear valley = Tc is unique; a second valley almost as deep = the fit could also
+        have picked another flank (noise at ingress/egress).  Returns grid [min from prediction] and SSR."""
+        ir = self.ir(r)
+        f = self.rel(ir, ens); tt = self.t; X = self.X
+        pr = self.flip_prior(ens, ir)
+        P = self.pred["P"]; u1, u2 = self.u; ars, inc = self.geom
+        wt = 1 / self.noise_shape(ir, ens)
+        Tc0 = self.pred["Tc"]
+        grid = np.arange(-half_min, half_min + 1e-9, step_min)
+        ssr, rps = [], []
+        rp0 = 0.09
+        for g in grid:
+            tc = Tc0 + g / 1440
+
+            def resid(q):
+                mm = model(tt, tc, P, q[0], ars, inc, u1, u2)
+                co, pres = self.lin_solve(f, mm, X, pr, wt)
+                return np.concatenate([(f - mm * (X @ co)) * wt, pres])
+            rr = least_squares(resid, [rp0], bounds=([1e-4], [0.25]), x_scale=[0.005])
+            ssr.append(float((rr.fun ** 2).sum())); rps.append(float(rr.x[0]))
+        return dict(grid_min=grid.tolist(), ssr=ssr, rp=rps, n=int(len(f)), ncol=int(X.shape[1]))
 
     # ---------------------------------------------------------------- MCMC
     def mcmc(self, r, ens, free=False, nstep=30000, seed=1, tick=None):
@@ -406,6 +457,71 @@ class Night:
             if tick and (i + 1) % 250 == 0:
                 tick(i + 1, acc / (i + 1))
         return dict(chain=np.array(chain[nstep // 4:]), acc=acc / nstep, beta=beta, sig=sig)
+
+
+def single_row(name, j, f, tc_pred):
+    return dict(name=name, idx=int(j), rp=float(f["rp"]), rp_err=float(f.get("rp_err", float("nan"))),
+                depth_ppt=float(f["depth_ppt"]), OC_min=float((f["Tc"] - tc_pred) * 1440),
+                Tc_err_min=float(f["Tc_err"] * 1440), rms_ppt=float(f["rms_ppt"]))
+
+
+def judge_single(rows, rp_lit, k_sigma=0.0, n_keep=0, ensemble=()):
+    """Deviation of every single-star Rp/R* from the literature and from the median of all stars, in units of the
+    star's own error.  A star counts as 'auffaellig' if both exceed max(k_sigma, 3); with k_sigma > 0 it is also
+    'verworfen' (worst first, as long as at least n_keep stars remain).  Both references are needed: if all stars
+    miss the literature together, the literature value (other filter) or the target is the reason, not one star."""
+    ok = [d for d in rows if np.isfinite(d["rp"])]
+    med = float(np.median([d["rp"] for d in ok])) if ok else float("nan")
+    lim = max(float(k_sigma or 0), 3.0)
+    for d in rows:
+        e = d["rp_err"] if np.isfinite(d["rp_err"]) and d["rp_err"] > 0 else float("nan")
+        d["dev_lit"] = float((d["rp"] - rp_lit) / e) if (rp_lit and np.isfinite(e)) else None
+        d["dev_med"] = float((d["rp"] - med) / e) if np.isfinite(e) and np.isfinite(med) else None
+        lit_bad = d["dev_lit"] is None or abs(d["dev_lit"]) > lim
+        d["auffaellig"] = bool(d["dev_med"] is not None and abs(d["dev_med"]) > lim and lit_bad)
+        d["verworfen"] = False
+        d["im_ensemble"] = d["name"] in ensemble
+    if k_sigma and k_sigma > 0:
+        bad = sorted((d for d in rows if d["auffaellig"]), key=lambda d: -abs(d["dev_med"]))
+        room = max(0, len(rows) - int(n_keep))
+        for d in bad[:room]:
+            d["verworfen"] = True
+    return dict(rp_median=med, rp_lit=rp_lit, grenze_sigma=lim, verwerfen=bool(k_sigma and k_sigma > 0), stars=rows)
+
+
+def tc_judge(prof, beta, tc_best_min, sig_tc_min, oc_rpfix_min, oc_free_min, dchi2_lim=4.0, sep_min=5.0):
+    """Traffic light for 'is Tc unique?' from the Tc profile and the control fit with Rp/R* fixed to the literature.
+    Delta-chi2 = (SSR - SSR_min) / (SSR_min / dof) / beta^2 (red noise makes valleys look sharper than they are).
+    yellow: a second valley (separated by > sep_min and a ridge of at least 0.5) with Delta-chi2 < dchi2_lim,
+            or the control fit moves O-C by more than the MCMC error; red: both."""
+    g = np.asarray(prof["grid_min"], float); s = np.asarray(prof["ssr"], float)
+    dof = max(1, prof["n"] - prof["ncol"] - 1)
+    i0 = int(np.argmin(s))
+    d = (s - s[i0]) / (s[i0] / dof) / max(beta, 1.0) ** 2
+    vals = []
+    for i in range(1, len(g) - 1):
+        if i == i0 or not (d[i] <= d[i - 1] and d[i] <= d[i + 1]):
+            continue
+        a, b = sorted((i, i0))
+        ridge = float(d[a:b + 1].max() - d[i])
+        if abs(g[i] - g[i0]) >= sep_min and ridge >= 0.5 and d[i] < dchi2_lim:
+            vals.append(dict(min=float(g[i]), dchi2=float(d[i])))
+    vals.sort(key=lambda v: v["dchi2"])
+    shift = float(oc_rpfix_min - oc_free_min)
+    jump = bool(np.isfinite(sig_tc_min) and abs(shift) > max(sig_tc_min, 0.5))
+    n = int(bool(vals)) + int(jump)
+    ampel = ["gruen", "gelb", "rot"][n]
+    txt = []
+    if vals:
+        v = vals[0]
+        txt.append(f"zweites Tal bei {v['min']:+.0f} min (Delta-chi2 {v['dchi2']:.1f} < {dchi2_lim:g}): Tc koennte auch dort liegen")
+    if jump:
+        txt.append(f"mit Rp/R* fest auf Literatur verschiebt sich O-C um {shift:+.1f} min (> Fehler {sig_tc_min:.1f} min)")
+    if not txt:
+        txt.append("ein klares Tal, O-C stabil bei fester Tiefe")
+    return dict(ampel=ampel, text="; ".join(txt), taeler=vals, dchi2=d.tolist(), grid_min=g.tolist(), best_min=float(g[i0]),
+                tc_fit_min=float(tc_best_min), oc_rp_fest_min=float(oc_rpfix_min), oc_frei_min=float(oc_free_min),
+                verschiebung_min=shift, sigma_tc_min=float(sig_tc_min), dchi2_grenze=float(dchi2_lim))
 
 
 def gelman_rubin(chains):

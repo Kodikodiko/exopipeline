@@ -222,7 +222,7 @@ def runs_of(p):
 
 
 _CAND = {}
-_CAND_FILES = ("candidates.csv", "compsearch.json", "vergleichssterne.json", "lauf.toml", "gaia_details.json",
+_CAND_FILES = ("candidates.csv", "compsearch.json", "fit.json", "vergleichssterne.json", "lauf.toml", "gaia_details.json",
                "vergleichssterne_lc.png", "ergebnisblatt_feld.png")
 
 
@@ -263,6 +263,14 @@ def _candidates(p, lauf, d):
             pre = {q["name"]: q for q in json.load(open(cj, encoding="utf-8")).get("prefilter", [])}
         except Exception:
             pre = {}
+    ein = {}
+    fj = os.path.join(d, "fit.json")
+    try:                                                   # single-star test (fit, else the ensemble search)
+        e = (json.load(open(fj, encoding="utf-8")).get("einzel") if os.path.exists(fj) else None) or \
+            (json.load(open(cj, encoding="utf-8")).get("einzel") if os.path.exists(cj) else None) or {}
+        ein = {x["name"]: x for x in e.get("stars", [])}
+    except Exception:
+        ein = {}
     excl = []
     lt = os.path.join(d, "lauf.toml")
     if os.path.exists(lt):
@@ -278,7 +286,10 @@ def _candidates(p, lauf, d):
                         ruhe=_num(pre.get(r["name"], {}).get("ruhe")), beta=_num(pre.get(r["name"], {}).get("beta")),
                         bin_ppt=_num(pre.get(r["name"], {}).get("bin_ppt")),
                         variabel=bool(pre.get(r["name"], {}).get("variabel")),
-                        verworfen=pre.get(r["name"], {}).get("grund") or ("Vorfilter" if pre.get(r["name"], {}).get("rejected") else "")))
+                        verworfen=pre.get(r["name"], {}).get("grund") or ("Vorfilter" if pre.get(r["name"], {}).get("rejected") else ""),
+                        ein_rp=_num(ein.get(r["name"], {}).get("rp"), 4), ein_med=_num(ein.get(r["name"], {}).get("dev_med")),
+                        ein_lit=_num(ein.get(r["name"], {}).get("dev_lit")), ein_oc=_num(ein.get(r["name"], {}).get("OC_min")),
+                        ein_auff=bool(ein.get(r["name"], {}).get("auffaellig")), ein_weg=bool(ein.get(r["name"], {}).get("verworfen"))))
     fwhm, radii = None, []
     cubes = glob.glob(os.path.join(d, "cube_*.npz"))
     if cubes:
@@ -289,13 +300,13 @@ def _candidates(p, lauf, d):
                 lcbild=os.path.exists(os.path.join(d, "vergleichssterne_lc.png")))
 
 
-def _num(v):
+def _num(v, nd=2):
     """JSON-safe number (NaN/None -> None), rounded for display."""
     try:
         v = float(v)
     except (TypeError, ValueError):
         return None
-    return round(v, 2) if v == v else None
+    return round(v, nd) if v == v else None
 
 
 def toml_value(v):
@@ -354,7 +365,8 @@ def start_run(q, launch=None):
            "comps": {"exclude_stars": a.get("exclude_stars"), "dmag_bright": a.get("dmag_bright"), "dmag_faint": a.get("dmag_faint"),
                      "neighbour_px": a.get("neighbour_px"), "edge_px": a.get("edge_px")},
            "photometry": {"annulus": a.get("annulus"), "aperture_mode": a.get("aperture_mode"), "k_fwhm": a.get("k_fwhm")},
-           "search": {"radii": a.get("radii"), "airmass_max": a.get("airmass_max"), "symmetry_weight": a.get("symmetry_weight")},
+           "search": {"radii": a.get("radii"), "airmass_max": a.get("airmass_max"), "symmetry_weight": a.get("symmetry_weight"),
+                      "einzel_tiefe_sigma": a.get("einzel_tiefe_sigma"), "tiefen_gewicht": a.get("tiefen_gewicht")},
            "fit": {"airmass_order": a.get("airmass_order"), "flip": a.get("flip"), "fix_geometry": a.get("fix_geometry"),
                    "mcmc_steps": a.get("mcmc_steps"), "ausreisser_sigma": a.get("ausreisser_sigma")},
            "calib": {"flat": a.get("flat"), "bias": a.get("bias"), "dark": a.get("dark")},
@@ -503,7 +515,8 @@ def defaults(p=None):
                 aperture_mode=g("photometry", "aperture_mode", "beides"), k_fwhm=g("photometry", "k_fwhm"), radii=g("search", "radii"),
                 airmass_order=g("fit", "airmass_order", 1), airmass_max=g("search", "airmass_max", 0), flip=g("fit", "flip", "prior"),
                 fix_geometry=g("fit", "fix_geometry", True), mcmc_steps=g("fit", "mcmc_steps"), symmetry_weight=g("search", "symmetry_weight", 0),
-                ausreisser_sigma=g("fit", "ausreisser_sigma", 0))
+                ausreisser_sigma=g("fit", "ausreisser_sigma", 0), einzel_tiefe_sigma=g("search", "einzel_tiefe_sigma", 0),
+                tiefen_gewicht=g("search", "tiefen_gewicht", 0))
 
 
 def hints(p):
@@ -556,7 +569,7 @@ def step_minutes(runs):
     return {k: statistics.median(v) for k, v in d.items()}
 
 
-def run_checks(r, inv):
+def run_checks(r, inv, d=None):
     """Checklist for one finished run: planning warnings from inventory.json plus fit quality."""
     out = []
     for c in inv.get("checks", []):
@@ -575,6 +588,19 @@ def run_checks(r, inv):
         out.append(dict(level="ok" if v < 1.05 else "warn", text=f"R-hat {v:.2f} (konvergiert unter 1,05)".replace(".", ",", 1)))
     if r.get("ausgeschlossen"):
         out.append(dict(level="ok", text=f"Ausgeschlossene Vergleichssterne: {r['ausgeschlossen']}"))
+    fr = jload(os.path.join(d, "fit.json")) if d else {}
+    tc = fr.get("tc_check")
+    if tc:                                                 # reviewer check: a second valley / O-C moves with the depth
+        out.append(dict(level={"gruen": "ok", "gelb": "warn", "rot": "bad"}.get(tc.get("ampel"), "warn"),
+                        text="Tc eindeutig? " + str(tc.get("text", "")).replace(".", ",")))
+    e = fr.get("einzel") or {}
+    bad = [x["name"] for x in e.get("stars", []) if x.get("auffaellig")]
+    if e.get("stars"):
+        ins = [x["name"] for x in e["stars"] if x.get("auffaellig") and x.get("im_ensemble")]
+        out.append(dict(level="warn" if ins else "ok",
+                        text=(f"Einzeltest: {', '.join(ins)} im Ensemble, aber Tiefe allein auffällig" if ins else
+                              f"Einzeltest: {len(bad)} auffällige(r) Stern(e) ({', '.join(bad)}), nicht im Ensemble" if bad else
+                              f"Einzeltest: alle {len(e['stars'])} Vergleichssterne geben allein eine passende Tiefe")))
     return out
 
 
@@ -593,7 +619,7 @@ def runs_detail(p):
         r["ausreisser"] = len(jload(ar).get("frames", [])) if os.path.exists(ar) else None
         r["hochgeladen"] = jload(os.path.join(d, UPLOAD_MARK)).get("datum", "")
         if r.get("oc") is not None:
-            r["pruefungen"] = run_checks(r, jload(os.path.join(d, "inventory.json")))
+            r["pruefungen"] = run_checks(r, jload(os.path.join(d, "inventory.json")), d)
         if (os.path.normcase(p), r["lauf"]) in WAITING:
             r["zustand"] = "wartet"
     return runs
@@ -1045,6 +1071,8 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:6px}
    <label>Geometrie<select id="fix_geometry"><option value="">fest (ExoClock)</option><option value="false">frei</option></select></label>
    <label>MCMC-Schritte<input id="mcmc_steps" type="number" step="1000" placeholder="30000" style="width:90px"></label>
    <label>Symmetrie-Gewicht<input id="symmetry_weight" type="number" step="0.5" placeholder="0" style="width:80px"></label>
+   <label title="Jeder Vergleichsstern allein gegen das Ziel: Sterne, deren Transittiefe allein um mehr als so viele Sigma vom Median aller Sterne und vom Literaturwert abweicht, kommen nicht in die Ensemble-Suche. Standard: nur anzeigen (Tabelle im Ergebnisblatt).">Einzelstern-Grenze<select id="einzel_tiefe_sigma"><option value="">nur anzeigen (Standard)</option><option value="4">verwerfen &gt; 4 sigma</option><option value="3">verwerfen &gt; 3 sigma</option></select></label>
+   <label title="0 = Ensemble mit der kleinsten Streuung ausserhalb des Transits (wie bisher). Groesser 0: unter den besten Ensembles gewinnt eher eines, dessen Rp/R* zum erwarteten Wert passt (Streuung x (1 + Gewicht x (Abweichung/3 sigma)^2)). Nach einer Rueckweisung wegen O-C mit 1 probieren.">Tiefen-Gewicht<input id="tiefen_gewicht" type="number" step="0.5" min="0" placeholder="0" style="width:80px"></label>
    <label>Ausreisser entfernen<select id="ausreisser_sigma"><option value="">aus (Standard)</option><option value="4">wenige (&gt; 4 sigma)</option><option value="3">normal (&gt; 3 sigma)</option><option value="2.5">viele (&gt; 2,5 sigma)</option></select></label>
    <span class="help">Ausreisser: Bilder, die mehr als die gewaehlte Zahl Standardabweichungen vom Transit-Fit abweichen (Wolken, Flugzeug, Wind), werden entfernt und der Fit wiederholt; die Liste steht in summary.md und ausreisser.json. Quadratisch nur, wenn der BIC besser wird. Airmass-Grenze schneidet Randpunkte (Baseline vor Ingress >= 30 min lassen).</span>
   </div>
@@ -1163,7 +1191,7 @@ async function start(){
   const er={flat:$('flat').value||null,bias:$('bias').value||null,dark:$('dark').value||null,
     dmag_bright:num('dmag_bright'),dmag_faint:num('dmag_faint'),neighbour_px:num('neighbour_px'),edge_px:num('edge_px'),
     airmass_order:num('airmass_order'),airmass_max:num('airmass_max'),flip:$('flip').value||null,
-    fix_geometry:$('fix_geometry').value===''?null:false,mcmc_steps:num('mcmc_steps'),symmetry_weight:num('symmetry_weight'),
+    fix_geometry:$('fix_geometry').value===''?null:false,mcmc_steps:num('mcmc_steps'),symmetry_weight:num('symmetry_weight'),einzel_tiefe_sigma:num('einzel_tiefe_sigma'),tiefen_gewicht:num('tiefen_gewicht'),
     gaia_quelle:$('gaia_quelle').value||null,farbkamera:$('farbkamera').value||null,ausreisser_sigma:num('ausreisser_sigma')};
   if($('annulus').value){er.annulus=$('annulus').value.split(',').map(Number);}
   const cbs=[...document.querySelectorAll('.kcb')]; if(cbs.length){er.exclude_stars=cbs.filter(c=>!c.checked).map(c=>c.value);}

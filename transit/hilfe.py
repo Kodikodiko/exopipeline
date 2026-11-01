@@ -72,7 +72,12 @@ THEMEN = {
   (comps.aij_apertures). compsearch: Vorfilter (RMS/Trend > 3x Median), Lichtkurve jedes Sterns gegen
   die uebrigen (Airmass/Flip detrendet, wie HOPS): variabel bei Streuung der 10-min-Mittel > 3x Median
   UND beta > 1.5 -> verworfen, Bild vergleichssterne_lc.png; dann gierige Vor-/Rueckwaertsauswahl
-  (3-12 Sterne) je Radius nach OOT-RMS.""",
+  (3-12 Sterne) je Radius nach OOT-RMS.
+  Einzelstern-Test (Reviewer-Methode): Transit-Fit mit jedem Stern allein; auffaellig, wenn Rp/R* > 3 sigma
+  vom Median UND vom Literaturwert. [search] einzel_tiefe_sigma > 0: solche Sterne nicht in die Suche.
+  [search] tiefen_gewicht > 0: unter den Top-Ensembles zaehlt die Rp/R*-Abweichung mit.
+  fit: "Ist Tc eindeutig?" = Tc-Profil (zweites Tal?) + Kontrollfit mit Rp/R* fest -> Ampel, tc_profil.png.
+  Handbuch: Kapitel "Vergleichssterne nach Reviewer-Methode".""",
     "aij": """ASTROIMAGEJ-EINSTELLUNGEN (CCD Data Processor -> General FITS Header Settings)
   Zielkoordinaten-Quelle: "FITS header target RA/DEC (J2000)" mit OBJCTRA / OBJCTDEC
      (nicht "target name": "TOI-628b" wird bei SIMBAD evtl. nicht gefunden).
