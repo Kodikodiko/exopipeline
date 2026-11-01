@@ -81,6 +81,64 @@ def exoclock_entry(name):
     return db.get(key, {}) if key else {}
 
 
+def star_rgb(teff):
+    """Approximate colour of a black body of temperature teff (K) as RGB 0..1 (Tanner Helland's fit to the Planck
+    colours); None -> a sun-like 5800 K."""
+    t = min(max(float(teff or 5800), 2000), 40000) / 100
+    r = 1.0 if t <= 66 else 329.698727446 * (t - 60) ** -0.1332047592 / 255
+    g = (99.4708025861 * math.log(t) - 161.1195681661) / 255 if t <= 66 else 288.1221695283 * (t - 60) ** -0.0755148492 / 255
+    b = 1.0 if t >= 66 else (0.0 if t <= 19 else (138.5177312231 * math.log(t - 10) - 305.0447927307) / 255)
+    return np.clip([r, g, b], 0, 1)
+
+
+def draw_sketch(ax, k, k_e, lit_k, b_geo, b_lit, b_f, b_fe, weak, u, R_s, teff):
+    """To-scale view of the transit: star (colour from Teff, limb darkening u of the fit) on a dark sky, planet with the
+    measured Rp/R* on the measured impact parameter b (free geometry fit), literature chord and Rp/R* for comparison,
+    Jupiter and Earth to the same scale when R* is known.  b_geo = b of the geometry the MCMC used (shown when the
+    free fit cannot pin b down), b_lit = literature b."""
+    ax.set_facecolor("#05070d")
+    b_ok = np.isfinite(b_f) and np.isfinite(b_fe) and not weak
+    b_lit = b_lit if b_lit is not None and np.isfinite(b_lit) else float("nan")
+    b_show = b_f if b_ok else b_geo
+    lo = min(-1.08, -b_show - k - 0.08)
+    yy, xx = np.mgrid[-1:1:500j, -1:1:500j]
+    rr = np.hypot(xx, yy); mu = np.sqrt(np.clip(1 - rr ** 2, 0, 1))
+    I = np.clip(1 - u[0] * (1 - mu) - u[1] * (1 - mu) ** 2, 0, 1)
+    rgb = np.dstack([I * c_ for c_ in star_rgb(teff)] + [(rr <= 1).astype(float)])
+    ax.imshow(rgb, extent=(-1, 1, -1, 1), origin="lower", interpolation="bilinear", zorder=1)
+    x0 = -0.35                                             # planet a little before mid-transit, chord visible on both sides
+    if b_ok:                                               # measured chord with its 1-sigma range
+        ax.axhspan(-(b_f + b_fe), -(b_f - b_fe), color="#7fd3ff", alpha=0.18, lw=0, zorder=2)
+        ax.axhline(-b_f, color="#7fd3ff", lw=.9, zorder=3)
+    if np.isfinite(b_lit):
+        ax.axhline(-b_lit, color="w", lw=.7, ls="--", alpha=.75, zorder=3)
+    ax.add_patch(Circle((x0, -b_show), k, color="#000000", zorder=4))
+    if lit_k:
+        ax.add_patch(Circle((x0, -b_show), lit_k, fill=False, color="w", lw=.7, ls=(0, (2, 2)), zorder=5))
+    tt = f", Teff {teff:.0f} K" if teff else ""          # title: what the scale and the colour come from
+    if R_s:
+        rJ, rE = 1 / (R_s * R_SUN_RJ), 1 / (R_s * R_SUN_RE)
+        ax.add_patch(Circle((0.72, 0.88), rJ, color="#c99b6d", zorder=4))
+        ax.text(0.72, 0.88 - rJ - 0.03, "Jupiter", ha="center", va="top", fontsize=6.5, color="0.85")
+        ax.add_patch(Circle((0.95, 0.88), max(rE, 0.006), color="#4f8fe0", zorder=4))
+        ax.text(0.95, 0.88 - 0.04, "Erde", ha="center", va="top", fontsize=6.5, color="0.85")
+        ax.set_title(f"Massstab: R* = {R_s:.2f} R_sun{tt}\n(Stern aus der Literatur, Planet gemessen)", fontsize=8.5)
+    else:
+        ax.set_title(f"Massstab: R* unbekannt{tt}\n(Planet relativ zum Stern, gemessen)", fontsize=8.5)
+    ax.set_xlim(-1.08, 1.08); ax.set_ylim(lo, 1.08); ax.set_aspect("equal")
+    ax.set_xticks([]); ax.set_yticks([])
+    for sp in ax.spines.values():
+        sp.set_visible(False)
+    kt = f"Planet Rp/R* = {k:.3f}" + (f" ± {k_e:.3f}" if k_e and np.isfinite(k_e) else "") + " (gemessen)"
+    if lit_k:
+        kt += f"\nLiteratur {lit_k:.3f} (gestrichelter Umriss)"
+    if b_ok:
+        bt = f"b = {b_f:.2f} ± {b_fe:.2f} (freier Fit, blau)" + (f"\nLiteratur b = {b_lit:.2f} (gestrichelt)" if np.isfinite(b_lit) else "")
+    else:
+        bt = f"b = {b_geo:.2f} (Geometrie des Fits;\naus dieser Nacht nicht bestimmbar)"
+    ax.text(0.5, -0.02, kt + "\n" + bt, transform=ax.transAxes, ha="center", va="top", fontsize=7.2)
+
+
 # ------------------------------------------------------------------ geometry helpers (circular orbit)
 def durations(P, k, ars, inc):
     """t14, t23 in days (t23 = nan for grazing)."""
@@ -591,7 +649,7 @@ def make_sheet(m, n, c, log):
     fig.text(0.06, 1 - 0.68 / H, f"Nacht {night}  |  Lauf {lauf} (Kalibrierung {c['calib']})  |  {fr['info']['frames_used']} Frames",
              fontsize=10.5, va="top")
     fig.text(0.06, 1 - 0.9 / H, f"Ensemble {n.r_text(r_px)}: {' '.join(best['comps'])}", fontsize=10.5, va="top")
-    fig.text(0.97, 1 - 0.3 / H, f"Tc = {tc:.5f} BJD_TDB\n+{(mc['Tc'][2] - tc) * 1440:.1f} / -{(tc - mc['Tc'][0]) * 1440:.1f} min,  "
+    kopf = fig.text(0.97, 1 - 0.3 / H, f"Tc = {tc:.5f} BJD_TDB\n+{(mc['Tc'][2] - tc) * 1440:.1f} / -{(tc - mc['Tc'][0]) * 1440:.1f} min,  "
              f"O-C {mc['OC_min']:+.1f} min\nSTD {sig_res:.2f} ‰,  SNR {snr:.1f}", fontsize=13, ha="right", va="top", weight="bold")
 
     # ---- 1. light curve
@@ -634,24 +692,9 @@ def make_sheet(m, n, c, log):
     a1.text(0.01, 0.95, f"STD = {sig_res:.3f} ‰", transform=a1.transAxes, fontsize=11, weight="bold", va="top")   # as in the ExoClock report
     a1.text(0.01, 0.05, f"Transit SNR = {snr:.2f}", transform=a1.transAxes, fontsize=11, weight="bold", va="bottom")
 
-    # ---- 3. to-scale sketch
+    # ---- 3. to-scale sketch: star colour from Teff, limb darkening of the fit, planet Rp/R* and b as measured
     a3 = fig.add_axes(box("sketch", 0.71, 0.97))
-    yy, xx = np.mgrid[-1:1:400j, -1:1:400j]
-    rr = np.hypot(xx, yy); mu = np.sqrt(np.clip(1 - rr ** 2, 0, 1))
-    I = np.where(rr <= 1, 1 - u[0] * (1 - mu) - u[1] * (1 - mu) ** 2, np.nan)
-    a3.imshow(I, extent=(-1, 1, -1, 1), origin="lower", cmap="YlOrBr_r", vmin=0, vmax=1.2)
-    a3.axhspan(-b_fix - k, -b_fix + k, color="k", alpha=0.08)
-    a3.axhline(-b_fix, color="k", lw=.6, ls="--")
-    a3.add_patch(Circle((0, -b_fix), k, color="k"))
-    a3.text(0, -b_fix - k - 0.07, f"Planet Rp/R* = {k:.3f}\nb = {b_fix:.2f} (Geometrie des Fits)", ha="center", va="top", fontsize=7.5)
-    if R_s:
-        rJ, rE = 1 / (R_s * R_SUN_RJ), 1 / (R_s * R_SUN_RE)
-        a3.add_patch(Circle((0.62, 0.78), rJ, color="#b5835a")); a3.text(0.62, 0.78 - rJ - 0.04, "Jupiter", ha="center", va="top", fontsize=7)
-        a3.add_patch(Circle((0.88, 0.78), max(rE, 0.004), color="#3a7bd5")); a3.text(0.88, 0.78 - 0.05, "Erde", ha="center", va="top", fontsize=7)
-        a3.set_title(f"Massstab: Stern R* = {R_s:.2f} R_sun (Literatur)", fontsize=9)
-    else:
-        a3.set_title("Massstab (R* unbekannt)", fontsize=9)
-    a3.set_xlim(-1.05, 1.05); a3.set_ylim(-1.05, 1.05); a3.set_aspect("equal"); a3.axis("off")
+    draw_sketch(a3, k, k_e, lit_k, b_fix, lit_b, b_f, b_fe, weak, u, R_s, ex.get("teff") or na.get("st_teff"))
 
     # ---- 2. parameter table
     at = fig.add_axes(box("tab")); at.axis("off")
@@ -740,16 +783,22 @@ def make_sheet(m, n, c, log):
 
     png = m.path("ergebnisblatt.png"); pdf = m.path("ergebnisblatt.pdf"); png2 = m.path("ergebnisblatt_feld.png")
     fig.savefig(png, dpi=110)
+    from . import blatthilfe                               # help areas for the GUI (rectangles in PNG fractions)
+    try:
+        hilfe1 = blatthilfe.regions(fig, dict(kopf=kopf, lc=a0, res=a1, skizze=a3, tabelle=at.title, plausi=ac, oc=a4,
+                                              profil=a6, fuss=af), tb)
+    except Exception as e_:
+        log(f"  Hilfe zum Ergebnisblatt nicht erzeugt: {e_}"); hilfe1 = []
     # ---- page 2: stretched field + comparison-star table
     from .feld import draw_page
     fig2 = plt.figure(figsize=(11.69, 16.54))
     feld_ok = True
     try:
         crow, crej, cunused, cframe = draw_page(fig2, m, n, c, fr, cs, ens, planet, ex.get("star") or planet[:-1], log)
-    except Exception as e_:                                # e.g. lights moved to the NAS: no frame for the field image
+    except Exception as e_:                                # e.g. NAS not connected: no frame for the field image
         log(f"  Seite 2 (Feldbild) nicht erzeugt: {type(e_).__name__} {e_}")
         fig2.clf(); fig2.set_size_inches(11.69, 3)
-        fig2.text(0.05, 0.6, f"Feldbild nicht erzeugt (kein Bild der Nacht lokal lesbar: {type(e_).__name__}).", fontsize=11)
+        fig2.text(0.05, 0.6, f"Feldbild nicht erzeugt (kein Bild der Nacht lesbar, weder lokal noch am NAS):\n{e_}", fontsize=11, va="top")
         crow, crej, cunused, cframe, feld_ok = [], [], [], None, False
         if os.path.exists(png2):
             png2 = m.path("ergebnisblatt_feld_neu.png")    # keep the earlier field page
@@ -764,6 +813,19 @@ def make_sheet(m, n, c, log):
         log(f"  vergleichssterne.json nicht geschrieben: {e_}")
     af2 = fig2.text(0.05, 0.2 / fig2.get_size_inches()[1], f"Erzeugt {time.strftime('%Y-%m-%d %H:%M')} mit transit {__version__}  |  Seite 2/2", fontsize=7, color="0.4")
     fig2.savefig(png2, dpi=110)
+    hilfe2 = []
+    if feld_ok:
+        try:
+            fa = next(a for a in fig2.axes if a.images)
+            ta = next(a for a in fig2.axes if a.tables)
+            hilfe2 = blatthilfe.regions(fig2, dict(feldbild=fa, feldtabelle=ta), ta.tables[0], blatthilfe.FELD_SPALTE, {},
+                                        blatthilfe.FELD_BLOCK)
+        except Exception as e_:
+            log(f"  Hilfe zum Feldbild nicht erzeugt: {e_}")
+    try:
+        blatthilfe.write(m.path("ergebnisblatt_hilfe.json"), hilfe1, hilfe2)
+    except OSError as e_:
+        log(f"  ergebnisblatt_hilfe.json nicht geschrieben: {e_}")
     with PdfPages(pdf) as pp:
         pp.savefig(fig)
         pp.savefig(fig2)
