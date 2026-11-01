@@ -104,6 +104,10 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
 .hpop{position:absolute;z-index:30;max-width:340px;padding:10px 12px;border-radius:8px;background:var(--card,#fff);color:var(--fg,#111);
   border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:13px;line-height:1.45;text-align:left;pointer-events:none}
 .hpop b{display:block;margin-bottom:3px}
+.thi{display:inline-block;margin-left:4px;width:14px;height:14px;border-radius:50%;border:0;padding:0;vertical-align:1px;cursor:help;
+  font:600 9.5px/14px system-ui,sans-serif;text-align:center;color:var(--acc2,#2563eb);background:var(--accsoft,#e8efff);opacity:.55}
+.thi:hover,.thi:focus-visible,.thi.on{opacity:1}
+.hpop.fix{position:fixed;z-index:1000}
 /* drawer */
 #scrim{position:fixed;inset:0;background:rgba(10,14,20,.35);z-index:20}
 #drawer{position:fixed;top:0;right:0;bottom:0;width:min(720px,100%);background:var(--card);border-left:1px solid var(--line);z-index:21;display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(0,0,0,.12)}
@@ -713,6 +717,71 @@ function zeigeBlatt(){
   }
   B.querySelectorAll('[data-tab]').forEach(d=>d.hidden=d.dataset.tab!==S.tab);
 }
+// Help on table column heads: every <th> whose text is in SPALTE gets a small (i); hover, focus or click shows the text.
+// A MutationObserver also covers tables built later (run comparison, comparison stars, plan).
+const SPALTE={
+  'Lauf':'Name des Laufs (Ordner unter RESULT). gui_<Datum>_<Zeit>_<Kalibrierung>.',
+  'Zustand':'Fertig, läuft, wartet oder mit Fehler beendet.',
+  'Kalibr.':'Kalibrierung der Lights: raw (keine), f (nur Flat), bf (Bias + Flat), bfd (Bias + Flat + Dark).',
+  'O-C':'Gemessene minus vorhergesagte Transitmitte in Minuten, mit Fehler. Nahe 0 innerhalb des Fehlers: Ephemeride bestätigt.',
+  'OOT-RMS':'Streuung der Lichtkurve außerhalb des Transits (Promille). Je kleiner, desto ruhiger die Messung; der kleinste Wert ist markiert.',
+  'β':'Faktor für rotes (zeitlich korreliertes) Rauschen. 1 = nur weißes Rauschen; größere Werte vergrößern die Fehler entsprechend.',
+  'Drift':'ExoClock-Kriterium: Abweichung von Rp/R* vom Literaturwert in Einheiten des Fehlers. Grün unter 2, gelb 2–3, rot ab 3.',
+  'Rp/Rs':'Gemessener Planetenradius relativ zum Sternradius (aus der Transittiefe).',
+  'Ausreißer':'Wie viele Messpunkte das Sigma-Clipping gegen den Transit-Fit entfernt hat (Schwelle in ausreisser.json).',
+  'Prüfungen':'Ergebnis der automatischen Prüfungen: Planung (Baseline, Airmass, Flip), Drift und Konvergenz (R-hat).',
+  'Planet':'Planet in ExoClock-Schreibweise.',
+  'Nacht':'Beobachtungsnacht (Datum des Abends).',
+  'Status':'gültig = der Lauf, der für diese Nacht zählt (Upload, O-C-Diagramm); variante = weitere Auswertung derselben Nacht.',
+  'Tiefe':'Transittiefe in Promille (Modell mit Randverdunkelung).',
+  'Upload-Datei':'Datei für den ExoClock-Upload dieses Laufs.',
+  'an':'Haken = Stern darf ins Ensemble der Vergleichssterne. Abgewählte Sterne schließt der nächste Lauf aus.',
+  'Stern':'Kandidat für die Vergleichssterne (interne Nummer). * = im Ensemble dieses Laufs.',
+  'G':'Gaia-G-Helligkeit in mag. Ideal: ähnlich hell wie der Zielstern.',
+  'BP-RP':'Gaia-Farbe (blau minus rot). Größer = röter. Ähnliche Farbe wie das Ziel verringert Airmass-Effekte.',
+  'RUWE':'Gaia-Astrometriegüte. Über 1,4 (gelb): möglicherweise Doppelstern.',
+  'Gaia':'Variabilitätskennung aus Gaia/VSX. VARIABLE = bekannter Veränderlicher, ungeeignet.',
+  'Ruhe':'Streuung des Sterns gegen die übrigen Kandidaten (10-min-Mittel), geteilt durch den Median aller. 1 = typisch, über 2 auffällig.',
+  'Transitfenster':'Scheinbarer „Transit“ dieses Sterns im Zeitfenster des Planeten (ppt ± Fehler). Sollte null sein; über 3 σ rot.',
+  'Score':'Gesamtwertung des Vorschlags aus ExoClock-Priorität, Signal-Rausch-Verhältnis, Abdeckung und Wetter.',
+  'Prio':'ExoClock-Priorität: alert, high, medium, low.',
+  'mag':'Helligkeit des Sterns (V, mag).',
+  'Tiefe ppt':'Erwartete Transittiefe in Promille.',
+  'SNR':'Erwartetes Signal-Rausch-Verhältnis des Transits mit deinem Teleskop (Rauschmodell: Photonen, Himmel, Szintillation).',
+  'Beobachten':'Empfohlenes Beobachtungsfenster inklusive Baseline vor und nach dem Transit (Ortszeit).',
+  'Ingress / Tc / Egress':'Vorhergesagter Beginn, Mitte (mit Unsicherheit) und Ende des Transits.',
+  'X max':'Größte Airmass im Beobachtungsfenster. Unter 2 ist gut.',
+  'Wolken':'Vorhergesagte mittlere Bewölkung im Fenster.',
+  'RA / Dec':'Himmelskoordinaten des Sterns (J2000).',
+  'Hinweise':'Warnungen zur Planung, z. B. kurze Baseline, Meridian-Flip, wenige Vergleichssterne.'
+};
+let thPop=null, thFest=null;
+function thZeige(b){
+  if(!thPop){ thPop=document.createElement('div'); thPop.className='hpop fix'; thPop.setAttribute('role','tooltip'); document.body.appendChild(thPop); }
+  thPop.innerHTML=`<b>${esc(b.dataset.titel)}</b>${esc(SPALTE[b.dataset.titel])}`; thPop.hidden=false;
+  const r=b.getBoundingClientRect(), w=Math.min(340,innerWidth-16);
+  thPop.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';
+  thPop.style.top=(r.bottom+6+thPop.offsetHeight>innerHeight?r.top-thPop.offsetHeight-6:r.bottom+6)+'px';
+}
+function thWeg(){ if(thPop&&!thFest) thPop.hidden=true; }
+function spaltenHilfe(root){
+  (root.querySelectorAll?root:document).querySelectorAll('th:not([data-hilfe])').forEach(th=>{
+    const t=th.textContent.trim(); th.dataset.hilfe='1'; if(!SPALTE[t]) return;
+    th.removeAttribute('title');
+    th.insertAdjacentHTML('beforeend',`<button type="button" class="thi" data-titel="${esc(t)}" aria-label="Erklärung: ${esc(t)}">i</button>`);
+    const b=th.lastElementChild;
+    b.addEventListener('mouseenter',()=>{ if(!thFest) thZeige(b); }); b.addEventListener('mouseleave',thWeg);
+    b.addEventListener('focus',()=>{ if(!thFest) thZeige(b); }); b.addEventListener('blur',thWeg);
+    b.addEventListener('click',ev=>{ ev.stopPropagation(); if(thFest) thFest.classList.remove('on');
+      if(thFest===b){ thFest=null; thWeg(); return; } thFest=b; b.classList.add('on'); thZeige(b); });
+  });
+}
+document.addEventListener('click',()=>{ if(thFest){ thFest.classList.remove('on'); thFest=null; thWeg(); } });
+addEventListener('scroll',()=>{ if(thPop&&!thPop.hidden){ if(thFest){ thFest.classList.remove('on'); thFest=null; } thPop.hidden=true; } },true);
+new MutationObserver(ms=>{ for(const m of ms) for(const n of m.addedNodes) if(n.nodeType===1) spaltenHilfe(n); })
+  .observe(document.documentElement,{childList:true,subtree:true});
+addEventListener('DOMContentLoaded',()=>spaltenHilfe(document));
+
 // Help on the result sheet: ergebnisblatt_hilfe.json holds rectangles (fractions of the PNG) with title and text; each
 // becomes an invisible area over the image with a small (i) that shows on hover over the sheet.  Hover or click shows the text.
 async function ladeHilfe(p,s,key,v){
