@@ -3,7 +3,7 @@
 ## v1.1 (Entwurf, 2026-11-01)
 
 Änderungen seit **ExoPipeline v1.0** (Tag `release`, 30.10.2026, enthält bereits `transit plan` aus PR #1).
-Umfasst PR #2 bis #17.
+Umfasst PR #2 bis #20.
 
 ### Auswertung und Fit
 
@@ -12,6 +12,7 @@ Umfasst PR #2 bis #17.
 - **Freier Fit:** Grenzen für a/R* kommen aus dem Literaturwert statt fest 3…25. Planeten mit großem a/R* (K2-115b, 32) brechen nicht mehr mit „x0 is infeasible“ ab. (#6)
 - **Ist Tc eindeutig?** Tc-Profil (Fit bei festem Tc, Suche nach einem zweiten Tal) und Kontrollfit mit festem Rp/R*. Ergebnis als Ampel in `fit.json`, `summary.md`, Ergebnisblatt, `tc_profil.png` und der Prüfliste der GUI. (#15)
 - **Gaia DR3 über VizieR** statt nur über das ESA-Archiv (`[gaia] quelle`, `timeout_s`). Fällt ein Dienst aus, werden automatisch der VizieR-Spiegel in Harvard und das ESA-Archiv versucht (15 s Verbindungs-Timeout). Ein Gaia-Feld aus einem anderen Lauf derselben Messung wird wiederverwendet. (#3)
+- **VizieR-Spiegel zuerst:** Gaia- und VSX-Abfragen fragen Harvard, IUCAA und China-VO vor Strasbourg (CDS), das oft nicht erreichbar war. Ein Server, der nicht antwortet, rückt für den Rest des Laufs ans Ende. Reihenfolge einstellbar über `[gaia] vizier_server`. (#20)
 
 ### Vergleichssterne
 
@@ -52,6 +53,7 @@ Umfasst PR #2 bis #17.
 ### Fehlerbehebungen
 
 - VSX-Abgleich: Der Lauf bricht nicht mehr an maskierten Ganzzahl-Spalten ab (`V`-Flag als uint8, „Cannot convert fill_value nan to dtype uint8“). (#11)
+- ExoClock-Kommentar: Ein Meridian-Flip vor dem Ingress wird nicht mehr als „during the transit“ gemeldet, sondern mit seiner tatsächlichen Lage. Die Pause beim Flip zählt nicht mehr als Datenlücke („clouds/interruption“). (#19)
 - Gaia-Details: VizieR-Abfrage mit Helligkeitsgrenze, vorher kamen alle Sterne bis G 21 und die Abfrage lief in den Read-Timeout. (#8)
 - Reiter Vergleichssterne hängt nicht mehr, wenn die Lights eines Laufs fehlen (archivierte Messung). (#10)
 - Hinweis statt leerer Fläche, wenn ein Lauf älter ist als die Ruhe-Prüfung und kein Kurvenbild hat. (#9)
