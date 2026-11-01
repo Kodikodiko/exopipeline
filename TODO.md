@@ -70,3 +70,10 @@ Geschätzter Aufwand: ½ Sitzung.
 - Derzeit liefert `run_detail` in `gui.py` über `tail(…, n=14)` nur die letzten 14 Zeilen aus `gui_konsole.txt` bzw. `run.log`; das Feld `#l-log` zeigt nur diese.
 - Umsetzung: ganzes Protokoll liefern (bei sehr langen Läufen ggf. inkrementell ab einer Zeilennummer nachladen statt jedes Mal komplett), `#l-log` mit fester Höhe und `overflow:auto`; automatisch nach unten mitscrollen nur, wenn man schon unten steht (vorhandene Logik in `gui_neu.py` beibehalten).
 - Klassische GUI (`/klassisch`) unverändert lassen.
+
+## Später: FITS bei Bedarf auch vom NAS lesen
+Geschätzter Aufwand: ½ Sitzung.
+- Schritte, die nachträglich einzelne Frames brauchen (z. B. das Feldbild im Ergebnisblatt, `feld.draw_page`), sollen die FITS auch finden, wenn die Messung archiviert ist und lokal gelöscht wurde (`transit archiv --loeschen`).
+- Derzeit sucht `draw_page` nur in `SOLVED\` und `LIGHTS` des Messordners; fehlt die Datei dort, bricht es mit `StopIteration` ab.
+- Umsetzung: gemeinsame Suchfunktion für Frames, die nacheinander lokal, dann den im Logbuch vermerkten Archivpfad und zuletzt `[paths] archiv_wurzel` prüft (wie `resolve(…, nas)` für Messordner). Nur die benötigte Datei lesen, nichts zurückkopieren.
+- NAS nicht erreichbar → verständliche Meldung („NAS verbunden?“) statt Absturz; Ergebnisblatt notfalls ohne Feldbild erzeugen.
