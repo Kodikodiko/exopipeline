@@ -13,6 +13,9 @@ class Night:
 
     def __init__(self, cube, cfg, pred, geom, exclude_frames=(), log=print):
         self.c, self.cfg, self.pred, self.geom, self.log = cube, cfg, pred, geom, log
+        # range for a free a/R*: 3..25 covers hot Jupiters; long periods (e.g. K2-115b, a/R* 32) need more room
+        a0 = float(geom[0]) if geom and geom[0] else 10.0
+        self.ars_lim = (min(3.0, a0 / 3), max(25.0, 2.5 * a0))
         c = cube
         self.names = [str(s) for s in c["star_name"]]
         nf, ns, _ = c["flux"].shape
@@ -266,8 +269,8 @@ class Night:
         best = None
         for dt in STARTS:
             q0 = [dt, 0.09] + ([self.geom[0], min(self.geom[1], 89.5)] if free else [])
-            lo = [-0.04, 0.02] + ([3, 75] if free else [])
-            hi = [0.04, 0.25] + ([25, 90] if free else [])
+            lo = [-0.04, 0.02] + ([self.ars_lim[0], min(75.0, self.geom[1] - 5)] if free else [])
+            hi = [0.04, 0.25] + ([self.ars_lim[1], 90] if free else [])
             rr = least_squares(resid, q0, bounds=(lo, hi), x_scale=[0.002, 0.005] + ([0.5, 1] if free else []))
             if best is None or rr.cost < best.cost:
                 best = rr
@@ -313,7 +316,7 @@ class Night:
         def lnp(q):
             if free:
                 tc, rp, ars, inc = q
-                if not (3 < ars < 25 and 75 < inc <= 90):
+                if not (self.ars_lim[0] < ars < self.ars_lim[1] and min(75.0, self.geom[1] - 5) < inc <= 90):
                     return -np.inf
             else:
                 (tc, rp), (ars, inc) = q, self.geom
