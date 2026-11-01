@@ -767,6 +767,9 @@ const SPALTE={
   'Gaia':'Variabilitätskennung aus Gaia/VSX. VARIABLE = bekannter Veränderlicher, ungeeignet.',
   'Ruhe':'Streuung des Sterns gegen die übrigen Kandidaten (10-min-Mittel), geteilt durch den Median aller. 1 = typisch, über 2 auffällig.',
   'Transitfenster':'Scheinbarer „Transit“ dieses Sterns im Zeitfenster des Planeten (ppt ± Fehler). Sollte null sein; über 3 σ rot.',
+  'wählen':'Haken = dieser Stern gehört zum Ensemble für „Vorschau berechnen“ und „Als neuen Lauf rechnen“. Vorbelegt mit den Sternen des Laufs (*). Gute Gründe zum Abwählen: Ruhe gelb/rot, Transitfenster rot, Einzeltest auffällig. Nicht so lange tauschen, bis O-C passt. Handbuch: „Vergleichssterne von Hand wählen“.',
+  'O-C (schnell)':'Transitmitte minus Vorhersage aus einem schnellen Fit ohne MCMC (beide Zeilen gleich gerechnet, daher vergleichbar). Der Fehler ist meist zu klein; echte Fehlerbalken liefert erst der neue Lauf. Erst OOT-RMS und β ansehen, dann O-C.',
+  'Rp/R*':'Planetenradius relativ zum Sternradius aus dem schnellen Fit; in Klammern der Abstand zum Literaturwert (ExoClock) in σ. Bis etwa 2 σ unauffällig.',
   'Einzeltest':'Transit-Fit mit nur diesem Stern als Vergleich: Abweichung seines Rp/R* vom Median aller Sterne, in Einheiten seines Fehlers. Grün = passt; gelb = auffällig (über 3 σ zum Median und zur Literatur); rot = in der Ensemble-Suche verworfen. Maus über dem Wert: Rp/R* und O-C dieses Sterns.',
   'Score':'Gesamtwertung des Vorschlags aus ExoClock-Priorität, Signal-Rausch-Verhältnis, Abdeckung und Wetter.',
   'Prio':'ExoClock-Priorität: alert, high, medium, low.',
@@ -1008,10 +1011,10 @@ function wahlKopf(){ const e=$('wahl-kopf'); if(!e) return; const L=wahlListe(),
   $('wahl-vor').disabled=!L.length; $('wahl-start').disabled=!L.length||gleich_; $('wahl-zurueck').disabled=gleich_; }
 function wahlPanel(){ return `<div class="card" style="margin:12px 0;display:flex;flex-direction:column;gap:10px;background:var(--soft)">
   <div id="wahl-kopf"></div>
-  <div class="row" style="gap:8px;flex-wrap:wrap"><button id="wahl-vor" class="btn sm" onclick="wahlVorschau()">Vorschau berechnen</button>
-   <button id="wahl-zurueck" class="btn sec sm" onclick="wahlZurueck()">wie im Lauf</button>
-   <button id="wahl-start" class="btn sec sm" onclick="wahlStart()">Als neuen Lauf rechnen …</button></div>
-  <span class="hint" style="font-size:13px">Haken in der Spalte „wählen“ setzen. Die Vorschau ist ein schneller Fit ohne MCMC (wenige Sekunden) auf dem Radius des Laufs. Gute Gründe zum Abwählen: gelbe/rote Ruhe, Abweichung im Transitfenster, im Einzeltest auffällig. Sterne nicht danach aussuchen, welches O-C herauskommt. Erst der neue Lauf liefert echte Fehlerbalken und Prüfungen; er wird als „von Hand gewählt“ vermerkt.</span>
+  <div class="row" style="gap:8px;flex-wrap:wrap"><button id="wahl-vor" class="btn sm" title="Schneller Fit ohne MCMC (wenige Sekunden) für die Auswahl und zum Vergleich für die Sterne des Laufs. Ändert nichts am Lauf." onclick="wahlVorschau()">Vorschau berechnen</button>
+   <button id="wahl-zurueck" class="btn sec sm" title="Haken wieder auf die Sterne des Laufs setzen" onclick="wahlZurueck()">wie im Lauf</button>
+   <button id="wahl-start" class="btn sec sm" title="Voller Lauf (MCMC, alle Prüfungen, Ergebnisblatt) mit genau diesen Sternen; Photometrie und Einstellungen wie dieser Lauf. Name endet auf _hand, der alte Lauf bleibt." onclick="wahlStart()">Als neuen Lauf rechnen …</button></div>
+  <span class="hint" style="font-size:13px">Haken in der Spalte „wählen“ setzen. Die Vorschau ist ein schneller Fit ohne MCMC (wenige Sekunden) auf dem Radius des Laufs. Gute Gründe zum Abwählen: gelbe/rote Ruhe, Abweichung im Transitfenster, im Einzeltest auffällig. Sterne nicht danach aussuchen, welches O-C herauskommt. Erst der neue Lauf liefert echte Fehlerbalken und Prüfungen; er wird als „von Hand gewählt“ vermerkt. <a href="/handbuch" target="_blank">Handbuch: „Vergleichssterne von Hand wählen“</a></span>
   <div id="wahl-erg"></div></div>`; }
 function wahlZurueck(){ S.wahl[S.wahlAkt.key]=new Set(wahlLauf()); S.vor=null; zeigeBlattSterne(); }
 function zeigeBlattSterne(){ const A=S.wahlAkt, b=$('blatt').querySelector('[data-tab="sterne"]'); if(!b) return;

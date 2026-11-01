@@ -1,13 +1,8 @@
 # TODO – geplante Erweiterungen (nicht umgesetzt)
 
-## Als Nächstes: Vergleichssterne per Haken vollständig dokumentieren (wichtig)
-Die Funktion (Ergebnis → Reiter „Vergleichssterne“: Spalte „wählen“, „Vorschau berechnen“, „Als neuen Lauf rechnen …“, Einstellung `[search] ensemble`, Befehl `transit vorschau`) ist bisher nur im Hinweistext unter dem Knopf erklärt. Ergänzen:
-- `HANDBUCH.md`: eigener Abschnitt mit Ablauf Schritt für Schritt (Haken setzen → Vorschau → neuer Lauf `…_hand`), was die Vorschau rechnet (schneller Fit ohne MCMC, fester Radius des Laufs, gleiche Ausreißer) und was nicht (keine echten Fehlerbalken, keine Prüfungen), wie man die Tabelle liest (erst OOT-RMS und β, dann O-C) und welche Gründe zum Abwählen gut sind (Ruhe gelb/rot, Transitfenster, Einzeltest) bzw. schlecht (O-C oder Tiefe „passend machen“).
-- `HANDBUCH.md` Parametertabelle und `config.example.toml`: `[search] ensemble = ["G03", …]` mit Wirkung (Ensemble-Suche übersprungen, Einzeltest verwirft nichts, Vermerk in Ergebnisblatt und Kommentar).
-- `transit hilfe vergleichssterne` (`transit/hilfe.py`): Absatz zu Haken, Vorschau und `transit vorschau`.
-- Neue GUI: (i)-Hilfe an der Spalte „wählen“ und an der Vorschau-Tabelle (OOT-RMS, β, O-C schnell, Rp/R* σ zur Lit.) über `SPALTE`; Tooltip an den drei Knöpfen.
-- Ergebnisblatt-Hilfe (`ergebnisblatt_hilfe.json`): Bedeutung von „(von Hand gewählt)“.
-- Abnahme: Ablauf einmal an einem echten Lauf (z. B. HAT-P-42b) durchspielen und Screenshots ins Handbuch.
+## Als Nächstes: Vergleichssterne per Haken – Abnahme am echten Lauf
+Dokumentation ist erledigt (2026-11-01: Handbuch-Kapitel „Vergleichssterne von Hand wählen“, Parametertabelle `[search] ensemble`, `config.example.toml`, `transit hilfe vergleichssterne`, ⓘ an „wählen“, „O-C (schnell)“, „Rp/R*“, Tooltips an den Knöpfen, Ergebnisblatt-Hilfe). Offen:
+- Ablauf einmal an einem echten Lauf (z. B. HAT-P-42b) durchspielen und zwei Screenshots (Tabelle mit Haken, Vorschau) ins Handbuch.
 
 ## Später: Linux-Version
 Geschätzter Aufwand: 1–2 Sitzungen.

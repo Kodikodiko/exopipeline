@@ -12,7 +12,10 @@ BLOCK = {
              "Tc: gemessene Transitmitte in BJD_TDB, mit Fehler nach oben/unten (MCMC, 16./84. Perzentil). "
              "O-C: gemessen minus vorhergesagt in Minuten (positiv = Transit kam später). "
              "STD: Streuung der Residuen in Promille, wie ExoClock „Residuals STD“. "
-             "SNR: Transittiefe geteilt durch ihren Fehler, wie ExoClock „Transit SNR“ (gut: deutlich über 10)."),
+             "SNR: Transittiefe geteilt durch ihren Fehler, wie ExoClock „Transit SNR“ (gut: deutlich über 10). "
+             "Darüber: Nacht, Lauf, Kalibrierung und das Ensemble der Vergleichssterne mit Apertur. „(von Hand gewählt)“ = "
+             "die Sterne wurden in der Oberfläche festgelegt (Ergebnis → Vergleichssterne → Haken, [search] ensemble), "
+             "ohne automatische Suche; das steht auch im ExoClock-Kommentar."),
     "lc": ("Lichtkurve",
            "Helligkeit des Zielsterns relativ zum Ensemble der Vergleichssterne, von Airmass (und ggf. Meridian-Flip) "
            "bereinigt. Grau: Einzelpunkte, blau: Mittelwerte, rot: Transitmodell aus dem MCMC-Fit. "
@@ -92,7 +95,8 @@ FELD_BLOCK = {
                  "genutzte Kandidaten, x: verworfene Sterne."),
     "feldtabelle": ("Vergleichssterne",
                     "Eigenschaften und Begründung jedes Vergleichssterns. Gelb hinterlegt: auffällig (RUWE, Nachbar, "
-                    "Variabilität)."),
+                    "Variabilität). Sterne von Hand ins Ensemble nehmen oder herausnehmen: Oberfläche → Ergebnis → "
+                    "Vergleichssterne → Spalte „wählen“ → Vorschau → Als neuen Lauf rechnen."),
 }
 FELD_SPALTE = {
     "Kennung": "Name im Ergebnisblatt (Ziel, C1, C2 …) und interne Sternnummer.",

@@ -77,7 +77,17 @@ THEMEN = {
   vom Median UND vom Literaturwert. [search] einzel_tiefe_sigma > 0: solche Sterne nicht in die Suche.
   [search] tiefen_gewicht > 0: unter den Top-Ensembles zaehlt die Rp/R*-Abweichung mit.
   fit: "Ist Tc eindeutig?" = Tc-Profil (zweites Tal?) + Kontrollfit mit Rp/R* fest -> Ampel, tc_profil.png.
-  Handbuch: Kapitel "Vergleichssterne nach Reviewer-Methode".""",
+  Handbuch: Kapitel "Vergleichssterne nach Reviewer-Methode".
+
+  VON HAND WAEHLEN (Oberflaeche: Ergebnis -> Reiter Vergleichssterne -> Spalte "waehlen"):
+  Haken setzen (vorbelegt: Ensemble des Laufs) -> "Vorschau berechnen" = schneller Fit ohne MCMC fuer
+  Auswahl und Lauf-Ensemble (OOT-RMS, beta, O-C, Rp/R*; erst RMS und beta ansehen, dann O-C) ->
+  "Als neuen Lauf rechnen" = voller Lauf <...>_hand mit Photometrie und Einstellungen des alten Laufs und
+  [search] ensemble = ["G03", ...] (keine Ensemble-Suche). Vermerk im Ergebnisblatt und im ExoClock-Kommentar.
+  Gute Gruende zum Abwaehlen: Ruhe gelb/rot, Transitfenster rot, Einzeltest auffaellig, RUWE > 1.4.
+  Nicht: Sterne tauschen, bis O-C passt.
+  Kommandozeile: transit vorschau <Messordner> --out <lauf> --sterne G03,G08,G12 [--radius 14]
+  Handbuch: Kapitel "Vergleichssterne von Hand waehlen".""",
     "aij": """ASTROIMAGEJ-EINSTELLUNGEN (CCD Data Processor -> General FITS Header Settings)
   Zielkoordinaten-Quelle: "FITS header target RA/DEC (J2000)" mit OBJCTRA / OBJCTDEC
      (nicht "target name": "TOI-628b" wird bei SIMBAD evtl. nicht gefunden).
