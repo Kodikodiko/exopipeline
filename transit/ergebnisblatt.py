@@ -94,10 +94,12 @@ def star_rgb(teff):
 def draw_sketch(ax, k, k_e, lit_k, b_geo, b_lit, b_f, b_fe, weak, u, R_s, teff):
     """To-scale view of the transit: star (colour from Teff, limb darkening u of the fit) on a dark sky, planet with the
     measured Rp/R* on the measured impact parameter b (free geometry fit), literature chord and Rp/R* for comparison,
-    Jupiter and Earth to the same scale when R* is known.  b_geo = b of the geometry the MCMC used (shown when the
-    free fit cannot pin b down), b_lit = literature b."""
+    Jupiter and Earth to the same scale when R* is known.  The planet always sits on the b of this night's free fit as
+    long as that has an error below 1 (weakly determined is labelled as such, not replaced); only when b is undetermined
+    (fit on the i = 90 deg bound, no error) the geometry of the MCMC (b_geo, normally the literature) is used.
+    b_lit = literature b."""
     ax.set_facecolor("#05070d")
-    b_ok = np.isfinite(b_f) and np.isfinite(b_fe) and not weak
+    b_ok = bool(np.isfinite(b_f) and np.isfinite(b_fe) and 0 < b_fe < 1)
     b_lit = b_lit if b_lit is not None and np.isfinite(b_lit) else float("nan")
     b_show = b_f if b_ok else b_geo
     lo = min(-1.08, -b_show - k - 0.08)
@@ -108,7 +110,7 @@ def draw_sketch(ax, k, k_e, lit_k, b_geo, b_lit, b_f, b_fe, weak, u, R_s, teff):
     ax.imshow(rgb, extent=(-1, 1, -1, 1), origin="lower", interpolation="bilinear", zorder=1)
     x0 = -0.35                                             # planet a little before mid-transit, chord visible on both sides
     if b_ok:                                               # measured chord with its 1-sigma range
-        ax.axhspan(-(b_f + b_fe), -(b_f - b_fe), color="#7fd3ff", alpha=0.18, lw=0, zorder=2)
+        ax.axhspan(-(b_f + b_fe), -max(b_f - b_fe, 0.0), color="#7fd3ff", alpha=0.18, lw=0, zorder=2)
         ax.axhline(-b_f, color="#7fd3ff", lw=.9, zorder=3)
     if np.isfinite(b_lit):
         ax.axhline(-b_lit, color="w", lw=.7, ls="--", alpha=.75, zorder=3)
@@ -133,9 +135,10 @@ def draw_sketch(ax, k, k_e, lit_k, b_geo, b_lit, b_f, b_fe, weak, u, R_s, teff):
     if lit_k:
         kt += f"\nLiteratur {lit_k:.3f} (gestrichelter Umriss)"
     if b_ok:
-        bt = f"b = {b_f:.2f} ± {b_fe:.2f} (freier Fit, blau)" + (f"\nLiteratur b = {b_lit:.2f} (gestrichelt)" if np.isfinite(b_lit) else "")
+        bt = (f"b = {b_f:.2f} ± {b_fe:.2f} (freier Fit{', schwach bestimmt' if weak else ''}, blau)"
+              + (f"\nLiteratur b = {b_lit:.2f} (gestrichelt)" if np.isfinite(b_lit) else ""))
     else:
-        bt = f"b = {b_geo:.2f} (Geometrie des Fits;\naus dieser Nacht nicht bestimmbar)"
+        bt = f"b = {b_geo:.2f} (Geometrie des Fits;\nb aus dieser Nacht unbestimmt)"
     ax.text(0.5, -0.02, kt + "\n" + bt, transform=ax.transAxes, ha="center", va="top", fontsize=7.2)
 
 
