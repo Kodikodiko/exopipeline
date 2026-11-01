@@ -57,5 +57,5 @@ Umfasst PR #2 bis #17.
 
 ### Bekannt / offen
 
-- Die ausführliche Dokumentation zur Wahl per Haken (Handbuch, `transit hilfe`, ⓘ-Texte) folgt.
+- Die ausführliche Dokumentation zur Wahl per Haken ist vorbereitet, aber noch nicht in `main`: Handbuch-Kapitel „Vergleichssterne von Hand wählen“, ⓘ-Hilfen und Tooltips in der GUI, Absatz in `transit hilfe vergleichssterne`, Erklärung zu „(von Hand gewählt)“ in der Ergebnisblatt-Hilfe. Wird sie vor dem Release gemergt, gehört dieser Punkt unter „Vergleichssterne“.
 - Geplante Punkte aus dem externen Review (Flip-Prior-Gewichtung, Wolken-Erkennung, β über Zeitfenster, echte Belichtungszeit im Modell) stehen in `TODO.md`. (#17)
