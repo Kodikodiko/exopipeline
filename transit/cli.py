@@ -203,6 +203,24 @@ def cmd_calibrate(m, a):
 
 
 # ------------------------------------------------------------------ cube
+def relocate_masters(m, cj):
+    """calib.json stores absolute master paths.  When the measurement moved (e.g. lights and the masters beside them
+    now on the NAS, or a run copied from another folder), look for the same file name in the current light folder
+    and the measurement folder before giving up."""
+    for k in ("bias", "flat", "dark"):
+        r = cj.get(k)
+        if not r or not r.get("path") or os.path.exists(r["path"]):
+            continue
+        name = os.path.basename(r["path"].replace("\\", "/"))
+        hit = next((q for q in (os.path.join(d, name) for d in (m.lights, m.root) if d) if os.path.exists(q)), None)
+        if hit:
+            log(f"  {k:5s}: Master nicht mehr unter {r['path']}, nehme {hit}")
+            r["path"] = hit
+        else:
+            log(f"  WARNUNG: {k}-Master {r['path']} nicht gefunden (auch nicht im Light-Ordner) - Schritt calibrate neu ausfuehren")
+    return cj
+
+
 def cmd_cube(m, a):
     from .stars import select, load
     from .photometry import build_cube
@@ -220,7 +238,7 @@ def cmd_cube(m, a):
     if mode == "raw":
         cal_args = ("raw", {})
     else:
-        cj = jload(m, "calib.json")
+        cj = relocate_masters(m, jload(m, "calib.json"))
         k = cj.get("dark_scale", {}).get("k_night", 1.0) if mode == "bfd" else 1.0
         cal_args = (mode, cj, k, m.cfg["calib"].get("crop", [0, 0]))
     cal = Calibrator(*cal_args)
@@ -621,6 +639,16 @@ def step_status(m, step, a, mode, prev_mtime):
         return False, "--new-stars", mt
     if step == "calibrate" and a.write:
         return False, "--write", mt
+    if step == "calibrate":                                # masters moved away and not beside the lights: find them again
+        try:
+            cj = json.load(open(outs[0], encoding="utf-8"))
+            gone = [k for k in ("bias", "flat", "dark") if (cj.get(k) or {}).get("path") and not os.path.exists(cj[k]["path"])
+                    and not any(os.path.exists(os.path.join(d, os.path.basename(cj[k]["path"].replace("\\", "/"))))
+                                for d in (m.lights, m.root) if d)]
+        except Exception:
+            gone = []
+        if gone:
+            return False, "Master nicht mehr vorhanden: " + ", ".join(gone), mt
     st = progress.load_state(m).get(step)
     if st:
         want = step_params(step, a, mode)
