@@ -85,3 +85,11 @@ Geschätzter Aufwand: ½–1 Sitzung.
 - `b` korrekt darstellen: zusätzlich das `b` aus dem freien Geometrie-Fit (`ff["ars"]`, `ff["inc"]`) mit Fehlerband einzeichnen und klar beschriften („b Literatur“ vs. „b gemessen ± σ“); ist der freie Fit unbestimmt (großer Fehler), nur den Literaturwert zeigen und das dazuschreiben.
 - Realistischer Stern: Farbe aus der Sterntemperatur (T_eff aus NASA/ExoClock) statt fester Orange-Palette, Randverdunkelung mit den tatsächlichen Koeffizienten des Fits (bereits so) und weniger gesättigt; Planet als Scheibe mit Größe Rp/R* aus dem Fit, Transitsehne als Spur über die ganze Sternscheibe.
 - Größenverhältnisse: Stern, Planet, Jupiter und Erde maßstabsgetreu (bereits über R* aus der Literatur); bei Bedarf Zahlen dazu (Rp in R_Jup, Tiefe in ‰) und optional die Literatur-Rp/R* als Umriss zum Vergleich mit dem gemessenen Wert.
+
+## Später: Hilfe direkt im Ergebnisblatt
+Geschätzter Aufwand: 1 Sitzung.
+- In der GUI beim Ergebnisblatt zu jedem Element (Lichtkurve, Residuen, Skizze, Parametertabelle, Kopfzeile mit Tc/O−C/STD/SNR, Feldbild) eine Erklärung anzeigen: per Mouse-over oder Klick auf ein dezentes Symbol (z. B. kleines „ⓘ“).
+- Alle Spaltenköpfe der Parametertabelle („Groesse“, „Dein Wert“, „Literatur“, „Abw. sigma“, „Quelle“, „Hinweis“) und möglichst auch die Zeilen (Rp/R*, b, a/R*, i, Tiefe, T14 …) mit kurzer Erklärung versehen.
+- Problem: Das Ergebnisblatt ist ein Bild (`ergebnisblatt.png`/PDF), Tooltips gehen dort nicht. Umsetzung daher in der GUI: `ergebnisblatt.py` schreibt neben dem PNG die Lage der Elemente und Tabellenzellen (Achsen-Rechtecke in Bildanteilen) in eine JSON-Datei; `gui_neu.py` legt darüber unsichtbare Bereiche mit Symbol und Tooltip/Popover. Alternativ die Parametertabelle in der GUI zusätzlich als echte HTML-Tabelle mit erklärten Spaltenköpfen zeigen.
+- Texte zentral ablegen (gleiche Quelle wie `hilfe.py`/Handbuch), damit sie mit einer späteren englischen Version mitübersetzt werden.
+- Dezent: Symbole nur bei Mouse-over über dem Blatt deutlich sichtbar, PNG/PDF selbst bleiben unverändert.
