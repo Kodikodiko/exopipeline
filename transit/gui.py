@@ -10,6 +10,7 @@ import html
 import json
 import mimetypes
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -631,6 +632,8 @@ def runs_detail(p):
             r["schritt"] = next((x["name"] for x in r["schritte"] if x.get("state") == "laeuft"), "")
         r["dauer_s"] = st.get("elapsed_s")
         r["gestartet"] = st.get("started")
+        g = re.match(r"gui_(\d{4})(\d\d)(\d\d)_(\d\d)(\d\d)", r["lauf"])   # sort key: first start of the run
+        r["sortzeit"] = mt.get("gestartet") or (f"{g[1]}-{g[2]}-{g[3]} {g[4]}:{g[5]}" if g else str(st.get("started") or "").replace("T", " "))
         ar = os.path.join(d, "ausreisser.json")
         r["ausreisser"] = len(jload(ar).get("frames", [])) if os.path.exists(ar) else None
         r["hochgeladen"] = jload(os.path.join(d, UPLOAD_MARK)).get("datum", "")

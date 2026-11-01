@@ -92,6 +92,9 @@ pre.log{margin:0;padding:12px;border-radius:8px;background:var(--logbg);color:va
 .kv>span:first-child{font-size:13px;color:var(--mut)}
 tr.sel td{background:var(--accsoft)} tr.best td{background:var(--pg-b)}
 tr.click{cursor:pointer}
+th.sortb{cursor:pointer;white-space:nowrap;user-select:none}
+th.sortb[aria-sort=descending]::after{content:' \25BC';font-size:10px}
+th.sortb[aria-sort=ascending]::after{content:' \25B2';font-size:10px}
 img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
 .bbox{position:relative;display:inline-block;max-width:100%;line-height:0}
 .bbox>a{display:block}
@@ -218,7 +221,7 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
    <div id="v-inhalt" style="display:flex;flex-direction:column;gap:20px">
     <section class="card" aria-labelledby="h-kz" style="display:flex;flex-direction:column;gap:12px">
      <div class="between"><h2 id="h-kz" style="font-size:18px">Kennzahlen</h2><span class="hint" style="font-size:13px">Auswahl nach Datenqualität und Prüfungen, nicht danach, welche Tiefe am besten zur Literatur passt</span></div>
-     <div class="scroll"><table style="min-width:860px"><thead><tr><th>Lauf</th><th>Kalibr.</th><th>O-C</th><th title="Rauschen außerhalb des Transits">OOT-RMS</th><th title="rotes Rauschen, 1 = weiß">β</th><th title="ExoClock-Kriterium">Drift</th><th>Rp/Rs</th><th>Ausreißer</th><th>Prüfungen</th><th></th></tr></thead><tbody id="kz"></tbody></table></div>
+     <div class="scroll"><table style="min-width:860px"><thead><tr><th id="kz-lauf" class="sortb" aria-sort="descending" tabindex="0" onclick="kzSortiere()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();kzSortiere();}">Lauf</th><th>Kalibr.</th><th>O-C</th><th title="Rauschen außerhalb des Transits">OOT-RMS</th><th title="rotes Rauschen, 1 = weiß">β</th><th title="ExoClock-Kriterium">Drift</th><th>Rp/Rs</th><th>Ausreißer</th><th>Prüfungen</th><th></th></tr></thead><tbody id="kz"></tbody></table></div>
     </section>
     <div class="row" style="align-items:flex-start;gap:20px">
      <section class="card" aria-labelledby="h-blatt" style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:12px">
@@ -686,7 +689,9 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden) document
 // ------------------------------------------------------------------ comparison + upload
 function zeigeVergleich(poll){
   if(!S.M){ $('v-leer').hidden=false; $('v-inhalt').hidden=true; return; }
-  const L=S.M.laeufe.filter(l=>l.oc!==undefined).sort((a,b)=>String(b.lauf).localeCompare(String(a.lauf)));
+  const zeit=l=>String(l.sortzeit||'')+'|'+String(l.lauf);      // first start of the run (server: sortzeit)
+  const L=S.M.laeufe.filter(l=>l.oc!==undefined).sort((a,b)=>S.kzAuf?zeit(a).localeCompare(zeit(b)):zeit(b).localeCompare(zeit(a)));
+  $('kz-lauf').setAttribute('aria-sort',S.kzAuf?'ascending':'descending');
   $('v-leer').hidden=!!L.length; $('v-inhalt').hidden=!L.length; if(!L.length) return;
   const best=L.reduce((a,b)=>(+b.oot_rms<+a.oot_rms?b:a));
   const g=L.find(l=>l.status==='gueltig');
@@ -709,6 +714,7 @@ function zeigeVergleich(poll){
   if(g){ $('up-done').checked=!!g.hochgeladen; $('up-done-h').textContent=g.hochgeladen?'am '+g.hochgeladen+' abgehakt':'Haken setzen, sobald die Datei bei ExoClock hochgeladen ist'; }
 }
 function waehleLauf(l){ S.sel=l; zeigeVergleich(); }
+function kzSortiere(){ S.kzAuf=!S.kzAuf; zeigeVergleich(true); }   // column Lauf: newest first (default) <-> oldest first
 // The three views of a run are built once per run and only shown/hidden when switching tabs; the comparison-star table
 // is fetched in the background as soon as the run is selected and kept for the session (S.kc).
 function zeigeBlatt(){
