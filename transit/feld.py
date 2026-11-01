@@ -12,9 +12,10 @@ from .export import dms, hms
 
 
 # ------------------------------------------------------------------ Gaia quality flags (cached per run)
-def gaia_details(m, ids, log=print):
+def gaia_details(m, ids, log=print, netz=True):
     """RUWE, phot_variable_flag, non_single_star for the given Gaia DR3 source_ids; cache RESULT\\<lauf>\\gaia_details.json.
-    Taken from the run's gaia_field.csv when it carries these columns, else queried ([gaia] quelle: VizieR or ESA)."""
+    Taken from the run's gaia_field.csv when it carries these columns, else queried ([gaia] quelle: VizieR or ESA).
+    netz=False: only cache and gaia_field.csv, never the network (the GUI must answer at once)."""
     from . import gaia
     cache = m.path("gaia_details.json")
     d = json.load(open(cache, encoding="utf-8")) if os.path.exists(cache) else {}
@@ -33,6 +34,8 @@ def gaia_details(m, ids, log=print):
                 if str(int(row["source_id"])) in todo:
                     put(str(int(row["source_id"])), row)
             todo = [i for i in todo if i not in d]
+    if todo and not netz:
+        todo = []
     if todo and time.time() - offline < 6 * 3600:            # failed a short while ago: do not wait for the timeouts again
         log("  Gaia-Details: letzte Abfrage fehlgeschlagen, neuer Versuch fruehestens 6 h danach")
         todo = []

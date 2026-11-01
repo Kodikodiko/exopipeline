@@ -253,7 +253,7 @@ def _candidates(p, lauf, d):
     try:
         from .config import Measurement
         from .feld import gaia_details
-        det = gaia_details(Measurement(p, lauf), [r["source_id"] for r in rows], print)
+        det = gaia_details(Measurement(p, lauf), [r["source_id"] for r in rows], print, netz=False)   # no waiting on Gaia here
     except Exception as e:
         print("Gaia:", e)
     pre = {}
