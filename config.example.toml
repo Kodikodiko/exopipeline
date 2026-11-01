@@ -40,6 +40,8 @@ max_candidates = 30
 gaia_gmax = 16.0
 aij_apertures = ""          # optional: AIJ .apertures-Datei, deren Vergleichssterne mit aufgenommen werden
 exclude_stars = []          # Kandidaten nie verwenden, z. B. ["G06"] (veraenderlich); am besten in RESULT\<lauf>\lauf.toml
+katalog_variable = true     # bekannte Veraenderliche (Gaia-Flag VARIABLE, AAVSO VSX) gar nicht erst als Kandidaten nehmen
+vsx_radius_arcsec = 5.0     # Abstand fuer die Zuordnung eines VSX-Eintrags zum Gaia-Stern
 
 [search]
 radii = [14, 16, 18, 20]
@@ -48,6 +50,10 @@ n_max = 12
 top = 50
 oot_margin_min = 10
 prefilter_sigma = 3.0
+variab_check = true         # Lichtkurve jedes Vergleichssterns gegen die uebrigen pruefen (vergleichssterne_lc.png), variable verwerfen
+variab_sigma = 3.0          # "variabel" ab Streuung der variab_bin_min-Mittel > n x Median aller Kandidaten ...
+variab_beta = 1.5           # ... und rotem Rauschen (beta) ueber diesem Wert
+variab_bin_min = 10         # Mittelungsfenster [min] fuer die Kurzzeit-Variabilitaet
 airmass_max = 0             # > 0: Frames ueber dieser Airmass weglassen (Randpunkte mit starker Systematik), 0 = alle
 symmetry_weight = 0         # > 0: Ensemble-Suche bevorzugt um das Ziel symmetrisch verteilte Sterne (Meridian-Flip), z. B. 1
 

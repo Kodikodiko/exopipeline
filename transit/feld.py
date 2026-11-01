@@ -12,15 +12,18 @@ from .export import dms, hms
 
 
 # ------------------------------------------------------------------ Gaia quality flags (cached per run)
-def gaia_details(m, ids, log=print):
+def gaia_details(m, ids, log=print, netz=True):
     """RUWE, phot_variable_flag, non_single_star for the given Gaia DR3 source_ids; cache RESULT\\<lauf>\\gaia_details.json.
-    Taken from the run's gaia_field.csv when it carries these columns, else queried ([gaia] quelle: VizieR or ESA)."""
+    Taken from the run's gaia_field.csv when it carries these columns, else queried ([gaia] quelle: VizieR or ESA).
+    netz=False: only cache and gaia_field.csv, never the network (the GUI must answer at once)."""
     from . import gaia
     cache = m.path("gaia_details.json")
     d = json.load(open(cache, encoding="utf-8")) if os.path.exists(cache) else {}
     todo = [str(int(i)) for i in ids if str(i) not in d]
     if not todo:
         return d
+    import time
+    offline = d.get("_offline", 0)
     put = lambda sid, row: d.__setitem__(sid, dict(zip(("ruwe", "var", "nss"), gaia.flags(row))))
     fp = m.path("gaia_field.csv")
     if os.path.exists(fp):
@@ -31,6 +34,11 @@ def gaia_details(m, ids, log=print):
                 if str(int(row["source_id"])) in todo:
                     put(str(int(row["source_id"])), row)
             todo = [i for i in todo if i not in d]
+    if todo and not netz:
+        todo = []
+    if todo and time.time() - offline < 6 * 3600:            # failed a short while ago: do not wait for the timeouts again
+        log("  Gaia-Details: letzte Abfrage fehlgeschlagen, neuer Versuch fruehestens 6 h danach")
+        todo = []
     if todo:
         try:
             src, timeout = gaia.settings(m.cfg)
@@ -53,12 +61,16 @@ def gaia_details(m, ids, log=print):
                 ra = np.array([p[0] for p in pts]); de = np.array([p[1] for p in pts])
                 ra0, de0 = float(np.mean(ra)), float(np.mean(de))
                 rad = float(np.max(np.hypot((ra - ra0) * np.cos(np.radians(de0)), de - de0))) + 0.01
-                r = gaia.cone(m.cfg, ra0, de0, rad)
+                gx = [float(cand[i]["G"]) for i in todo if i in cand and cand[i].get("G")]
+                # magnitude limit: without it VizieR returns every Gaia star down to G 21 in the cone (slow, read timeout)
+                r = gaia.cone(m.cfg, ra0, de0, rad, gmax=(max(gx) + 0.2) if gx else float(m.cfg["comps"].get("gaia_gmax", 16)))
             for row in r:
                 sid = str(int(row["source_id"]))
                 if sid in todo:
                     put(sid, row)
+            d.pop("_offline", None)
         except Exception as e:
+            d["_offline"] = time.time()
             log(f"  Gaia ({gaia.name(m.cfg)}) nicht erreichbar ({e}) - RUWE/Variabilitaet bleiben leer")
     json.dump(d, open(cache, "w", encoding="utf-8"), indent=1)
     return d
@@ -172,21 +184,23 @@ def comp_rows(m, n, c, fr, cs, ens, ir, log=print):
             parts = [("aehnlich hell" if abs(dG) < 0.3 else "hell genug" if dG < 0 else "etwas schwaecher") + f" (dG {dG:+.2f})",
                      ("gleiche Farbe" if abs(dc) < 0.15 else "aehnliche Farbe") + f" (d {dc:+.2f})"]
             if nm in rank:
-                parts.append(f"ruhig: Streuung Rang {rank[nm]}/{len(ranked)}")
+                ru = pre[nm].get("ruhe")
+                parts.append(f"ruhig: Streuung Rang {rank[nm]}/{len(ranked)}" + (f", Ruhe {ru:.1f}" if ru is not None and ru == ru else ""))
             parts.append(f"im besten Ensemble ({n.r_text(fr['best']['radius'])})")
             why = "; ".join(parts) + ("; ACHTUNG " + ", ".join(warn) if warn else "")
         rows.append(dict(id="Ziel" if j == 0 else f"C{q}", name=nm, gaia=ids[q], ra=hms(ra), dec=dms(de), dist=dist,
                          G=float(c["star_G"][j]), dG=dG, col=col, dc=dc, peak=float(pk[j]), ruwe=ruwe, var=var or "-",
                          var_s="VAR" if (var or "").upper().startswith("VARIABLE") else "-" if not var or var.upper().startswith("NOT") else var[:8],
-                         nb=nb, rms=pre.get(nm, {}).get("rms_ppt"), share=None if j == 0 else float(share[q - 1]) * 100,
+                         nb=nb, rms=pre.get(nm, {}).get("rms_ppt"), ruhe=pre.get(nm, {}).get("ruhe"), share=None if j == 0 else float(share[q - 1]) * 100,
                          jk=jk.get(nm), tw=None if sig is None else sig[0], tw_e=None if sig is None else sig[1],
                          tw_flag=bool(sig and abs(sig[0]) > 3 * sig[1]), why=why))
     # rejected candidates (a few lines)
     rej = []
     for p in cs.get("prefilter", []):
         if p["rejected"]:
-            rej.append((p["name"], f"Vorfilter: Streuung {p['rms_ppt']:.1f} ppt / Trend {p['trend_ppt']:.1f} ppt > "
-                                   f"{m.cfg['search']['prefilter_sigma']:g}x Median (veraenderlich oder gestoert)"))
+            rej.append((p["name"], "Vorfilter: " + (p.get("grund") or
+                                   f"Streuung {p['rms_ppt']:.1f} ppt / Trend {p['trend_ppt']:.1f} ppt > "
+                                   f"{m.cfg['search']['prefilter_sigma']:g}x Median (veraenderlich oder gestoert)")))
     for nm in fr["info"].get("excluded_stars", []):
         rej.insert(0, (nm, "von Hand ausgeschlossen ([comps] exclude_stars in lauf.toml/transit.toml)"))
     for nm in fr["info"].get("dropped_saturating", []):

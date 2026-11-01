@@ -40,7 +40,7 @@ def light_dir(p):
 
 def listable(p):
     """For the list and for showing results: lights or at least a RESULT folder (lights moved to the NAS)."""
-    return is_measurement(p) or os.path.isdir(os.path.join(p, "RESULT"))
+    return os.path.isdir(os.path.join(p, "RESULT")) or is_measurement(p)    # cheap test first (light folders on the NAS are slow)
 
 
 def overview(p):
@@ -221,9 +221,28 @@ def runs_of(p):
     return out
 
 
+_CAND = {}
+_CAND_FILES = ("candidates.csv", "compsearch.json", "vergleichssterne.json", "lauf.toml", "gaia_details.json",
+               "vergleichssterne_lc.png", "ergebnisblatt_feld.png")
+
+
+def _sig(d):
+    return tuple(os.path.getmtime(f) if os.path.exists(f) else 0 for f in (os.path.join(d, n) for n in _CAND_FILES))
+
+
 def candidates(p, lauf):
-    """Candidates with Gaia flags (cached Gaia query) and, for the run's ensemble, the transit-window test."""
+    """Candidates with Gaia flags (cached Gaia query) and, for the run's ensemble, the transit-window test.
+    Kept in memory per run until one of its input files changes (switching views must not redo the work)."""
     d = os.path.join(p, "RESULT", lauf)
+    hit = _CAND.get(d)
+    if hit and hit[0] == _sig(d):
+        return hit[1]
+    out = _candidates(p, lauf, d)
+    _CAND[d] = (_sig(d), out)                              # after the call: it may have written gaia_details.json
+    return out
+
+
+def _candidates(p, lauf, d):
     rows = list(csv.DictReader(open(os.path.join(d, "candidates.csv"), encoding="utf-8")))
     cmp = {}
     vj = os.path.join(d, "vergleichssterne.json")
@@ -234,9 +253,16 @@ def candidates(p, lauf):
     try:
         from .config import Measurement
         from .feld import gaia_details
-        det = gaia_details(Measurement(p, lauf), [r["source_id"] for r in rows], print)
+        det = gaia_details(Measurement(p, lauf), [r["source_id"] for r in rows], print, netz=False)   # no waiting on Gaia here
     except Exception as e:
         print("Gaia:", e)
+    pre = {}
+    cj = os.path.join(d, "compsearch.json")
+    if os.path.exists(cj):                                 # per-star quietness (light curve vs the other candidates)
+        try:
+            pre = {q["name"]: q for q in json.load(open(cj, encoding="utf-8")).get("prefilter", [])}
+        except Exception:
+            pre = {}
     excl = []
     lt = os.path.join(d, "lauf.toml")
     if os.path.exists(lt):
@@ -248,14 +274,28 @@ def candidates(p, lauf):
         c = cmp.get(r["name"], {})
         out.append(dict(name=r["name"], gaia=r["source_id"], G=round(float(r["G"]), 2), bp_rp=round(float(r["bp_rp"] or "nan"), 2),
                         ruwe=g.get("ruwe"), var=g.get("var"), im_ensemble=bool(c), tw=c.get("tw"), tw_e=c.get("tw_e"),
-                        tw_flag=c.get("tw_flag"), ausgeschlossen=r["name"] in excl, ziel=r["role"] == "target"))
+                        tw_flag=c.get("tw_flag"), ausgeschlossen=r["name"] in excl, ziel=r["role"] == "target",
+                        ruhe=_num(pre.get(r["name"], {}).get("ruhe")), beta=_num(pre.get(r["name"], {}).get("beta")),
+                        bin_ppt=_num(pre.get(r["name"], {}).get("bin_ppt")),
+                        variabel=bool(pre.get(r["name"], {}).get("variabel")),
+                        verworfen=pre.get(r["name"], {}).get("grund") or ("Vorfilter" if pre.get(r["name"], {}).get("rejected") else "")))
     fwhm, radii = None, []
     cubes = glob.glob(os.path.join(d, "cube_*.npz"))
     if cubes:
         import numpy as np
         z = np.load(cubes[0])
         fwhm, radii = float(np.nanmedian(z["fwhm"])), [float(x) for x in z["radii"]]
-    return dict(kandidaten=out, feldbild=os.path.exists(os.path.join(d, "ergebnisblatt_feld.png")), fwhm=fwhm, radii=radii)
+    return dict(kandidaten=out, feldbild=os.path.exists(os.path.join(d, "ergebnisblatt_feld.png")), fwhm=fwhm, radii=radii,
+                lcbild=os.path.exists(os.path.join(d, "vergleichssterne_lc.png")))
+
+
+def _num(v):
+    """JSON-safe number (NaN/None -> None), rounded for display."""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return None
+    return round(v, 2) if v == v else None
 
 
 def toml_value(v):
@@ -304,7 +344,7 @@ def start_run(q, launch=None):
     if basis:                                              # reuse photometry of an existing run (same mode)
         import shutil
         src = os.path.join(p, "RESULT", basis)
-        keep = ["inventory.json", "headers.csv", "gaia_field.csv", "gaia_details.json"]
+        keep = ["inventory.json", "headers.csv", "gaia_field.csv", "gaia_details.json", "vsx_field.csv"]
         if not new_phot:                                   # changed candidates/annulus/masters -> new photometry
             keep += ["calib.json", "candidates.csv", "candidates_rejected.csv", f"cube_{mode}.npz"]
         for f in keep:
@@ -1103,13 +1143,15 @@ async function kand(){
   const K=await (await fetch(`/api/kandidaten?pfad=${encodeURIComponent($('mess').value)}&lauf=${encodeURIComponent(b)}`)).json();
   if(K.fehler){$('kand').innerHTML=`<tr><td>${esc(K.fehler)}</td></tr>`;return;}
   window.KAND=K;
-  $('kand').innerHTML='<tr><th>an</th><th>Stern</th><th>G</th><th>BP-RP</th><th>RUWE</th><th>Gaia</th><th>Transitfenster</th></tr>'+K.kandidaten.filter(k=>!k.ziel).map(k=>{
+  $('kand').innerHTML='<tr><th>an</th><th>Stern</th><th>G</th><th>BP-RP</th><th>RUWE</th><th>Gaia</th><th>Ruhe</th><th>Transitfenster</th></tr>'+K.kandidaten.filter(k=>!k.ziel).map(k=>{
+    const rh=k.ruhe==null?'<span class="pill n">-</span>':`<span class="pill ${k.variabel||k.verworfen?'r':k.ruhe>2?'y':'g'}" title="${esc(k.verworfen||('Streuung der 10-min-Mittel '+k.bin_ppt+' ppt, beta '+k.beta))}">${(+k.ruhe).toFixed(1)}${k.variabel?' VAR':''}</span>`;
     const ru=k.ruwe==null?'<span class="pill n">-</span>':`<span class="pill ${k.ruwe>1.4?'y':'g'}">${(+k.ruwe).toFixed(2)}</span>`;
     const va=k.var&&k.var.toUpperCase().startsWith('VARIABLE')?'<span class="pill r">VARIABLE</span>':'<span class="pill g">ok</span>';
     const tw=k.tw==null?'<span class="help">nur Ensemble</span>':`<span class="pill ${k.tw_flag?'r':'g'}">${(+k.tw).toFixed(1)} &plusmn; ${(+k.tw_e).toFixed(1)}</span>`;
-    const off=k.ausgeschlossen||(k.var&&k.var.toUpperCase().startsWith('VARIABLE'))||k.tw_flag;
-    return `<tr><td><input type="checkbox" class="kcb" value="${esc(k.name)}" ${off?'':'checked'}></td><td>${esc(k.name)}${k.im_ensemble?' *':''}</td><td>${k.G}</td><td>${k.bp_rp}</td><td>${ru}</td><td>${va}</td><td>${tw}</td></tr>`;}).join('')+
-    '<tr><td colspan="7" class="help">* im Ensemble des Basislaufs. Vorschlag: VARIABLE und Transitfenster &gt; 3 sigma sind abgewaehlt.</td></tr>';
+    const off=k.ausgeschlossen||(k.var&&k.var.toUpperCase().startsWith('VARIABLE'))||k.tw_flag||k.variabel;
+    return `<tr><td><input type="checkbox" class="kcb" value="${esc(k.name)}" ${off?'':'checked'}></td><td>${esc(k.name)}${k.im_ensemble?' *':''}</td><td>${k.G}</td><td>${k.bp_rp}</td><td>${ru}</td><td>${va}</td><td>${rh}</td><td>${tw}</td></tr>`;}).join('')+
+    '<tr><td colspan="8" class="help">* im Ensemble des Basislaufs. Ruhe = Streuung des Sterns gegen die uebrigen (10-min-Mittel) / Median, 1 = typisch. Vorschlag: VARIABLE (Gaia oder eigene Lichtkurve) und Transitfenster &gt; 3 sigma sind abgewaehlt.'+
+    (K.lcbild?` <a target="_blank" href="/datei?pfad=${encodeURIComponent($('mess').value+'/RESULT/'+b+'/vergleichssterne_lc.png')}">Lichtkurven der Vergleichssterne</a>`:'')+'</td></tr>';
   const p=$('mess').value+'\\RESULT\\'+b+'\\ergebnisblatt_feld.png';
   $('feld').src=K.feldbild?('/datei?pfad='+encodeURIComponent(p)):'';
 }
