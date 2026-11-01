@@ -4,7 +4,7 @@ The Gaia DR3 flag phot_variable_flag (already in gaia_field.csv) covers the star
 variables found by ASAS-SN, ZTF, ATLAS, TESS, Hipparcos, GCVS and others.  Both are incomplete for low amplitudes
 (a few mmag), so the light-curve check in compsearch (Night.comp_check) stays necessary.
 
-[comps] katalog_variable = true, vsx_radius_arcsec = 5.  Network as for Gaia: CDS, then the Harvard mirror, with
+[comps] katalog_variable = true, vsx_radius_arcsec = 5.  Network as for Gaia: the VizieR mirrors, CDS last ([gaia] vizier_server), with
 [gaia] timeout_s; result cached per run in vsx_field.csv (also taken over from another run of the same measurement).
 """
 import glob
@@ -14,7 +14,7 @@ import shutil
 import numpy as np
 from astropy.table import Table
 
-from .gaia import CONNECT_S, VIZIER_SERVERS, settings
+from .gaia import CONNECT_S, down, servers, settings
 
 VSX_CAT = "B/vsx/vsx"
 COLS = ("Name", "V", "RAJ2000", "DEJ2000", "Type", "max", "min", "Period")
@@ -42,7 +42,7 @@ def vsx_field(m, ra, dec, radius_deg, log=None):
     if os.path.exists(cache):
         return Table.read(cache, format="ascii.csv")
     _, timeout = settings(m.cfg)
-    for h in VIZIER_SERVERS:
+    for h in servers(m.cfg):
         if log:
             log(f"  VSX (veraenderliche Sterne): frage VizieR {h} an (Zeitlimit {timeout:g} s) ...")
         try:
@@ -50,6 +50,7 @@ def vsx_field(m, ra, dec, radius_deg, log=None):
         except Exception as e:
             if log:
                 log(f"  VSX ueber {h} nicht erreichbar ({type(e).__name__})")
+            down(h)
             continue
         try:
             t = _plain(t)

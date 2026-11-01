@@ -644,7 +644,7 @@ function zeigeLauf(){
       const andere=L.gaia.quelle==='esa'?'vizier':'esa';
       akt=`<div class="between"><b>Gaia DR3 abfragen (${esc(q)})</b><span class="mono" style="font-size:13px">wartet seit ${mmss(curEl)} · Zeitlimit ${L.gaia.timeout} s je Dienst</span></div>
         <div class="bar" role="progressbar" aria-label="Gaia-Abfrage, Dauer unbekannt"><i class="indet"></i></div>
-        <span class="hint" style="font-size:13px">Der Server meldet keinen Fortschritt. Nach dem Zeitlimit wird automatisch der nächste Dienst versucht (VizieR CDS, VizieR Harvard, ESA-Archiv).</span>
+        <span class="hint" style="font-size:13px">Der Server meldet keinen Fortschritt. Nach dem Zeitlimit wird automatisch der nächste Dienst versucht (VizieR-Spiegel Harvard, Indien, China, zuletzt VizieR CDS, dann ESA-Archiv).</span>
         <div class="row" style="gap:8px"><button class="btn sec" ${L.laeuft_aus_gui?'':'disabled title="Lauf wurde nicht aus dieser Oberfläche gestartet"'} onclick="gaiaWechsel('${andere}')">Jetzt auf ${andere==='esa'?'ESA-Archiv':'VizieR'} wechseln</button></div>`;
     } else {
       akt=`<div class="between"><b>${esc(SCHRITT[cur.name]||cur.name)}</b><span class="mono" style="font-size:13px">seit ${mmss(curEl)} ohne Prozentangabe</span></div><div class="bar" role="progressbar" aria-label="${esc(SCHRITT[cur.name]||cur.name)}"><i class="indet"></i></div>`;

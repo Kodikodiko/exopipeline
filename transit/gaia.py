@@ -10,7 +10,9 @@ import numpy as np
 from astropy.table import Table
 
 VIZIER_CAT = "I/355/gaiadr3"
-VIZIER_SERVERS = ("vizier.cds.unistra.fr", "vizier.cfa.harvard.edu")    # CDS, then the Harvard mirror
+# mirrors first, CDS (Strasbourg) last: CDS was often unreachable.  [gaia] vizier_server = [...] overrides the order.
+VIZIER_SERVERS = ("vizier.cfa.harvard.edu", "vizier.iucaa.in", "vizier.china-vo.org", "vizier.cds.unistra.fr")
+_DOWN = []                  # servers that failed in this process: tried last from then on
 CONNECT_S = 15              # give up on a server that does not even accept the connection after this
 # VizieR column -> ESA column
 VIZ = {"Source": "source_id", "RA_ICRS": "ra", "DE_ICRS": "dec", "pmRA": "pmra", "pmDE": "pmdec", "Gmag": "phot_g_mean_mag",
@@ -22,6 +24,22 @@ def settings(cfg):
     g = (cfg or {}).get("gaia", {})
     q = str(g.get("quelle", "vizier")).strip().lower()
     return ("esa" if q in ("esa", "gaia", "archiv", "archive") else "vizier"), float(g.get("timeout_s", 60) or 60)
+
+
+def servers(cfg):
+    """VizieR hosts in the order to try: [gaia] vizier_server (string or list) or VIZIER_SERVERS; hosts that already
+    failed in this process move to the end."""
+    v = ((cfg or {}).get("gaia", {}) or {}).get("vizier_server") or VIZIER_SERVERS
+    hosts = [str(h).strip().replace("https://", "").replace("http://", "").strip("/") for h in ([v] if isinstance(v, str) else v)]
+    hosts = [h for h in dict.fromkeys(hosts) if h] or list(VIZIER_SERVERS)
+    return [h for h in hosts if h not in _DOWN] + [h for h in _DOWN if h in hosts]
+
+
+def down(host):
+    """Remember a VizieR host that did not answer (tried last for the rest of this process)."""
+    if host in _DOWN:
+        _DOWN.remove(host)
+    _DOWN.append(host)
 
 
 def name(cfg):
@@ -74,9 +92,9 @@ def _esa(ra, dec, radius_deg, gmin, gmax, timeout):
 
 def cone(cfg, ra, dec, radius_deg, gmax=None, gmin=None, log=None):
     """Gaia DR3 stars within radius_deg around (ra, dec), optionally limited in G.  Tries the chosen source first
-    ([gaia] quelle), then the other services (VizieR CDS, VizieR mirror, ESA archive); RuntimeError if none answers."""
+    ([gaia] quelle), then the other services (VizieR mirrors, VizieR CDS, ESA archive); RuntimeError if none answers."""
     src, timeout = settings(cfg)
-    viz = [(f"VizieR {h}", lambda *a, h=h: _vizier(*a, server=h)) for h in VIZIER_SERVERS]
+    viz = [(f"VizieR {h}", lambda *a, h=h: _vizier(*a, server=h)) for h in servers(cfg)]
     esa = [("ESA-Gaia-Archiv", _esa)]
     order = esa + viz if src == "esa" else viz + esa
     errs = []
@@ -88,6 +106,8 @@ def cone(cfg, ra, dec, radius_deg, gmax=None, gmin=None, log=None):
         except Exception as e:
             msg = str(e).split("(Caused by")[0].strip()[:160]
             errs.append(f"{label}: {type(e).__name__} {msg}")
+            if label.startswith("VizieR "):
+                down(label[7:])
             if log:
                 log(f"  Gaia ueber {label} nicht erreichbar ({type(e).__name__}) - naechste Quelle")
             continue

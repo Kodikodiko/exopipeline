@@ -125,7 +125,8 @@ Die Standardwerte stehen in `_pipeline\config.local.toml` (beim ersten Einrichte
 | Name | Standard | Wirkung |
 |---|---|---|
 | quelle | "vizier" | Gaia DR3 über VizieR (CDS, Katalog `I/355/gaiadr3`) oder `"esa"` (ESA-Gaia-Archiv). Beide liefern dieselben Sterne und Spalten. |
-| timeout_s | 60 | Wartezeit pro Abfrage (Verbindungsaufbau max. 15 s). Antwortet die gewählte Quelle nicht, versucht das Werkzeug automatisch die anderen: VizieR CDS → VizieR-Spiegel Harvard → ESA (bzw. umgekehrt bei `esa`). Erst wenn keine antwortet, bricht `cube` mit Meldung ab. |
+| timeout_s | 60 | Wartezeit pro Abfrage (Verbindungsaufbau max. 15 s). Antwortet die gewählte Quelle nicht, versucht das Werkzeug automatisch die anderen: VizieR-Spiegel Harvard → Indien (IUCAA) → China → VizieR CDS → ESA (bei `esa` zuerst ESA). Ein Server, der nicht antwortet, wird für den Rest der Sitzung zuletzt versucht. Erst wenn keine Quelle antwortet, bricht `cube` mit Meldung ab. |
+| vizier_server | Spiegel, CDS zuletzt | Reihenfolge der VizieR-Server für Gaia und VSX, z. B. `["vizier.cfa.harvard.edu", "vizier.cds.unistra.fr"]`. Ohne Eintrag: Harvard, IUCAA (Indien), China-VO, CDS. |
 
 ### [photometry]
 | Name | Standard | Wirkung |
@@ -805,7 +806,7 @@ Die Rauschschätzung ist grob, sie dient nur der Rangfolge. Wer `rauschboden_ppt
 
 Ein Vergleichsstern, der selbst schwankt (Pulsation, Flecken, Flares), verfälscht die relative Lichtkurve des Ziels. Die Prüfung läuft in zwei Stufen.
 
-**Stufe 1: Kataloge (`cube`).** Bekannte Veränderliche werden gar nicht erst Kandidaten: Gaia-DR3-Flag `VARIABLE` und Einträge im AAVSO-Katalog VSX (VizieR `B/vsx/vsx`, innerhalb 5″; Einträge „konstant“ oder „Duplikat“ zählen nicht). Der Grund steht mit Typ, Amplitude und Periode in `candidates_rejected.csv` und im Protokoll. VSX wird wie Gaia über VizieR (CDS, dann Harvard) abgefragt und pro Lauf in `vsx_field.csv` gespeichert. Ist VSX nicht erreichbar, läuft die Auswahl mit einer Warnung ohne VSX weiter. Abschalten: `[comps] katalog_variable = false`.
+**Stufe 1: Kataloge (`cube`).** Bekannte Veränderliche werden gar nicht erst Kandidaten: Gaia-DR3-Flag `VARIABLE` und Einträge im AAVSO-Katalog VSX (VizieR `B/vsx/vsx`, innerhalb 5″; Einträge „konstant“ oder „Duplikat“ zählen nicht). Der Grund steht mit Typ, Amplitude und Periode in `candidates_rejected.csv` und im Protokoll. VSX wird wie Gaia über VizieR (Spiegel zuerst, CDS zuletzt) abgefragt und pro Lauf in `vsx_field.csv` gespeichert. Ist VSX nicht erreichbar, läuft die Auswahl mit einer Warnung ohne VSX weiter. Abschalten: `[comps] katalog_variable = false`.
 
 Die Kataloge sind lückenhaft: Das Gaia-Flag ist für die meisten Sterne leer, und Pulsatoren mit wenigen mmag Amplitude fehlen oft auch in VSX. Ein Stern ohne Katalogeintrag ist also nicht sicher ruhig. Dafür gibt es Stufe 2.
 
