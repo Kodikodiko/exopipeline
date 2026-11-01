@@ -40,7 +40,7 @@ def light_dir(p):
 
 def listable(p):
     """For the list and for showing results: lights or at least a RESULT folder (lights moved to the NAS)."""
-    return is_measurement(p) or os.path.isdir(os.path.join(p, "RESULT"))
+    return os.path.isdir(os.path.join(p, "RESULT")) or is_measurement(p)    # cheap test first (light folders on the NAS are slow)
 
 
 def overview(p):
@@ -221,9 +221,28 @@ def runs_of(p):
     return out
 
 
+_CAND = {}
+_CAND_FILES = ("candidates.csv", "compsearch.json", "vergleichssterne.json", "lauf.toml", "gaia_details.json",
+               "vergleichssterne_lc.png", "ergebnisblatt_feld.png")
+
+
+def _sig(d):
+    return tuple(os.path.getmtime(f) if os.path.exists(f) else 0 for f in (os.path.join(d, n) for n in _CAND_FILES))
+
+
 def candidates(p, lauf):
-    """Candidates with Gaia flags (cached Gaia query) and, for the run's ensemble, the transit-window test."""
+    """Candidates with Gaia flags (cached Gaia query) and, for the run's ensemble, the transit-window test.
+    Kept in memory per run until one of its input files changes (switching views must not redo the work)."""
     d = os.path.join(p, "RESULT", lauf)
+    hit = _CAND.get(d)
+    if hit and hit[0] == _sig(d):
+        return hit[1]
+    out = _candidates(p, lauf, d)
+    _CAND[d] = (_sig(d), out)                              # after the call: it may have written gaia_details.json
+    return out
+
+
+def _candidates(p, lauf, d):
     rows = list(csv.DictReader(open(os.path.join(d, "candidates.csv"), encoding="utf-8")))
     cmp = {}
     vj = os.path.join(d, "vergleichssterne.json")

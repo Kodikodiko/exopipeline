@@ -685,13 +685,35 @@ function zeigeVergleich(poll){
   if(g){ $('up-done').checked=!!g.hochgeladen; $('up-done-h').textContent=g.hochgeladen?'am '+g.hochgeladen+' abgehakt':'Haken setzen, sobald die Datei bei ExoClock hochgeladen ist'; }
 }
 function waehleLauf(l){ S.sel=l; zeigeVergleich(); }
-async function zeigeBlatt(){
-  const s=S.sel, p=S.M.pfad; document.querySelectorAll('#tabs button').forEach(b=>{});
-  if(S.tab==='sterne'){ $('blatt').innerHTML='<span class="hint">lade Vergleichssterne …</span>';
-    const K=await api(`/api/kandidaten?pfad=${encodeURIComponent(p)}&lauf=${encodeURIComponent(s)}`);
-    $('blatt').innerHTML=K.fehler?esc(K.fehler):kandTabelle(K,false)+lcBild(K,p,s,true); return; }
-  const f=S.tab==='feld'?'ergebnisblatt_feld.png':'ergebnisblatt.png';
-  $('blatt').innerHTML=`<a href="${datei(p,s,f)}" target="_blank"><img class="blatt" alt="${S.tab==='feld'?'Feldbild':'Ergebnisblatt mit Lichtkurve'} ${esc(s)}" src="${datei(p,s,f)}&t=${Date.now()}" onerror="this.parentNode.outerHTML='<span class=hint>Kein Bild vorhanden.</span>'"></a>`;
+// The three views of a run are built once per run and only shown/hidden when switching tabs; the comparison-star table
+// is fetched in the background as soon as the run is selected and kept for the session (S.kc).
+function zeigeBlatt(){
+  const s=S.sel, p=S.M.pfad, lr=(S.M.laeufe||[]).find(l=>l.lauf===s)||{}, key=[p,s,lr.oc,lr.oot_rms,lr.beta].join('|');
+  document.querySelectorAll('#tabs button').forEach(b=>{ const on=b.textContent===({kurve:'Lichtkurve',feld:'Feld',sterne:'Vergleichssterne'})[S.tab];
+    b.setAttribute('aria-selected',on); b.classList.toggle('sec',!on); });
+  const B=$('blatt');
+  if(B.dataset.key!==key){
+    B.dataset.key=key; const v=Date.now();
+    const img=(f,alt)=>`<a href="${datei(p,s,f)}&v=${v}" target="_blank"><img class="blatt" alt="${alt} ${esc(s)}" src="${datei(p,s,f)}&v=${v}" onerror="this.parentNode.outerHTML='<span class=hint>Kein Bild vorhanden.</span>'"></a>`;
+    B.innerHTML=`<div data-tab="kurve">${img('ergebnisblatt.png','Ergebnisblatt mit Lichtkurve')}</div><div data-tab="feld">${img('ergebnisblatt_feld.png','Feldbild')}</div><div data-tab="sterne"></div>`;
+    ladeSterne(p,s,key);
+  }
+  B.querySelectorAll('[data-tab]').forEach(d=>d.hidden=d.dataset.tab!==S.tab);
+}
+async function ladeSterne(p,s,key){
+  S.kc=S.kc||{};
+  const box=()=>{ const B=$('blatt'); return B.dataset.key===key?B.querySelector('[data-tab="sterne"]'):null; };
+  const zeig=K=>{ const b=box(); if(b) b.innerHTML=K.fehler?esc(K.fehler):kandTabelle(K,false)+lcBild(K,p,s,true); };
+  if(S.kc[key]){ zeig(S.kc[key]); return; }
+  const t0=Date.now();
+  const tick=()=>{ const b=box(); if(!b||S.kc[key]) return clearInterval(iv);
+    const sek=Math.round((Date.now()-t0)/1000);
+    b.innerHTML=`<span class="hint">lade Vergleichssterne … ${sek} s${sek>=5?' (beim ersten Öffnen eines Laufs werden fehlende Gaia-Angaben nachgeladen, danach ist es gespeichert)':''}</span>`; };
+  const iv=setInterval(tick,1000); tick();
+  const K=await api(`/api/kandidaten?pfad=${encodeURIComponent(p)}&lauf=${encodeURIComponent(s)}`);
+  clearInterval(iv);
+  if(!K.fehler) S.kc[key]=K;
+  zeig(K);
 }
 async function aij(l){ toast('Öffne AstroImageJ …'); const r=await api('/api/aij',{messordner:S.pfad,lauf:l}); toast(r.ok?'AIJ-Dateien erzeugt und geöffnet':(r.ausgabe||r.fehler||'Fehler').slice(-200)); }
 async function gueltig(l){

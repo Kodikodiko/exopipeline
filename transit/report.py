@@ -150,6 +150,12 @@ def make_report(m, n, c, log):
         plot_comp_lcs(m, n, pred, best["comps"])
     except Exception as e:
         log(f"  [WARN] vergleichssterne_lc.png nicht erstellt: {e}")
+    try:                                    # prepare the GUI's comparison-star table: Gaia details of ALL candidates now
+        import csv as _csv
+        from .feld import gaia_details
+        gaia_details(m, [r["source_id"] for r in _csv.DictReader(open(m.path("candidates.csv"), encoding="utf-8"))], log)
+    except Exception as e:
+        log(f"  [WARN] Gaia-Details fuer die Kandidatenliste nicht vorbereitet: {e}")
     ts = fr["top_summary"]
     md = [f"# {inv['planet']['name']} - Nacht {inv['date_first'][:10]}", "",
           f"Erzeugt mit `transit` aus `{m.lights}`. Lights unveraendert (Pruefsummen vor/nach jedem Schritt).", "",

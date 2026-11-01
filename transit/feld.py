@@ -21,6 +21,8 @@ def gaia_details(m, ids, log=print):
     todo = [str(int(i)) for i in ids if str(i) not in d]
     if not todo:
         return d
+    import time
+    offline = d.get("_offline", 0)
     put = lambda sid, row: d.__setitem__(sid, dict(zip(("ruwe", "var", "nss"), gaia.flags(row))))
     fp = m.path("gaia_field.csv")
     if os.path.exists(fp):
@@ -31,6 +33,9 @@ def gaia_details(m, ids, log=print):
                 if str(int(row["source_id"])) in todo:
                     put(str(int(row["source_id"])), row)
             todo = [i for i in todo if i not in d]
+    if todo and time.time() - offline < 6 * 3600:            # failed a short while ago: do not wait for the timeouts again
+        log("  Gaia-Details: letzte Abfrage fehlgeschlagen, neuer Versuch fruehestens 6 h danach")
+        todo = []
     if todo:
         try:
             src, timeout = gaia.settings(m.cfg)
@@ -58,7 +63,9 @@ def gaia_details(m, ids, log=print):
                 sid = str(int(row["source_id"]))
                 if sid in todo:
                     put(sid, row)
+            d.pop("_offline", None)
         except Exception as e:
+            d["_offline"] = time.time()
             log(f"  Gaia ({gaia.name(m.cfg)}) nicht erreichbar ({e}) - RUWE/Variabilitaet bleiben leer")
     json.dump(d, open(cache, "w", encoding="utf-8"), indent=1)
     return d
