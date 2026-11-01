@@ -19,6 +19,8 @@ farbkamera = "auto"         # "auto" = Bayer-Bilder (BAYERPAT im Header) in 2x2-
 [gaia]
 quelle = "vizier"           # Gaia DR3 ueber "vizier" (CDS, I/355/gaiadr3) oder "esa" (ESA-Gaia-Archiv)
 timeout_s = 60              # Wartezeit pro Abfrage in Sekunden
+# vizier_server = ["vizier.cfa.harvard.edu", "vizier.iucaa.in", "vizier.china-vo.org", "vizier.cds.unistra.fr"]
+#                             # Reihenfolge der VizieR-Server (Gaia und VSX); nicht erreichbare kommen danach ans Ende
 
 [photometry]
 radii = [8, 10, 12, 14, 16, 18, 20, 22, 24]
