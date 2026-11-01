@@ -95,12 +95,12 @@ tr.click{cursor:pointer}
 img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
 .bbox{position:relative;display:inline-block;max-width:100%;line-height:0}
 .bbox>a{display:block}
-.hz{position:absolute;border:0;padding:0;margin:0;background:transparent;cursor:help;border-radius:3px}
-.hz:hover,.hz:focus-visible,.hz.on{background:rgba(37,99,235,.07);outline:1px solid rgba(37,99,235,.35)}
-.hz>i{position:absolute;top:2px;right:2px;width:15px;height:15px;border-radius:50%;font:600 10px/15px system-ui,sans-serif;font-style:normal;
-  text-align:center;color:#fff;background:rgba(37,99,235,.75);opacity:0;transition:opacity .15s}
-.hz.c>i{width:12px;height:12px;font-size:8.5px;line-height:12px;top:1px;right:1px}
-.bbox:hover .hz>i,.hz:focus-visible>i,.hz.on>i{opacity:.8}
+.hz{position:absolute;pointer-events:none;border-radius:3px}
+.hz.on{background:rgba(37,99,235,.07);outline:1px solid rgba(37,99,235,.35)}
+.hz>button{position:absolute;top:2px;right:2px;width:15px;height:15px;padding:0;border:0;border-radius:50%;cursor:pointer;pointer-events:auto;
+  font:600 10px/15px system-ui,sans-serif;text-align:center;color:#fff;background:rgba(37,99,235,.75);opacity:0;transition:opacity .15s}
+.hz.c>button{width:12px;height:12px;font-size:8.5px;line-height:12px;top:1px;right:1px}
+.bbox:hover .hz>button,.hz>button:focus-visible,.hz.on>button{opacity:.85}
 .hpop{position:absolute;z-index:30;max-width:340px;padding:10px 12px;border-radius:8px;background:var(--card,#fff);color:var(--fg,#111);
   border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:13px;line-height:1.45;text-align:left;pointer-events:none}
 .hpop b{display:block;margin-bottom:3px}
@@ -717,7 +717,7 @@ function zeigeBlatt(){
   }
   B.querySelectorAll('[data-tab]').forEach(d=>d.hidden=d.dataset.tab!==S.tab);
 }
-// Help on table column heads: every <th> whose text is in SPALTE gets a small (i); hover, focus or click shows the text.
+// Help on table column heads: every <th> whose text is in SPALTE gets a small (i); only a click on it shows the text.
 // A MutationObserver also covers tables built later (run comparison, comparison stars, plan).
 const SPALTE={
   'Lauf':'Name des Laufs (Ordner unter RESULT). gui_<Datum>_<Zeit>_<Kalibrierung>.',
@@ -770,8 +770,6 @@ function spaltenHilfe(root){
     th.removeAttribute('title');
     th.insertAdjacentHTML('beforeend',`<button type="button" class="thi" data-titel="${esc(t)}" aria-label="Erklärung: ${esc(t)}">i</button>`);
     const b=th.lastElementChild;
-    b.addEventListener('mouseenter',()=>{ if(!thFest) thZeige(b); }); b.addEventListener('mouseleave',thWeg);
-    b.addEventListener('focus',()=>{ if(!thFest) thZeige(b); }); b.addEventListener('blur',thWeg);
     b.addEventListener('click',ev=>{ ev.stopPropagation(); if(thFest) thFest.classList.remove('on');
       if(thFest===b){ thFest=null; thWeg(); return; } thFest=b; b.classList.add('on'); thZeige(b); });
   });
@@ -783,7 +781,7 @@ new MutationObserver(ms=>{ for(const m of ms) for(const n of m.addedNodes) if(n.
 addEventListener('DOMContentLoaded',()=>spaltenHilfe(document));
 
 // Help on the result sheet: ergebnisblatt_hilfe.json holds rectangles (fractions of the PNG) with title and text; each
-// becomes an invisible area over the image with a small (i) that shows on hover over the sheet.  Hover or click shows the text.
+// gets a small (i) in its corner, visible while the mouse is over the sheet.  Only a click on the (i) shows the text.
 async function ladeHilfe(p,s,key,v){
   let H; try{ const r=await fetch(datei(p,s,'ergebnisblatt_hilfe.json')+'&v='+v); if(!r.ok) return; H=await r.json(); }catch(e){ return; }
   const B=$('blatt'); if(B.dataset.key!==key) return;
@@ -791,23 +789,20 @@ async function ladeHilfe(p,s,key,v){
     const L=H[bx.dataset.hilfe]||[]; if(!L.length) return;
     const pct=x=>(100*x).toFixed(2)+'%';
     bx.insertAdjacentHTML('beforeend',L.map((h,i)=>{ const [x0,y0,x1,y1]=h.r;
-      return `<button type="button" class="hz${h.art==='block'?'':' c'}" data-i="${i}" aria-label="Hilfe: ${esc(h.titel)}" style="left:${pct(x0)};top:${pct(y0)};width:${pct(x1-x0)};height:${pct(y1-y0)}"><i aria-hidden="true">i</i></button>`; }).join(''));
-    let pop=null, fest=null;
-    const zeige=(b)=>{ const h=L[+b.dataset.i]; if(!pop){ pop=document.createElement('div'); pop.className='hpop'; pop.setAttribute('role','tooltip'); bx.appendChild(pop); }
+      return `<div class="hz${h.art==='block'?'':' c'}" style="left:${pct(x0)};top:${pct(y0)};width:${pct(x1-x0)};height:${pct(y1-y0)}"><button type="button" data-i="${i}" aria-label="Erklärung: ${esc(h.titel)}" aria-expanded="false">i</button></div>`; }).join(''));
+    let pop=null, offen=null;
+    const zu=()=>{ if(offen){ offen.parentNode.classList.remove('on'); offen.setAttribute('aria-expanded','false'); offen=null; } if(pop) pop.hidden=true; };
+    const auf=b=>{ const h=L[+b.dataset.i], z=b.parentNode;
+      if(!pop){ pop=document.createElement('div'); pop.className='hpop'; pop.setAttribute('role','tooltip'); bx.appendChild(pop); }
       pop.innerHTML=`<b>${esc(h.titel)}</b>${esc(h.text)}`; pop.hidden=false;
-      const W=bx.clientWidth, x=b.offsetLeft, y=b.offsetTop+b.offsetHeight+6, w=Math.min(340,W-8);
-      pop.style.left=Math.max(4,Math.min(x,W-w-4))+'px'; pop.style.top=(y+pop.offsetHeight>bx.clientHeight&&b.offsetTop>pop.offsetHeight+6?b.offsetTop-pop.offsetHeight-6:y)+'px'; };
-    const weg=()=>{ if(pop&&!fest) pop.hidden=true; };
-    bx.querySelectorAll('.hz').forEach(b=>{
-      b.addEventListener('mouseenter',()=>{ if(!fest) zeige(b); });
-      b.addEventListener('mouseleave',weg);
-      b.addEventListener('focus',()=>{ if(!fest) zeige(b); }); b.addEventListener('blur',weg);
-      b.addEventListener('click',ev=>{ ev.preventDefault(); ev.stopPropagation();
-        if(fest===b){ fest=null; b.classList.remove('on'); weg(); return; }
-        if(fest) fest.classList.remove('on'); fest=b; b.classList.add('on'); zeige(b); });
-    });
-    document.addEventListener('click',function zu(ev){ if(!bx.isConnected) return document.removeEventListener('click',zu);
-      if(fest&&!bx.contains(ev.target)){ fest.classList.remove('on'); fest=null; weg(); } });
+      const W=bx.clientWidth, x=z.offsetLeft, y=z.offsetTop+z.offsetHeight+6, w=Math.min(340,W-8);
+      pop.style.left=Math.max(4,Math.min(x,W-w-4))+'px';
+      pop.style.top=(y+pop.offsetHeight>bx.clientHeight&&z.offsetTop>pop.offsetHeight+6?z.offsetTop-pop.offsetHeight-6:y)+'px';
+      offen=b; z.classList.add('on'); b.setAttribute('aria-expanded','true'); };
+    bx.querySelectorAll('.hz>button').forEach(b=>b.addEventListener('click',ev=>{ ev.preventDefault(); ev.stopPropagation();
+      const war=offen===b; zu(); if(!war) auf(b); }));
+    document.addEventListener('click',function weg(ev){ if(!bx.isConnected) return document.removeEventListener('click',weg);
+      if(offen&&!(pop&&pop.contains(ev.target))) zu(); });
   });
 }
 async function ladeSterne(p,s,key){
