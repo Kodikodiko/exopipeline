@@ -61,7 +61,9 @@ def gaia_details(m, ids, log=print, netz=True):
                 ra = np.array([p[0] for p in pts]); de = np.array([p[1] for p in pts])
                 ra0, de0 = float(np.mean(ra)), float(np.mean(de))
                 rad = float(np.max(np.hypot((ra - ra0) * np.cos(np.radians(de0)), de - de0))) + 0.01
-                r = gaia.cone(m.cfg, ra0, de0, rad)
+                gx = [float(cand[i]["G"]) for i in todo if i in cand and cand[i].get("G")]
+                # magnitude limit: without it VizieR returns every Gaia star down to G 21 in the cone (slow, read timeout)
+                r = gaia.cone(m.cfg, ra0, de0, rad, gmax=(max(gx) + 0.2) if gx else float(m.cfg["comps"].get("gaia_gmax", 16)))
             for row in r:
                 sid = str(int(row["source_id"]))
                 if sid in todo:
