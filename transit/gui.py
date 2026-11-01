@@ -315,8 +315,12 @@ def _candidates(p, lauf, d):
         import numpy as np
         z = np.load(cubes[0])
         fwhm, radii = float(np.nanmedian(z["fwhm"])), [float(x) for x in z["radii"]]
+    try:                                                   # ensemble of the run (also for runs without vergleichssterne.json)
+        ens = json.load(open(fj, encoding="utf-8"))["best"]["comps"] if os.path.exists(fj) else []
+    except Exception:
+        ens = []
     return dict(kandidaten=out, feldbild=os.path.exists(os.path.join(d, "ergebnisblatt_feld.png")), fwhm=fwhm, radii=radii,
-                lcbild=os.path.exists(os.path.join(d, "vergleichssterne_lc.png")))
+                lcbild=os.path.exists(os.path.join(d, "vergleichssterne_lc.png")), ensemble=ens)
 
 
 def _num(v, nd=2):
@@ -394,7 +398,22 @@ def start_run(q, launch=None):
                    "mcmc_steps": a.get("mcmc_steps"), "ausreisser_sigma": a.get("ausreisser_sigma")},
            "calib": {"flat": a.get("flat"), "bias": a.get("bias"), "dark": a.get("dark")},
            "camera": {"farbkamera": a.get("farbkamera")}, "gaia": {"quelle": a.get("gaia_quelle")}}
-    write_lauf_toml(os.path.join(out, "lauf.toml"), sec, f"Lauf {lauf}" + (f", Photometrie aus {basis}" if basis else ""))
+    if q.get("ensemble"):                                  # stars chosen by hand (tab Vergleichssterne): no ensemble search
+        sec["search"]["ensemble"] = [str(x) for x in q["ensemble"]]
+    if q.get("einstellungen_von"):                         # same settings as that run; the new values above win
+        try:
+            import tomllib
+            src = tomllib.load(open(os.path.join(p, "RESULT", q["einstellungen_von"], "lauf.toml"), "rb"))
+        except Exception:
+            src = {}
+        for sk, kv in src.items():
+            if isinstance(kv, dict):
+                d = sec.setdefault(sk, {})
+                for k, v in kv.items():
+                    if d.get(k) in (None, "", []):
+                        d[k] = v
+    write_lauf_toml(os.path.join(out, "lauf.toml"), sec, f"Lauf {lauf}" + (f", Photometrie aus {basis}" if basis else "")
+                    + (f", Vergleichssterne von Hand: {' '.join(q['ensemble'])}" if q.get("ensemble") else ""))
     if launch is not None:
         return dict(ok=True, lauf=lauf, pfad=p, befehl=" ".join(launch(p, lauf, mode, q.get("workers"), new_stars)))
     cmd = [sys.executable, "-m", "transit", "run", p, "--out", lauf, "--mode", mode]
@@ -415,6 +434,41 @@ def run_cli(args):
                        encoding="utf-8", errors="replace", timeout=600,
                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     return dict(ok=r.returncode == 0, ausgabe=(r.stdout + r.stderr)[-4000:])
+
+
+def _sterne(q):
+    st = [str(x).strip() for x in (q.get("sterne") or []) if str(x).strip()]
+    if not st or not all(x.replace("_", "").isalnum() for x in st):
+        raise ValueError("keine oder ungueltige Sternnamen")
+    return st
+
+
+def preview(q):
+    """Quick fit (no MCMC) for a hand-made choice of comparison stars of one run: transit vorschau."""
+    p = os.path.abspath(q["messordner"])
+    lauf = str(q["lauf"])
+    if not os.path.isdir(os.path.join(p, "RESULT", lauf)):
+        raise ValueError(f"Lauf {lauf} nicht gefunden")
+    r = run_cli(["vorschau", p, "--out", lauf, "--sterne", ",".join(_sterne(q))])
+    from .vorschau import MARK
+    line = next((l for l in r["ausgabe"].splitlines()[::-1] if l.startswith(MARK)), None)
+    if not line:
+        return dict(ok=False, fehler="Vorschau fehlgeschlagen: " + r["ausgabe"].strip().splitlines()[-1][-300:] if r["ausgabe"].strip() else "keine Ausgabe")
+    return dict(json.loads(line[len(MARK):]), ok=True)
+
+
+def start_hand(q):
+    """New run with the stars chosen in the tab Vergleichssterne: photometry and settings of run q["lauf"], ensemble
+    fixed ([search] ensemble), full fit with MCMC and checks.  The old run stays as it is."""
+    p = os.path.abspath(q["messordner"])
+    lauf = str(q["lauf"])
+    d = os.path.join(p, "RESULT", lauf)
+    mt, cj = jload(os.path.join(d, GUI_META)), jload(os.path.join(d, "calib.json"))
+    cubes = sorted(os.path.basename(f)[5:-4] for f in glob.glob(os.path.join(d, "cube_*.npz")))
+    mode = mt.get("mode") or (cj.get("mode") if cj.get("mode") in cubes else None) or (cubes[0] if cubes else "f")
+    neu = time.strftime("gui_%Y%m%d_%H%M") + f"_{mode}_hand"
+    return start_neu(dict(messordner=p, lauf=neu, mode=mode, basis=lauf, workers=mt.get("workers"), ensemble=_sterne(q),
+                          einstellungen_von=lauf))
 
 
 def allowed_file(path):
@@ -947,6 +1001,10 @@ class H(BaseHTTPRequestHandler):
                 self._json(start_run(q))
             elif self.path == "/api/start2":
                 self._json(start_neu(q))
+            elif self.path == "/api/vorschau":
+                self._json(preview(q))
+            elif self.path == "/api/start_hand":
+                self._json(start_hand(q))
             elif self.path == "/api/abbrechen":
                 self._json(stop_neu(q))
             elif self.path == "/api/gaia_wechsel":

@@ -44,6 +44,8 @@ def make(out, cfg=None):
     if info.get("flip_mode", "none") != "none" and "im/nahe am Transit" in checks:
         r.append("Meridian flip during the transit; the flux step was corrected with a prior measured on the comparison stars.")
     r.append(clipping_text(out, cfg))                     # reviewers ask for it: always stated
+    if info.get("ensemble_fest"):
+        r.append(f"Comparison stars selected manually ({', '.join(info['ensemble_fest'])}).")
     comps = comps_text(out, info, fr)
     if comps:
         r.append(comps)

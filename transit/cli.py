@@ -316,10 +316,23 @@ def cmd_compsearch(m, a):
     if fl:
         log(f"Flip-Versatz Ziel (Vorhersage aus {fl['n_stars']} Sternen): {fl['target_pred_ppt']:+.2f} +- {fl['scatter_ppt']:.2f} ppt")
     radii = m.cfg["search"]["radii"]
+    fixed = fixed_ensemble(m, n)
     einzel = single_star_step(m, n, radii[len(radii) // 2])
+    if fixed and einzel:                                   # stars chosen by hand: the test only reports, it removes nothing
+        einzel["verwerfen"] = False
+        for d in einzel["stars"]:
+            d["verworfen"] = False
     allc, bests = {}, {}
+    if fixed:
+        e = tuple(sorted(fixed))
+        for r in radii:
+            v = n.oot_rms(n.ir(r), list(e))
+            bests[r] = ([n.names[j] for j in e], v)
+            allc[(r, e)] = v
+            log(f"  r={r}: feste Sternwahl {bests[r][0]}  OOT-RMS {v:.3f} ppt")
+        radii = []                                         # no ensemble search
     est = max(1, len(n.pool) * max(1, m.cfg["search"]["n_max"] - m.cfg["search"]["n_min"] - 1))   # rough evaluations per radius
-    bar = progress.task("Ensemble-Suche", len(radii) * est, "Bewertungen")
+    bar = progress.task("Ensemble-Suche", len(radii) * est or 1, "Bewertungen")
     for ri, r in enumerate(radii):
         seen, be, bs = n.greedy(r, tick=lambda k, ri=ri: bar.update(n=ri * est + min(k, est - 1)))
         bar.update(n=(ri + 1) * est)
@@ -334,6 +347,23 @@ def cmd_compsearch(m, a):
                          asym=n.asym(list(e), n.ir(r))) for (r, e), v in top])
     jdump(res, m.path("compsearch.json"))
     log(f"Top {len(top)} Kombinationen -> compsearch.json")
+
+
+def fixed_ensemble(m, n):
+    """[search] ensemble = ["G03", "G08", ...]: comparison stars chosen by hand (GUI, tab Vergleichssterne); the
+    ensemble search is skipped.  Returns the star indices (or None) and notes the choice in n.info."""
+    want = [str(x).strip() for x in (m.cfg["search"].get("ensemble") or []) if str(x).strip()]
+    if not want:
+        return None
+    idx = {nm: i for i, nm in enumerate(n.names)}
+    miss = [x for x in want if x not in idx]
+    if miss:
+        raise SystemExit(f"[search] ensemble: Stern(e) {', '.join(miss)} nicht im Cube (vorhanden: {', '.join(n.names)})")
+    if len(want) < 1:
+        raise SystemExit("[search] ensemble: mindestens ein Stern")
+    n.info["ensemble_fest"] = want
+    log(f"Vergleichssterne von Hand gewaehlt ([search] ensemble): {', '.join(want)} - keine Ensemble-Suche")
+    return [idx[x] for x in want]
 
 
 def search_opt(m, key, default=0.0, sec="search"):
@@ -430,6 +460,7 @@ def cmd_fit(m, a):
     cs = jload(m, "compsearch.json")
     n.prefilter()
     n.flip_offsets()
+    fixed_ensemble(m, n)                                   # only to note a hand-made choice in fit.json info
     best = cs["top"][0]; r = best["radius"]
     if k_out > 0:
         n = clip_outliers(m, a, n, r, best["comps"], k_out)
@@ -885,6 +916,14 @@ def main(argv=None):
     ko.add_argument("messordner", help="Ordner der Messung")
     ko.add_argument("--nas", action="store_true", help="nicht gefunden: ohne Rueckfrage am NAS suchen")
     ko.add_argument("--lauf", help="Unterordner in RESULT (Standard: gueltiger Lauf)")
+    vo = sub.add_parser("vorschau", help="Schneller Fit (ohne MCMC) mit von Hand gewaehlten Vergleichssternen eines Laufs",
+                        description="Vorschau fuer die GUI: ein Fit mit den angegebenen Sternen auf dem Cube des Laufs, zum Vergleich "
+                                    "auch mit dem Ensemble des Laufs. Schreibt nur RESULT\\<lauf>\\vorschau.png.")
+    vo.add_argument("messordner", help="Ordner der Messung")
+    vo.add_argument("--nas", action="store_true", help="nicht gefunden: ohne Rueckfrage am NAS suchen")
+    vo.add_argument("--out", required=True, help="Lauf (Unterordner in RESULT)")
+    vo.add_argument("--sterne", required=True, help="Vergleichssterne, mit Komma getrennt, z. B. G03,G08,G12")
+    vo.add_argument("--radius", type=float, help="Apertur in px (Standard: die des Laufs)")
     aj = sub.add_parser("aij", help="AstroImageJ-Dateien (Messtabelle + Multi-Plot-Konfiguration) erzeugen / in AIJ oeffnen",
                         description="Schreibt RESULT\\<lauf>\\aij\\ (Messtabelle im AIJ-Format, gleichnamige .plotcfg, Makro, LIESMICH). "
                                     "Ohne --lauf: der gueltige Lauf aus dem Logbuch.")
@@ -930,6 +969,9 @@ def main(argv=None):
     if a.cmd == "kommentar":
         from .kommentar import cmd_kommentar
         return cmd_kommentar(a)
+    if a.cmd == "vorschau":
+        from .vorschau import cmd_vorschau
+        return cmd_vorschau(a)
     if a.cmd == "gui":
         from .gui import cmd_gui
         return cmd_gui(a)

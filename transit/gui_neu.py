@@ -888,7 +888,9 @@ async function ladeHilfe(p,s,key,v){
 async function ladeSterne(p,s,key){
   S.kc=S.kc||{};
   const box=()=>{ const B=$('blatt'); return B.dataset.key===key?B.querySelector('[data-tab="sterne"]'):null; };
-  const zeig=K=>{ const b=box(); if(b) b.innerHTML=K.fehler?esc(K.fehler):kandTabelle(K,false)+lcBild(K,p,s,true); };
+  const zeig=K=>{ const b=box(); if(!b) return; if(K.fehler){ b.innerHTML=esc(K.fehler); return; }
+    S.wahlAkt={key,p,s,K}; wahlSet();
+    b.innerHTML=kandTabelle(K,false,true)+wahlPanel()+lcBild(K,p,s,true); wahlZeigeErg(); };
   if(S.kc[key]){ zeig(S.kc[key]); return; }
   const t0=Date.now();
   const tick=()=>{ const b=box(); if(!b||S.kc[key]) return clearInterval(iv);
@@ -980,20 +982,60 @@ async function ladeKand(){
   $('kand').innerHTML=(auto?`<p class="hint" style="margin:6px 0">${auto}</p>`:'')+kandTabelle(S.K,true)+lcBild(S.K,S.pfad,b)+(S.K.feldbild?`<details><summary style="cursor:pointer;font-size:13px">Feldbild zeigen</summary><img class="blatt" style="margin-top:8px" alt="Feldbild mit Vergleichssternen" src="${datei(S.pfad,b,'ergebnisblatt_feld.png')}"></details>`:'');
   erwMarkieren();
 }
-function kandTabelle(K,edit){
+function kandTabelle(K,edit,wahl){
   const ex=new Set(edit?S.erw.exclude||[]:K.kandidaten.filter(k=>k.ausgeschlossen).map(k=>k.name));
-  return `<div class="scroll"><table><thead><tr>${edit?'<th>an</th>':''}<th>Stern</th><th>G</th><th>BP-RP</th><th>RUWE</th><th>Gaia</th><th>Ruhe</th><th>Transitfenster</th><th>Einzeltest</th></tr></thead><tbody>`+
+  const W=wahl?wahlSet():null;
+  return `<div class="scroll"><table><thead><tr>${edit?'<th>an</th>':''}${wahl?'<th title="Haken = Stern im Ensemble der Vorschau bzw. des neuen Laufs">wählen</th>':''}<th>Stern</th><th>G</th><th>BP-RP</th><th>RUWE</th><th>Gaia</th><th>Ruhe</th><th>Transitfenster</th><th>Einzeltest</th></tr></thead><tbody>`+
     K.kandidaten.filter(k=>!k.ziel).map(k=>{
       const ru=k.ruwe==null?'<span class="pill pn">–</span>':`<span class="pill ${k.ruwe>1.4?'py':'pg'}">${komma(k.ruwe,2)}</span>`;
       const va=istVar(k)?'<span class="pill pr">VARIABLE</span>':'<span class="pill pg">ok</span>';
       const rh=k.ruhe==null?'<span class="pill pn">–</span>':`<span class="pill ${k.variabel||k.verworfen?'pr':k.ruhe>2?'py':'pg'}" title="${esc(k.verworfen||('Streuung der 10-min-Mittel '+komma(k.bin_ppt,2)+' ppt, β '+komma(k.beta,1)))}">${komma(k.ruhe,1)}${k.variabel?' · variabel':k.verworfen?' · verworfen':''}</span>`;
       const tw=k.tw==null?'<span class="hint">nur Ensemble</span>':`<span class="pill ${k.tw_flag?'pr':'pg'}">${komma(k.tw,1)} ± ${komma(k.tw_e,1)}</span>`;
       const et=k.ein_med==null?'<span class="pill pn">–</span>':`<span class="pill ${k.ein_weg?'pr':k.ein_auff?'py':'pg'}" title="${esc('Rp/R* allein '+komma(k.ein_rp,4)+', O-C '+komma(k.ein_oc,1)+' min, Abweichung zur Literatur '+(k.ein_lit==null?'–':komma(k.ein_lit,1)+' σ'))}">${komma(k.ein_med,1)} σ${k.ein_weg?' · verworfen':k.ein_auff?' · auffällig':''}</span>`;
-      return `<tr>${edit?`<td><input type="checkbox" aria-label="${esc(k.name)} verwenden" style="width:18px;height:18px" ${ex.has(k.name)?'':'checked'} onchange="sternUmschalten('${esc(k.name)}',this.checked)"></td>`:''}<td>${esc(k.name)}${k.im_ensemble?' *':''}</td><td>${komma(k.G,1)}</td><td>${komma(k.bp_rp,2)}</td><td>${ru}</td><td>${va}</td><td>${rh}</td><td>${tw}</td><td>${et}</td></tr>`; }).join('')+
+      return `<tr>${edit?`<td><input type="checkbox" aria-label="${esc(k.name)} verwenden" style="width:18px;height:18px" ${ex.has(k.name)?'':'checked'} onchange="sternUmschalten('${esc(k.name)}',this.checked)"></td>`:''}${wahl?`<td><input type="checkbox" aria-label="${esc(k.name)} ins Ensemble" style="width:18px;height:18px" ${W.has(k.name)?'checked':''} onchange="wahlUm('${esc(k.name)}',this.checked)"></td>`:''}<td>${esc(k.name)}${k.im_ensemble?' *':''}</td><td>${komma(k.G,1)}</td><td>${komma(k.bp_rp,2)}</td><td>${ru}</td><td>${va}</td><td>${rh}</td><td>${tw}</td><td>${et}</td></tr>`; }).join('')+
     '</tbody></table></div><span class="hint">* im Ensemble des Laufs. Ruhe = Streuung des Sterns gegen die übrigen Kandidaten (10-min-Mittel) geteilt durch den Median aller, 1 = typisch. Bekannte Veränderliche (Gaia, VSX) sind schon bei der Auswahl verworfen. Vorschlag: eigene Lichtkurve variabel, Transitfenster über 3 σ und im Einzeltest verworfene Sterne sind abgewählt. Einzeltest = Abweichung der Tiefe vom Median aller Sterne, wenn der Stern allein als Vergleich dient.</span>';
 }
 function lcBild(K,p,l,offen){ if(!K.lcbild) return K.kandidaten.some(k=>k.ruhe!=null)?'':'<p class="hint">Ruhe-Werte und das Bild mit der Lichtkurve jedes Vergleichssterns gibt es erst für Läufe ab dem 1. November 2026. Dieser Lauf ist älter. Starte ihn neu, um sie zu sehen.</p>'; const u=datei(p,l,'vergleichssterne_lc.png');
   return `<details ${offen?'open':''}><summary style="cursor:pointer;font-size:13px">Lichtkurve jedes Vergleichssterns (gegen die übrigen)</summary><a href="${u}" target="_blank"><img class="blatt" style="margin-top:8px" alt="Lichtkurven der einzelnen Vergleichssterne" src="${u}&t=${Date.now()}"></a></details>`; }
+// Hand-made choice of comparison stars for one run: quick preview (no MCMC) and a new run with exactly these stars.
+function wahlSet(){ const A=S.wahlAkt; S.wahl=S.wahl||{};
+  if(!S.wahl[A.key]) S.wahl[A.key]=new Set(wahlLauf()); return S.wahl[A.key]; }
+const wahlLauf=()=>{ const K=S.wahlAkt.K; return K.ensemble&&K.ensemble.length?[...K.ensemble]:K.kandidaten.filter(k=>k.im_ensemble&&!k.ziel).map(k=>k.name); };
+const wahlListe=()=>S.wahlAkt.K.kandidaten.filter(k=>!k.ziel&&wahlSet().has(k.name)).map(k=>k.name);
+function wahlUm(n,an){ const W=wahlSet(); if(an) W.add(n); else W.delete(n); wahlKopf(); }
+function wahlKopf(){ const e=$('wahl-kopf'); if(!e) return; const L=wahlListe(), R=wahlLauf(), gleich_=gleich(L,R);
+  e.innerHTML=`<b>Auswahl:</b> ${L.length?esc(L.join(' ')):'<span class="hint">kein Stern</span>'}${gleich_?' <span class="hint">(wie im Lauf)</span>':''}`;
+  $('wahl-vor').disabled=!L.length; $('wahl-start').disabled=!L.length||gleich_; $('wahl-zurueck').disabled=gleich_; }
+function wahlPanel(){ return `<div class="card" style="margin:12px 0;display:flex;flex-direction:column;gap:10px;background:var(--soft)">
+  <div id="wahl-kopf"></div>
+  <div class="row" style="gap:8px;flex-wrap:wrap"><button id="wahl-vor" class="btn sm" onclick="wahlVorschau()">Vorschau berechnen</button>
+   <button id="wahl-zurueck" class="btn sec sm" onclick="wahlZurueck()">wie im Lauf</button>
+   <button id="wahl-start" class="btn sec sm" onclick="wahlStart()">Als neuen Lauf rechnen …</button></div>
+  <span class="hint" style="font-size:13px">Haken in der Spalte „wählen“ setzen. Die Vorschau ist ein schneller Fit ohne MCMC (wenige Sekunden) auf dem Radius des Laufs. Gute Gründe zum Abwählen: gelbe/rote Ruhe, Abweichung im Transitfenster, im Einzeltest auffällig. Sterne nicht danach aussuchen, welches O-C herauskommt. Erst der neue Lauf liefert echte Fehlerbalken und Prüfungen; er wird als „von Hand gewählt“ vermerkt.</span>
+  <div id="wahl-erg"></div></div>`; }
+function wahlZurueck(){ S.wahl[S.wahlAkt.key]=new Set(wahlLauf()); S.vor=null; zeigeBlattSterne(); }
+function zeigeBlattSterne(){ const A=S.wahlAkt, b=$('blatt').querySelector('[data-tab="sterne"]'); if(!b) return;
+  b.innerHTML=kandTabelle(A.K,false,true)+wahlPanel()+lcBild(A.K,A.p,A.s,false); wahlZeigeErg(); }
+async function wahlVorschau(){ const A=S.wahlAkt, L=wahlListe(); if(!L.length) return;
+  $('wahl-vor').disabled=true; $('wahl-erg').innerHTML='<span class="hint">rechne Vorschau … (einige Sekunden)</span>';
+  const r=await api('/api/vorschau',{messordner:A.p,lauf:A.s,sterne:L});
+  S.vor={key:A.key,r,t:Date.now(),sterne:L}; wahlZeigeErg(); }
+function wahlZeigeErg(){ wahlKopf(); const e=$('wahl-erg'); if(!e) return; const V=S.vor, A=S.wahlAkt;
+  if(!V||V.key!==A.key){ e.innerHTML=''; return; }
+  const r=V.r; if(!r.ok){ e.innerHTML=`<div class="note bad">${esc(r.fehler||'Fehler')}</div>`; return; }
+  const oc=x=>`${x.oc_min>=0?'+':'−'}${komma(Math.abs(x.oc_min),1)} ± ${komma(x.oc_err_min,1)} min`;
+  const rp=x=>`${komma(x.rp,4)} ± ${komma(x.rp_err,4)}`+(x.rp_dev_sigma==null?'':` <span class="hint">(${x.rp_dev_sigma>=0?'+':'−'}${komma(Math.abs(x.rp_dev_sigma),1)} σ zur Lit.)</span>`);
+  const zeile=(lab,x)=>`<tr><td><b>${lab}</b><br><span class="hint mono" style="font-size:11px">${esc(x.sterne.join(' '))}</span></td><td>${komma(x.oot_rms_ppt,2)} ppt</td><td>${komma(x.beta,2)}</td><td style="white-space:nowrap">${oc(x)}</td><td style="white-space:nowrap">${rp(x)}</td></tr>`;
+  const alt=gleich(V.sterne,wahlListe())?'':'<p class="hint" style="margin:0">Die Haken wurden seit der Vorschau geändert.</p>';
+  e.innerHTML=alt+`<div class="scroll"><table><thead><tr><th></th><th>OOT-RMS</th><th>β</th><th>O-C (schnell)</th><th>Rp/R*</th></tr></thead><tbody>${r.lauf?zeile('Lauf',r.lauf):''}${zeile('Auswahl',r.neu)}</tbody></table></div>`+
+    `<span class="hint" style="font-size:12px">Beide Zeilen mit demselben schnellen Fit gerechnet, damit sie vergleichbar sind${r.lauf&&r.lauf.mcmc_oc_min!=null?`; der Lauf selbst (MCMC) hat O-C ${r.lauf.mcmc_oc_min>=0?'+':'−'}${komma(Math.abs(r.lauf.mcmc_oc_min),1)} min`:''}.</span>`+
+    (r.bild?`<a href="${datei(A.p,A.s,r.bild)}&v=${V.t}" target="_blank"><img class="blatt" style="margin-top:8px" alt="Vorschau-Lichtkurve" src="${datei(A.p,A.s,r.bild)}&v=${V.t}"></a>`:''); }
+async function wahlStart(){ const A=S.wahlAkt, L=wahlListe(); if(!L.length) return;
+  $('wahl-start').disabled=true;
+  const r=await api('/api/start_hand',{messordner:A.p,lauf:A.s,sterne:L});
+  if(!r.ok){ toast('Nicht gestartet: '+(r.fehler||'Fehler')); $('wahl-start').disabled=false; return; }
+  if(r.pfad&&r.pfad!==S.pfad){ await waehle(r.pfad); } else await aktualisiere();
+  ladeAktiv(); toast(`Lauf ${r.lauf} gestartet (Sterne von Hand, Photometrie aus ${A.s}).`); location.hash='#/lauf/'+encodeURIComponent(r.lauf); }
 function sternUmschalten(n,an){ const s=new Set(S.erw.exclude||[]); if(an) s.delete(n); else s.add(n); S.erw.exclude=[...s]; erwMarkieren(); }
 
 // ------------------------------------------------------------------ logbook
