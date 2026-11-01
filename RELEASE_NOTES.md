@@ -19,6 +19,7 @@ Umfasst PR #2 bis #17.
 - **Lichtkurve je Stern:** jeder Kandidat gegen die Summe der übrigen, Airmass und Flip detrendet. Bei Ruhe > 3 und β > 1,5 gilt er als variabel und kommt nicht in den Pool. Neues Bild `vergleichssterne_lc.png` mit Gaia-DR3-Kennung und G-Helligkeit je Stern. (#8)
 - **Reviewer-Methode:** Einzelstern-Test (Transit-Fit mit jedem Vergleichsstern allein, Abweichung von Rp/R*), optional `[search] einzel_tiefe_sigma` zum Ausschließen auffälliger Sterne und `[search] tiefen_gewicht` bei der Ensemble-Wahl. Standard bleibt das bisherige Verhalten. (#15)
 - **Vergleichssterne per Haken wählen:** im Reiter Vergleichssterne die Spalte „wählen“ abhaken, mit **Vorschau** (schneller Fit ohne MCMC, `vorschau.png`) prüfen und **als neuen Lauf rechnen** (`gui_<zeit>_<modus>_hand`, Einstellungen vom Quell-Lauf). Auf der Kommandozeile: `[search] ensemble = [...]` und `transit vorschau`. Kommentar und Ergebnisblatt vermerken die Wahl von Hand. (#16)
+- **Dokumentation zur Wahl per Haken:** Handbuch-Kapitel „Vergleichssterne von Hand wählen“ (Ablauf, Vorschau-Tabelle, gute und schlechte Gründe zum Abwählen), `[search] ensemble` in Parametertabelle und `config.example.toml`, Absatz in `transit hilfe vergleichssterne`, ⓘ-Hilfen und Tooltips in der GUI, Erklärung zu „(von Hand gewählt)“ in der Ergebnisblatt-Hilfe. (#19)
 
 ### Bedienoberfläche (GUI)
 
@@ -57,5 +58,4 @@ Umfasst PR #2 bis #17.
 
 ### Bekannt / offen
 
-- Die ausführliche Dokumentation zur Wahl per Haken ist vorbereitet, aber noch nicht in `main`: Handbuch-Kapitel „Vergleichssterne von Hand wählen“, ⓘ-Hilfen und Tooltips in der GUI, Absatz in `transit hilfe vergleichssterne`, Erklärung zu „(von Hand gewählt)“ in der Ergebnisblatt-Hilfe. Wird sie vor dem Release gemergt, gehört dieser Punkt unter „Vergleichssterne“.
 - Geplante Punkte aus dem externen Review (Flip-Prior-Gewichtung, Wolken-Erkennung, β über Zeitfenster, echte Belichtungszeit im Modell) stehen in `TODO.md`. (#17)
