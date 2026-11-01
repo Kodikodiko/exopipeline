@@ -81,6 +81,8 @@ def cone(cfg, ra, dec, radius_deg, gmax=None, gmin=None, log=None):
     order = esa + viz if src == "esa" else viz + esa
     errs = []
     for label, fn in order:
+        if log:
+            log(f"  Gaia DR3: frage {label} an (Zeitlimit {timeout:g} s) ...")
         try:
             t = fn(float(ra), float(dec), float(radius_deg), gmin, gmax, timeout)
         except Exception as e:
