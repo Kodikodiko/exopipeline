@@ -67,9 +67,12 @@ THEMEN = {
   Wenn die Kamera die Solltemperatur nicht erreicht hat, passt kein Dark -> bf verwenden.""",
     "vergleichssterne": """VERGLEICHSSTERNE
   Kandidaten aus Gaia DR3: G im Fenster [Ziel-0.5, Ziel+2], BP-RP +-0.5, >= 80 px vom Rand,
-  kein Nachbar heller als G+3 innerhalb 40 px, max. 30 (comps.*). Optional die Sterne einer
-  AIJ-.apertures-Datei (comps.aij_apertures). compsearch: Vorfilter (RMS/Trend > 3x Median),
-  dann gierige Vor-/Rueckwaertsauswahl (3-12 Sterne) je Radius nach OOT-RMS.""",
+  kein Nachbar heller als G+3 innerhalb 40 px, keine bekannten Veraenderlichen (Gaia-Flag VARIABLE,
+  AAVSO VSX innerhalb 5"), max. 30 (comps.*). Optional die Sterne einer AIJ-.apertures-Datei
+  (comps.aij_apertures). compsearch: Vorfilter (RMS/Trend > 3x Median), Lichtkurve jedes Sterns gegen
+  die uebrigen (Airmass/Flip detrendet, wie HOPS): variabel bei Streuung der 10-min-Mittel > 3x Median
+  UND beta > 1.5 -> verworfen, Bild vergleichssterne_lc.png; dann gierige Vor-/Rueckwaertsauswahl
+  (3-12 Sterne) je Radius nach OOT-RMS.""",
     "aij": """ASTROIMAGEJ-EINSTELLUNGEN (CCD Data Processor -> General FITS Header Settings)
   Zielkoordinaten-Quelle: "FITS header target RA/DEC (J2000)" mit OBJCTRA / OBJCTDEC
      (nicht "target name": "TOI-628b" wird bei SIMBAD evtl. nicht gefunden).

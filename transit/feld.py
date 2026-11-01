@@ -172,21 +172,23 @@ def comp_rows(m, n, c, fr, cs, ens, ir, log=print):
             parts = [("aehnlich hell" if abs(dG) < 0.3 else "hell genug" if dG < 0 else "etwas schwaecher") + f" (dG {dG:+.2f})",
                      ("gleiche Farbe" if abs(dc) < 0.15 else "aehnliche Farbe") + f" (d {dc:+.2f})"]
             if nm in rank:
-                parts.append(f"ruhig: Streuung Rang {rank[nm]}/{len(ranked)}")
+                ru = pre[nm].get("ruhe")
+                parts.append(f"ruhig: Streuung Rang {rank[nm]}/{len(ranked)}" + (f", Ruhe {ru:.1f}" if ru is not None and ru == ru else ""))
             parts.append(f"im besten Ensemble ({n.r_text(fr['best']['radius'])})")
             why = "; ".join(parts) + ("; ACHTUNG " + ", ".join(warn) if warn else "")
         rows.append(dict(id="Ziel" if j == 0 else f"C{q}", name=nm, gaia=ids[q], ra=hms(ra), dec=dms(de), dist=dist,
                          G=float(c["star_G"][j]), dG=dG, col=col, dc=dc, peak=float(pk[j]), ruwe=ruwe, var=var or "-",
                          var_s="VAR" if (var or "").upper().startswith("VARIABLE") else "-" if not var or var.upper().startswith("NOT") else var[:8],
-                         nb=nb, rms=pre.get(nm, {}).get("rms_ppt"), share=None if j == 0 else float(share[q - 1]) * 100,
+                         nb=nb, rms=pre.get(nm, {}).get("rms_ppt"), ruhe=pre.get(nm, {}).get("ruhe"), share=None if j == 0 else float(share[q - 1]) * 100,
                          jk=jk.get(nm), tw=None if sig is None else sig[0], tw_e=None if sig is None else sig[1],
                          tw_flag=bool(sig and abs(sig[0]) > 3 * sig[1]), why=why))
     # rejected candidates (a few lines)
     rej = []
     for p in cs.get("prefilter", []):
         if p["rejected"]:
-            rej.append((p["name"], f"Vorfilter: Streuung {p['rms_ppt']:.1f} ppt / Trend {p['trend_ppt']:.1f} ppt > "
-                                   f"{m.cfg['search']['prefilter_sigma']:g}x Median (veraenderlich oder gestoert)"))
+            rej.append((p["name"], "Vorfilter: " + (p.get("grund") or
+                                   f"Streuung {p['rms_ppt']:.1f} ppt / Trend {p['trend_ppt']:.1f} ppt > "
+                                   f"{m.cfg['search']['prefilter_sigma']:g}x Median (veraenderlich oder gestoert)")))
     for nm in fr["info"].get("excluded_stars", []):
         rej.insert(0, (nm, "von Hand ausgeschlossen ([comps] exclude_stars in lauf.toml/transit.toml)"))
     for nm in fr["info"].get("dropped_saturating", []):

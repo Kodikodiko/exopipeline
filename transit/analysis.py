@@ -106,11 +106,71 @@ class Night:
             tr.append(abs(np.polyfit(tt, lc, 1)[0]) * np.ptp(tt) * 1e3)
         rms, tr = np.array(rms), np.array(tr)
         k = self.cfg["search"]["prefilter_sigma"]
-        bad = (rms > k * np.median(rms)) | (tr > k * np.median(tr))
+        noisy = (rms > k * np.median(rms)) | (tr > k * np.median(tr))
+        self.comp_lc = self.comp_check(r, start_bad=noisy)
+        var = np.array([d["variabel"] for d in self.comp_lc["stars"]], bool)
+        bad = noisy | var
         self.pool = [j for j, b in zip(self.cand, bad) if not b]
-        self.prefilter_table = [dict(name=self.names[j], rms_ppt=float(a), trend_ppt=float(b), rejected=bool(x))
-                                for j, a, b, x in zip(self.cand, rms, tr, bad)]
+        self.prefilter_table = []
+        for j, a, b, x, v, d in zip(self.cand, rms, tr, noisy, var, self.comp_lc["stars"]):
+            grund = []
+            if x:
+                grund.append(f"Streuung {a:.1f} ppt / Trend {b:.1f} ppt > {k:g}x Median (verrauscht)")
+            if v:
+                grund.append(d["grund"])
+            self.prefilter_table.append(dict(name=self.names[j], rms_ppt=float(a), trend_ppt=float(b), rejected=bool(x or v),
+                                             variabel=bool(v), rms_det_ppt=d["rms_ppt"], bin_ppt=d["bin_ppt"],
+                                             beta=d["beta"], ruhe=d["ruhe"], grund="; ".join(grund)))
         return [self.names[j] for j, b in zip(self.cand, bad) if b]
+
+    # ---------------------------------------------------------------- comparison-star variability (HOPS/AIJ style)
+    def comp_check(self, r=16, start_bad=None):
+        """Light curve of every comparison candidate against the flux sum of the other candidates (as HOPS shows it and as
+        AIJ's rel_flux_C), detrended with the same baseline as the fit (airmass, flip).  Per star:
+          rms_ppt  scatter per frame (white + red noise)
+          bin_ppt  scatter of ~variab_bin_min averages: short-term variability (pulsation, flares, spots) survives the
+                   averaging, white noise does not
+          beta     red-noise factor (1 = white noise; clearly > 1 = correlated, i.e. variable or disturbed)
+          ruhe     bin_ppt / median bin_ppt of all candidates (1 = typical, larger = less quiet)
+        A star is 'variabel' if ruhe > [search] variab_sigma (default 3) and beta > [search] variab_beta (default 1.5).
+        Two passes: stars found variable or noisy in pass 1 are left out of the others' reference in pass 2."""
+        s = self.cfg["search"]
+        on = bool(s.get("variab_check", True))
+        ks, kb = float(s.get("variab_sigma", 3.0)), float(s.get("variab_beta", 1.5))
+        bmin = float(s.get("variab_bin_min", 10.0)) / 1440
+        ir = self.ir(r)
+        F = self.c["flux"][self.sel][:, self.cand, ir]
+        X = self.X
+        nb = np.floor((self.t - self.t.min()) / bmin).astype(int)
+        start = np.zeros(len(self.cand), bool) if start_bad is None else np.asarray(start_bad, bool)
+        bad = start.copy()
+        for _ in range(2):
+            stars, lcs = [], []
+            for a in range(len(self.cand)):
+                use = ~bad; use[a] = False
+                if use.sum() < 2:                          # too few quiet stars left: fall back to all others
+                    use = np.ones(len(self.cand), bool); use[a] = False
+                y = F[:, a] / F[:, use].sum(1)
+                y = y / np.median(y)
+                co, *_ = np.linalg.lstsq(X, y, rcond=None)
+                res = y / (X @ co) - 1
+                bm = np.array([res[nb == b].mean() for b in np.unique(nb) if (nb == b).sum() >= 3])
+                stars.append(dict(name=self.names[self.cand[a]], rms_ppt=float(np.std(res) * 1e3),
+                                  bin_ppt=float(np.std(bm) * 1e3) if len(bm) >= 4 else float("nan"),
+                                  beta=beta_factor(res), n_ref=int(use.sum())))
+                lcs.append(res)
+            bp = np.array([d["bin_ppt"] for d in stars])
+            med = float(np.nanmedian(bp)) if np.isfinite(bp).any() else float("nan")
+            for d in stars:
+                d["ruhe"] = float(d["bin_ppt"] / med) if np.isfinite(med) and med > 0 else float("nan")
+                d["variabel"] = bool(on and np.isfinite(d["ruhe"]) and d["ruhe"] > ks and d["beta"] > kb)
+                d["grund"] = (f"kurzzeitig veraenderlich: {d['bin_ppt']:.1f} ppt Streuung der {bmin * 1440:.0f}-min-Mittel "
+                              f"= {d['ruhe']:.1f}x Median, beta {d['beta']:.1f}") if d["variabel"] else ""
+            new = start | np.array([d["variabel"] for d in stars], bool)
+            if (new == bad).all():
+                break
+            bad = new
+        return dict(stars=stars, lc=np.array(lcs), t=self.t, bin_min=bmin * 1440, radius=r, sigma=ks, beta=kb, on=on)
 
     # ---------------------------------------------------------------- flip offsets
     def flip_offsets(self, r=16):

@@ -64,8 +64,8 @@ Jeder Aufruf ergänzt das Protokoll in `RESULT\pipeline\transit.log`. Daneben en
 1. **inventory** liest alle Header und speichert Prüfsummen der Lights. Es holt die Ephemeride (zuerst ExoClock, sonst NASA Exoplanet Archive) und sagt Tc, Ingress und Egress für die Nacht voraus. Dazu prüft es die Planung: Abdeckung, Baseline, Airmass, Meridian-Flip, Kameratemperatur und Frames ohne WCS.
 2. **solve** kopiert ungelöste Frames nach `SOLVED\` und löst sie dort mit `astap_cli -update`. Danach nutzen alle Schritte die gelöste Kopie.
 3. **calibrate** durchsucht `calib.library` nach Mastern und wählt die passenden aus: gleiche Kamera, Gain, Offset und Bildgröße, Flat im gleichen Filter, Dark mit gleicher Belichtung, nächstes Datum. Passt die Dark-Temperatur nicht, schätzt es einen Skalierungsfaktor aus den Hot-Pixeln.
-4. **cube** sucht Gaia-DR3-Vergleichssterne (optional zusätzlich die Sterne einer AIJ-`.apertures`-Datei). Dann misst es Bild für Bild: Zentroid, Aperturen mit allen Radien, Hintergrund im Ring (sigma-geclippter Median), Fehler (Photonen, Ausleserauschen, Himmel) und den Roh-Peak. Kalibriert wird im Speicher; es entstehen keine Zwischendateien.
-5. **compsearch** wählt zuerst die Frames aus (Sättigung, Ausschlussliste). Dann folgen ein Vorfilter für Vergleichssterne (Streuung oder Trend über 3× Median), die Messung des Flip-Versatzes und eine gierige Vorwärts-/Rückwärtssuche mit 3–12 Sternen je Radius. Bewertet wird nach der Streuung außerhalb des Transits.
+4. **cube** sucht Gaia-DR3-Vergleichssterne und lässt bekannte Veränderliche weg (Gaia-Flag VARIABLE, AAVSO VSX; optional zusätzlich die Sterne einer AIJ-`.apertures`-Datei). Dann misst es Bild für Bild: Zentroid, Aperturen mit allen Radien, Hintergrund im Ring (sigma-geclippter Median), Fehler (Photonen, Ausleserauschen, Himmel) und den Roh-Peak. Kalibriert wird im Speicher; es entstehen keine Zwischendateien.
+5. **compsearch** wählt zuerst die Frames aus (Sättigung, Ausschlussliste). Dann folgen ein Vorfilter für Vergleichssterne (Streuung oder Trend über 3× Median), die Variabilitätsprüfung jedes Vergleichssterns (siehe „Vergleichssterne auf Variabilität prüfen“), die Messung des Flip-Versatzes und eine gierige Vorwärts-/Rückwärtssuche mit 3–12 Sternen je Radius. Bewertet wird nach der Streuung außerhalb des Transits.
 6. **fit** fittet die Top-Kombinationen je mit fester (ExoClock) und freier Geometrie. Dazu kommen ein Jackknife über die Vergleichssterne, Tests (ohne Daten vor dem Ingress) und eine MCMC mit Beta-Faktor für rotes Rauschen.
 7. **export** schreibt die Upload-Datei und alle Formularwerte.
 8. **report** erstellt die Zusammenfassung und die Diagramme.
@@ -145,6 +145,8 @@ Die Standardwerte stehen in `_pipeline\config.local.toml` (beim ersten Einrichte
 | max_candidates | 30 | maximale Zahl der Gaia-Kandidaten (nach |ΔG| sortiert) |
 | gaia_gmax | 16 | Grenzgröße der Gaia-Abfrage |
 | aij_apertures | "" | AIJ-`.apertures`-Datei; deren Vergleichssterne kommen als C2… dazu |
+| katalog_variable | true | Bekannte Veränderliche gar nicht erst als Kandidaten nehmen: Gaia-Flag VARIABLE und AAVSO VSX (Grund in `candidates_rejected.csv`) |
+| vsx_radius_arcsec | 5 | Abstand für die Zuordnung eines VSX-Eintrags |
 | exclude_stars | [] | Kandidaten, die nie verwendet werden, z. B. `["G06"]` (Gaia VARIABLE, siehe Ergebnisblatt Seite 2). Sie fehlen in Ensemble-Suche, Flip-Versatz, Fit, Export und Bericht. Am besten nur für einen Lauf in `RESULT\<lauf>\lauf.toml` setzen. |
 
 ### [search]
@@ -155,6 +157,10 @@ Die Standardwerte stehen in `_pipeline\config.local.toml` (beim ersten Einrichte
 | top | 50 | Zahl der Kombinationen, die gefittet werden |
 | oot_margin_min | 10 | „außerhalb des Transits“ heißt: vor Ingress bzw. nach Egress, mit diesem Abstand in Minuten |
 | prefilter_sigma | 3 | Vergleichssterne mit Streuung oder Trend über n× Median fliegen raus |
+| variab_check | true | Lichtkurve jedes Vergleichssterns gegen die übrigen prüfen und variable Sterne verwerfen (Bild `vergleichssterne_lc.png`) |
+| variab_sigma | 3 | „variabel“, wenn die Streuung der `variab_bin_min`-Mittel über n× dem Median aller Kandidaten liegt … |
+| variab_beta | 1.5 | … und das rote Rauschen (beta) über diesem Wert liegt |
+| variab_bin_min | 10 | Mittelungsfenster in Minuten für die Kurzzeit-Variabilität |
 | airmass_max | 0 | > 0: Frames über dieser Airmass werden weggelassen (Randpunkte mit starker Systematik, ExoClock-Tipp 6). Die Baseline vor dem Ingress sollte dabei nicht unter ca. 30 min fallen. |
 | symmetry_weight | 0 | > 0: Die Ensemble-Suche bevorzugt Vergleichssterne, die rund um das Ziel verteilt sind: Bewertung = OOT-RMS × (1 + Gewicht × Asymmetrie). Hilft beim Meridian-Flip, weil sich das Flat-Restmuster um 180° dreht (ExoClock-Tipp 4). Asymmetrie 0 = ausgeglichen, 1 = alle auf einer Seite; sie steht auf dem Ergebnisblatt. |
 | exclude_frames | [] | Dateinamen, die ausgeschlossen werden |
@@ -789,4 +795,30 @@ Die Rauschschätzung ist grob, sie dient nur der Rangfolge. Wer `rauschboden_ppt
 **Gaia-Feld wiederverwenden.** Fehlt einem neuen Lauf `gaia_field.csv`, übernimmt `cube` die Datei des jüngsten anderen Laufs derselben Messung (gleiches Feld) und fragt Gaia gar nicht erst ab. Nur die erste Auswertung einer Nacht braucht also Netz.
 
 **Ergebnis KPS-1b.** Siehe Lauf `kps_bayer`: OOT-RMS 4,4 ppt statt 11,5 ppt.
+
+
+## Vergleichssterne auf Variabilität prüfen
+
+Ein Vergleichsstern, der selbst schwankt (Pulsation, Flecken, Flares), verfälscht die relative Lichtkurve des Ziels. Die Prüfung läuft in zwei Stufen.
+
+**Stufe 1: Kataloge (`cube`).** Bekannte Veränderliche werden gar nicht erst Kandidaten: Gaia-DR3-Flag `VARIABLE` und Einträge im AAVSO-Katalog VSX (VizieR `B/vsx/vsx`, innerhalb 5″; Einträge „konstant“ oder „Duplikat“ zählen nicht). Der Grund steht mit Typ, Amplitude und Periode in `candidates_rejected.csv` und im Protokoll. VSX wird wie Gaia über VizieR (CDS, dann Harvard) abgefragt und pro Lauf in `vsx_field.csv` gespeichert. Ist VSX nicht erreichbar, läuft die Auswahl mit einer Warnung ohne VSX weiter. Abschalten: `[comps] katalog_variable = false`.
+
+Die Kataloge sind lückenhaft: Das Gaia-Flag ist für die meisten Sterne leer, und Pulsatoren mit wenigen mmag Amplitude fehlen oft auch in VSX. Ein Stern ohne Katalogeintrag ist also nicht sicher ruhig. Dafür gibt es Stufe 2.
+
+**Stufe 2: eigene Lichtkurve (`compsearch`, wie HOPS und AIJ).** Für jeden Kandidaten wird die Lichtkurve „Stern ÷ Summe der übrigen Kandidaten“ gebildet und mit derselben Basislinie wie der Transitfit detrendet (Airmass, Flip-Stufe). Daraus:
+
+| Kennzahl | Bedeutung |
+|---|---|
+| RMS | Streuung pro Bild (weißes und rotes Rauschen) |
+| 10-min-Streuung | Streuung der 10-Minuten-Mittel: weißes Rauschen mittelt sich weg, Pulsation, Flecken und Flares bleiben |
+| Ruhe | 10-min-Streuung ÷ Median aller Kandidaten; 1 = typisch, 3 = dreimal unruhiger |
+| beta | Rotrausch-Faktor (1 = rein zufällig) |
+
+Ein Stern gilt als **variabel**, wenn Ruhe > `variab_sigma` (3) **und** beta > `variab_beta` (1,5). Weil die Ruhe relativ zum Median ist, macht eine schlechte Nacht nicht alle Sterne „variabel“. Verrauschte und variable Sterne werden in einem zweiten Durchgang aus der Referenz der anderen genommen, damit ein variabler Stern die übrigen nicht ansteckt. Variable Sterne kommen nicht in die Ensemble-Suche; der Grund steht im Protokoll, in `compsearch.json` (`prefilter`), auf Seite 2 des Ergebnisblatts und in `summary.md`. Abschalten: `[search] variab_check = false`.
+
+**Bild `vergleichssterne_lc.png`** (nach `compsearch`, nach `report` mit markiertem Ensemble): ein Feld pro Kandidat, alle auf derselben Skala, das Transitfenster grau. Rot = verworfen, blau = im besten Ensemble, schwarz = brauchbar. In der Oberfläche unter „Vergleichen → Vergleichssterne“ und in „Erweitert → Vergleichssterne“ (Spalte **Ruhe**).
+
+**Grenze.** Eine Schwankung mit Periode viel länger als die Nacht sieht wie ein Trend aus und wird vom Airmass-Term geschluckt; sie ist nur über Kataloge oder mehrere Nächte erkennbar.
+
+**Warum ähnliche Farbe (`color_tol`).** Die Luft dämpft blaues Licht stärker als rotes. In einem breiten Filter (Luminanz, Clear) ändert sich das Verhältnis Ziel ÷ Vergleich deshalb mit der Airmass um etwa k″ × Δ(Farbe) × Airmass. Mit k″ grob 0,01–0,05 mag pro Airmass und Farbeinheit sind das bei ΔBP-RP = 0,5 etwa 5–25 ppt pro Einheit Airmass (Größenordnung, nicht gemessen). Das ist fast linear in der Airmass und wird vom Airmass-Term des Fits aufgefangen. Schleierwolken und Feuchte ändern die Durchlässigkeit aber farbabhängig und unabhängig von der Airmass; das kürzt sich nur bei ähnlicher Farbe heraus. Der Spektraltyp zählt nur indirekt: Sterne im Instabilitätsstreifen (BP-RP etwa 0,2–0,7) sind oft δ-Scuti-Pulsatoren, M-Zwerge zeigen Flares.
 

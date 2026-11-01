@@ -21,6 +21,56 @@ def outlier_lines(m):
     return [head] + [f"  - {x['frame']}  ({(x['bjd_tdb'] % 1) * 24:.2f} h, {x['resid_ppt']:+.1f} ppt, {x['sigma']:+.1f} sigma)" for x in fr]
 
 
+def plot_comp_lcs(m, n, pred, ensemble=(), log=None, name="vergleichssterne_lc.png"):
+    """HOPS-style check of the comparison stars: one panel per candidate, its flux against the sum of the other
+    candidates, detrended (airmass, flip), all on the same scale.  Red = left out (variable/noisy), blue = in the
+    ensemble of the best combination, black = usable.  Needs n.prefilter() first (n.comp_lc)."""
+    cl = getattr(n, "comp_lc", None)
+    if not cl or not len(cl["stars"]):
+        return None
+    st, lc, t = cl["stars"], cl["lc"] * 1e3, cl["t"]
+    pre = {p["name"]: p for p in getattr(n, "prefilter_table", [])}
+    off = float(np.floor(t.min()))
+    h = (t - off) * 24
+    nb = np.floor((t - t.min()) / (cl["bin_min"] / 1440)).astype(int)
+    ub = [b for b in np.unique(nb) if (nb == b).sum() >= 3]
+    hb = np.array([h[nb == b].mean() for b in ub])
+    med = float(np.nanmedian([d["rms_ppt"] for d in st]))
+    lim = max(4 * med, 2.0)
+    N = len(st); nc = 4 if N > 6 else min(N, 3); nr = -(-N // nc)
+    fig, axs = plt.subplots(nr, nc, figsize=(3.6 * nc, 2.3 * nr + 0.9), sharex=True, sharey=True, squeeze=False)
+    for k, (d, y) in enumerate(zip(st, lc)):
+        a = axs[k // nc][k % nc]
+        p = pre.get(d["name"], {})
+        rej, ens = bool(p.get("rejected")), d["name"] in ensemble
+        col = "C3" if rej else "C0" if ens else "0.15"
+        a.plot(h, np.clip(y, -lim * 0.98, lim * 0.98), ".", color="0.65", ms=2)
+        a.plot(hb, [y[nb == b].mean() for b in ub], "o-", color=col, ms=3, lw=1)
+        if pred:
+            a.axvspan((pred["ingress"] - off) * 24, (pred["egress"] - off) * 24, color="0.92", zorder=0)
+        a.axhline(0, color="0.5", lw=.6)
+        a.set_ylim(-lim, lim)
+        tag = "VARIABEL" if p.get("variabel") else "verworfen" if rej else "Ensemble" if ens else ""
+        a.set_title(f"{d['name']}{'  ' + tag if tag else ''}\nRMS {d['rms_ppt']:.1f} | {cl['bin_min']:.0f}-min {d['bin_ppt']:.2f} ppt"
+                    f" | Ruhe {d['ruhe']:.1f} | beta {d['beta']:.1f}", fontsize=7.5, color=col)
+        for sp in a.spines.values():
+            sp.set_edgecolor(col); sp.set_linewidth(1.6 if (rej or ens) else .8)
+    for k in range(N, nr * nc):
+        axs[k // nc][k % nc].axis("off")
+    for a in axs[-1]:
+        a.set_xlabel(f"BJD_TDB - {off:.0f} [h]", fontsize=8)
+    for row in axs:
+        row[0].set_ylabel("ppt", fontsize=8)
+    fig.suptitle(f"Vergleichssterne einzeln: Stern / Summe der uebrigen, Airmass/Flip detrendet ({n.r_text(cl['radius'])}). "
+                 f"Grau = Transitfenster. Ruhe = Streuung der {cl['bin_min']:.0f}-min-Mittel / Median aller; "
+                 f"VARIABEL ab Ruhe > {cl['sigma']:g} und beta > {cl['beta']:g}", fontsize=8.5)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    fig.savefig(m.path(name), dpi=110); plt.close(fig)
+    if log:
+        log(f"Vergleichssterne einzeln: {name}")
+    return name
+
+
 def make_report(m, n, c, log):
     fr = json.load(open(m.path("fit.json"), encoding="utf-8"))
     inv = json.load(open(m.path("inventory.json"), encoding="utf-8"))
@@ -96,6 +146,10 @@ def make_report(m, n, c, log):
     a.set_title(f"FWHM pro Bild (Vergleichssterne) und Apertur des besten Ensembles (rot): {n.r_text(best['radius'])}", fontsize=9)
     a.legend(fontsize=8, loc="upper left")
     fig.tight_layout(); fig.savefig(m.path("fwhm.png"), dpi=120); plt.close(fig)
+    try:
+        plot_comp_lcs(m, n, pred, best["comps"])
+    except Exception as e:
+        log(f"  [WARN] vergleichssterne_lc.png nicht erstellt: {e}")
     ts = fr["top_summary"]
     md = [f"# {inv['planet']['name']} - Nacht {inv['date_first'][:10]}", "",
           f"Erzeugt mit `transit` aus `{m.lights}`. Lights unveraendert (Pruefsummen vor/nach jedem Schritt).", "",
@@ -119,10 +173,18 @@ def make_report(m, n, c, log):
         md += ["", "## Linearitaet (helle Vergleichssterne vs. schwaches Ensemble, gutes Seeing)", "",
                "| Peak | n | Median [ppt] | Fehler |", "|---|---|---|---|"] + [
             f"| {t['bin']} | {t['n']} | {t['median_ppt']:+.2f} | {t['sem_ppt']:.2f} |" for t in lin["table"]]
-    md += ["", "Plots: lightcurve.png, tc_hist.png, linearity.png, flip_offset.png. Daten: fit.json, top50.csv, compsearch.json."]
+    cl = getattr(n, "comp_lc", None)
+    if cl:
+        md += ["", f"## Vergleichssterne einzeln (Stern / Summe der uebrigen, {cl['bin_min']:.0f}-min-Mittel)", "",
+               "| Stern | RMS [ppt] | Mittel-Streuung [ppt] | Ruhe | beta | Status |", "|---|---|---|---|---|---|"] + [
+            f"| {d['name']} | {d['rms_ppt']:.2f} | {d['bin_ppt']:.2f} | {d['ruhe']:.1f} | {d['beta']:.2f} | "
+            f"{p['grund'] or ('Ensemble' if d['name'] in best['comps'] else 'ok')} |"
+            for d, p in zip(cl["stars"], n.prefilter_table)]
+    md += ["", "Plots: lightcurve.png, tc_hist.png, linearity.png, flip_offset.png, vergleichssterne_lc.png. "
+               "Daten: fit.json, top50.csv, compsearch.json."]
     md += ["", "Ergebnisblatt: ergebnisblatt.png / .pdf / .html (auch in exoclock_paket\\)."]
     with open(m.path("summary.md"), "w", encoding="utf-8") as fh:
         fh.write("\n".join(md) + "\n")
-    log("Bericht: summary.md, lightcurve.png, tc_hist.png, linearity.png, flip_offset.png")
+    log("Bericht: summary.md, lightcurve.png, tc_hist.png, linearity.png, flip_offset.png, vergleichssterne_lc.png")
     from .ergebnisblatt import make_sheet
     make_sheet(m, n, c, log)

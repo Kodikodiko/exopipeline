@@ -78,6 +78,22 @@ def select(m, headers, epoch_jyear, target):
     if sep[it] > 5:
         raise SystemExit(f"Kein Gaia-Stern innerhalb 5\" der Zielkoordinaten (naechster {sep[it]:.1f}\")")
     Gt, ct = G[it], bprp[it]
+    # known variables: Gaia DR3 flag (already in the table) and AAVSO VSX
+    kat = bool(cc.get("katalog_variable", True))
+    gvar = np.zeros(len(ra), bool)
+    if kat and "phot_variable_flag" in g.colnames:
+        gvar = np.array([str(v).strip().upper().startswith("VARIABLE") for v in g["phot_variable_flag"]])
+    vsx_why = [""] * len(ra)
+    if kat:
+        from . import varkat
+        w0 = WCS(h0)
+        c0 = w0.pixel_to_world(nx / 2, ny / 2)
+        scale = abs(h0.get("CDELT1", 0)) or np.sqrt(abs(np.linalg.det(w0.pixel_scale_matrix)))
+        win = np.array([Gt + cc["dmag_bright"] <= x <= Gt + cc["dmag_faint"] for x in G])
+        vsx = varkat.vsx_field(m, c0.ra.deg, c0.dec.deg, 0.5 * np.hypot(nx, ny) * scale + 0.02, log=print)
+        idx = np.where(win)[0]
+        for i, t_ in zip(idx, varkat.match(vsx, ra[idx], de[idx], float(cc.get("vsx_radius_arcsec", 5.0)))):
+            vsx_why[i] = t_
     rows = []
     for i in range(len(ra)):
         if i == it or not (Gt + cc["dmag_bright"] <= G[i] <= Gt + cc["dmag_faint"]):
@@ -91,6 +107,10 @@ def select(m, headers, epoch_jyear, target):
             why.append(f"{nb.sum()} Nachbar(n) innerhalb {d[nb].min():.0f}px")
         if not np.isfinite(bprp[i]) or abs(bprp[i] - ct) > cc["color_tol"]:
             why.append(f"BP-RP {bprp[i]:.2f}")
+        if gvar[i]:
+            why.append("Gaia VARIABLE")
+        if vsx_why[i]:
+            why.append(vsx_why[i])
         rows.append(dict(source_id=int(g["source_id"][i]), ra=ra[i], dec=de[i], G=G[i], bp_rp=bprp[i], dG=G[i] - Gt,
                          edge_px=edge[i], ok=not why, reasons="; ".join(why)))
     sel = [dict(name="T1", role="target", source_id=int(g["source_id"][it]), ra=target.ra.deg, dec=target.dec.deg,
@@ -110,13 +130,18 @@ def select(m, headers, epoch_jyear, target):
     for n, r in enumerate(ok, 1):
         sel.append(dict(name=f"G{n:02d}", role="gaia_comp", source_id=r["source_id"], ra=r["ra"], dec=r["dec"], G=r["G"],
                         bp_rp=r["bp_rp"], reasons=f"dG={r['dG']:+.2f}, dFarbe={r['bp_rp'] - ct:+.2f}, Rand {r['edge_px']:.0f}px"))
+    nv = [r for r in rows if "Gaia VARIABLE" in r["reasons"] or "VSX " in r["reasons"]]
+    if kat:
+        print(f"  Bekannte Veraenderliche im Helligkeitsfenster verworfen: {len(nv)}"
+              + "".join(f"\n    Gaia {r['source_id']} G {r['G']:.2f}: {r['reasons']}" for r in nv))
     with open(m.path("candidates.csv"), "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(sel[0].keys())); w.writeheader(); w.writerows(sel)
     with open(m.path("candidates_rejected.csv"), "w", newline="") as fh:
         rej = [r for r in rows if not r["ok"]]
         if rej:
             w = csv.DictWriter(fh, fieldnames=list(rej[0].keys())); w.writeheader(); w.writerows(rej)
-    return sel, dict(n_gaia=len(ra), n_window=len(rows), n_ok=sum(r["ok"] for r in rows), target_gaia=sel[0]["source_id"])
+    return sel, dict(n_gaia=len(ra), n_window=len(rows), n_ok=sum(r["ok"] for r in rows), n_variable=len(nv),
+                     target_gaia=sel[0]["source_id"])
 
 
 def load(m):

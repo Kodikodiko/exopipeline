@@ -285,6 +285,14 @@ def cmd_compsearch(m, a):
     log(f"Frames: {n.info['frames_used']} von {n.info['frames_total']} (Liste {n.info['excluded_list']}, "
         f"Saettigung {n.info['excluded_saturation']}); OOT {n.info['n_oot']} ({n.info['n_oot_pre']} vor / {n.info['n_oot_post']} nach)")
     log(f"Gesaettigte Vergleichssterne entfernt: {n.dropped_saturating}; Vorfilter verworfen: {rej}; Pool {len(n.pool)}")
+    for p_ in n.prefilter_table:
+        if p_["variabel"]:
+            log(f"  {p_['name']}: {p_['grund']}")
+    try:
+        from .report import plot_comp_lcs
+        plot_comp_lcs(m, n, pred, log=log)
+    except Exception as e:                                 # a plot must never stop the run
+        log(f"  [WARN] vergleichssterne_lc.png nicht erstellt: {e}")
     fl = n.flip_offsets()
     if fl:
         log(f"Flip-Versatz Ziel (Vorhersage aus {fl['n_stars']} Sternen): {fl['target_pred_ppt']:+.2f} +- {fl['scatter_ppt']:.2f} ppt")
