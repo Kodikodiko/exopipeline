@@ -803,7 +803,7 @@ function kandTabelle(K,edit){
       return `<tr>${edit?`<td><input type="checkbox" aria-label="${esc(k.name)} verwenden" style="width:18px;height:18px" ${ex.has(k.name)?'':'checked'} onchange="sternUmschalten('${esc(k.name)}',this.checked)"></td>`:''}<td>${esc(k.name)}${k.im_ensemble?' *':''}</td><td>${komma(k.G,1)}</td><td>${komma(k.bp_rp,2)}</td><td>${ru}</td><td>${va}</td><td>${rh}</td><td>${tw}</td></tr>`; }).join('')+
     '</tbody></table></div><span class="hint">* im Ensemble des Laufs. Ruhe = Streuung des Sterns gegen die übrigen Kandidaten (10-min-Mittel) geteilt durch den Median aller, 1 = typisch. Bekannte Veränderliche (Gaia, VSX) sind schon bei der Auswahl verworfen. Vorschlag: eigene Lichtkurve variabel und Transitfenster über 3 σ sind abgewählt.</span>';
 }
-function lcBild(K,p,l,offen){ if(!K.lcbild) return ''; const u=datei(p,l,'vergleichssterne_lc.png');
+function lcBild(K,p,l,offen){ if(!K.lcbild) return K.kandidaten.some(k=>k.ruhe!=null)?'':'<p class="hint">Ruhe-Werte und das Bild mit der Lichtkurve jedes Vergleichssterns gibt es erst für Läufe ab dem 1. November 2026. Dieser Lauf ist älter. Starte ihn neu, um sie zu sehen.</p>'; const u=datei(p,l,'vergleichssterne_lc.png');
   return `<details ${offen?'open':''}><summary style="cursor:pointer;font-size:13px">Lichtkurve jedes Vergleichssterns (gegen die übrigen)</summary><a href="${u}" target="_blank"><img class="blatt" style="margin-top:8px" alt="Lichtkurven der einzelnen Vergleichssterne" src="${u}&t=${Date.now()}"></a></details>`; }
 function sternUmschalten(n,an){ const s=new Set(S.erw.exclude||[]); if(an) s.delete(n); else s.add(n); S.erw.exclude=[...s]; erwMarkieren(); }
 
