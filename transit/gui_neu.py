@@ -354,7 +354,8 @@ let S={liste:[],filter:'alle',such:'',pfad:null,M:null,lauf:null,L:null,erw:{},m
 function lsGet(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 async function api(url,body){
-  const r=await fetch(url,body===undefined?{}:{method:'POST',headers:H,body:JSON.stringify(body)});
+  let r; try{ r=await fetch(url,body===undefined?{}:{method:'POST',headers:H,body:JSON.stringify(body)}); }
+  catch(e){ return {fehler:'Keine Antwort von der Oberfläche (Fenster „Transit GUI“ noch offen?)'}; }
   let j={}; try{j=await r.json();}catch(e){j={fehler:'Antwort nicht lesbar ('+r.status+')'};}
   return j;
 }
@@ -708,7 +709,7 @@ async function ladeSterne(p,s,key){
   const t0=Date.now();
   const tick=()=>{ const b=box(); if(!b||S.kc[key]) return clearInterval(iv);
     const sek=Math.round((Date.now()-t0)/1000);
-    b.innerHTML=`<span class="hint">lade Vergleichssterne … ${sek} s${sek>=5?' (beim ersten Öffnen eines Laufs werden fehlende Gaia-Angaben nachgeladen, danach ist es gespeichert)':''}</span>`; };
+    b.innerHTML=`<span class="hint">lade Vergleichssterne … ${sek} s</span>`; };
   const iv=setInterval(tick,1000); tick();
   const K=await api(`/api/kandidaten?pfad=${encodeURIComponent(p)}&lauf=${encodeURIComponent(s)}`);
   clearInterval(iv);
