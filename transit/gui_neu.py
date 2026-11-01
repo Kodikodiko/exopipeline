@@ -290,7 +290,7 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
     <h2 style="font-size:18px">Mehr</h2>
     <a href="/handbuch" target="_blank">Handbuch (HANDBUCH.md)</a>
     <a href="/klassisch">Klassische Oberfläche öffnen</a>
-    <span class="hint" style="font-size:13px">Die klassische Oberfläche bleibt immer erreichbar: unter /klassisch, mit <span class="mono">transit gui --klassisch</span> oder per Doppelklick auf <span class="mono">transit_gui_klassisch.cmd</span>.</span>
+    <span class="hint" style="font-size:13px">Die klassische Oberfläche bleibt immer erreichbar: unter /klassisch oder mit <span class="mono">transit gui --klassisch</span>.</span>
    </section>
   </div>
  </main>
@@ -365,7 +365,8 @@ let S={liste:[],filter:'alle',such:'',pfad:null,M:null,lauf:null,L:null,erw:{},m
 function lsGet(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
 async function api(url,body){
-  const r=await fetch(url,body===undefined?{}:{method:'POST',headers:H,body:JSON.stringify(body)});
+  let r; try{ r=await fetch(url,body===undefined?{}:{method:'POST',headers:H,body:JSON.stringify(body)}); }
+  catch(e){ return {fehler:'Keine Antwort von der Oberfläche (Fenster „Transit GUI“ noch offen?)'}; }
   let j={}; try{j=await r.json();}catch(e){j={fehler:'Antwort nicht lesbar ('+r.status+')'};}
   return j;
 }
@@ -748,7 +749,7 @@ async function ladeSterne(p,s,key){
   const t0=Date.now();
   const tick=()=>{ const b=box(); if(!b||S.kc[key]) return clearInterval(iv);
     const sek=Math.round((Date.now()-t0)/1000);
-    b.innerHTML=`<span class="hint">lade Vergleichssterne … ${sek} s${sek>=5?' (beim ersten Öffnen eines Laufs werden fehlende Gaia-Angaben nachgeladen, danach ist es gespeichert)':''}</span>`; };
+    b.innerHTML=`<span class="hint">lade Vergleichssterne … ${sek} s</span>`; };
   const iv=setInterval(tick,1000); tick();
   const K=await api(`/api/kandidaten?pfad=${encodeURIComponent(p)}&lauf=${encodeURIComponent(s)}`);
   clearInterval(iv);

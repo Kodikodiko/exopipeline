@@ -254,7 +254,7 @@ def _candidates(p, lauf, d):
         from .config import Measurement
         from .feld import gaia_details
         det = gaia_details(Measurement(p, lauf), [r["source_id"] for r in rows], print, netz=False)   # no waiting on Gaia here
-    except Exception as e:
+    except (Exception, SystemExit) as e:                   # SystemExit: lights moved away (Measurement needs them)
         print("Gaia:", e)
     pre = {}
     cj = os.path.join(d, "compsearch.json")
@@ -865,7 +865,7 @@ class H(BaseHTTPRequestHandler):
                 self.wfile.write(b)
             else:
                 self.send_error(404)
-        except Exception as e:
+        except (Exception, SystemExit) as e:               # SystemExit (e.g. Measurement) would drop the connection unanswered
             self._json(dict(fehler=str(e)), 500)
 
     def do_POST(self):
@@ -920,7 +920,7 @@ class H(BaseHTTPRequestHandler):
                 self._json(dict(ok=True))
             else:
                 self.send_error(404)
-        except Exception as e:
+        except (Exception, SystemExit) as e:
             self._json(dict(ok=False, fehler=str(e)), 400)
 
 
