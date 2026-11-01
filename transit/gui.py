@@ -123,10 +123,14 @@ def lights_folder(p):
     """Folder with the lights of the measurement shown as p (may be the NAS copy when p only holds results)."""
     if find_lights(p) and any(f.lower().endswith(FITS_EXT) for f in os.listdir(find_lights(p))):
         return p
-    from .finden import all_measurements
+    from .finden import all_measurements, copies
     for e in grouped(all_measurements(False, log=lambda *x: None)):
         if os.path.normcase(p) in {os.path.normcase(x) for x in e["alle"]} and e["n_lights"]:
             return e["lights_pfad"]
+    for c in copies(p):                                    # archive path from the logbook, same folder name locally/NAS
+        ld = find_lights(c)                                # (rebuilds an old NAS list once)
+        if ld and any(f.lower().endswith(FITS_EXT) for f in os.listdir(ld)):
+            return c
     return p
 
 
@@ -353,7 +357,9 @@ def start_run(q, launch=None):
     if not listable(p):
         raise ValueError(f"kein Messordner: {p}")
     if not has_fits(find_lights(p)) and not lights_elsewhere(p):
-        raise ValueError(f"Zu {p} wurden keine Lights gefunden, weder dort noch am NAS. NAS verbunden? 'Ordner waehlen...' oder 'Suchen' benutzen.")
+        from .finden import nas_root
+        raise ValueError(f"Zu {p} wurden keine Lights gefunden, weder dort noch am NAS ({nas_root() or 'kein [paths] archiv_wurzel'}). "
+                         "NAS verbunden? Sonst 'Ordner waehlen...' oder 'Suchen' benutzen.")
     lauf = (q.get("lauf") or time.strftime("gui_%Y%m%d_%H%M")).strip()
     if not lauf.replace("_", "").replace("-", "").isalnum():
         raise ValueError("Laufname nur aus Buchstaben, Ziffern, _ und -")
