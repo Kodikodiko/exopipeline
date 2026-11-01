@@ -77,3 +77,11 @@ Geschätzter Aufwand: ½ Sitzung.
 - Derzeit sucht `draw_page` nur in `SOLVED\` und `LIGHTS` des Messordners; fehlt die Datei dort, bricht es mit `StopIteration` ab.
 - Umsetzung: gemeinsame Suchfunktion für Frames, die nacheinander lokal, dann den im Logbuch vermerkten Archivpfad und zuletzt `[paths] archiv_wurzel` prüft (wie `resolve(…, nas)` für Messordner). Nur die benötigte Datei lesen, nichts zurückkopieren.
 - NAS nicht erreichbar → verständliche Meldung („NAS verbunden?“) statt Absturz; Ergebnisblatt notfalls ohne Feldbild erzeugen.
+
+## Später: Transit-Skizze im Ergebnisblatt realistisch und aus den Messwerten
+Geschätzter Aufwand: ½–1 Sitzung.
+- Anlass: Die Skizze (rechts oben im Ergebnisblatt) sieht von Lauf zu Lauf praktisch gleich aus, obwohl sich die Werte ändern; vor allem `b` bleibt immer gleich.
+- Ursache: Der MCMC-Fit hält die Geometrie (a/R*, i) auf den Literaturwerten fest; die Skizze rechnet `b = a/R* · cos i` aus dieser festen Geometrie (`b_fix` in `ergebnisblatt.py`). `b` ist damit für einen Planeten immer derselbe Literaturwert. Rp/R* kommt zwar aus dem Fit, ändert sich zwischen Läufen aber nur um wenige Prozent und ist im Bild kaum zu sehen.
+- `b` korrekt darstellen: zusätzlich das `b` aus dem freien Geometrie-Fit (`ff["ars"]`, `ff["inc"]`) mit Fehlerband einzeichnen und klar beschriften („b Literatur“ vs. „b gemessen ± σ“); ist der freie Fit unbestimmt (großer Fehler), nur den Literaturwert zeigen und das dazuschreiben.
+- Realistischer Stern: Farbe aus der Sterntemperatur (T_eff aus NASA/ExoClock) statt fester Orange-Palette, Randverdunkelung mit den tatsächlichen Koeffizienten des Fits (bereits so) und weniger gesättigt; Planet als Scheibe mit Größe Rp/R* aus dem Fit, Transitsehne als Spur über die ganze Sternscheibe.
+- Größenverhältnisse: Stern, Planet, Jupiter und Erde maßstabsgetreu (bereits über R* aus der Literatur); bei Bedarf Zahlen dazu (Rp in R_Jup, Tiefe in ‰) und optional die Literatur-Rp/R* als Umriss zum Vergleich mit dem gemessenen Wert.
