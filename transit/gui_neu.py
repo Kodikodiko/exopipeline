@@ -95,15 +95,19 @@ tr.click{cursor:pointer}
 img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;background:#fff}
 .bbox{position:relative;display:inline-block;max-width:100%;line-height:0}
 .bbox>a{display:block}
-.hz{position:absolute;border:0;padding:0;margin:0;background:transparent;cursor:help;border-radius:3px}
-.hz:hover,.hz:focus-visible,.hz.on{background:rgba(37,99,235,.07);outline:1px solid rgba(37,99,235,.35)}
-.hz>i{position:absolute;top:2px;right:2px;width:15px;height:15px;border-radius:50%;font:600 10px/15px system-ui,sans-serif;font-style:normal;
-  text-align:center;color:#fff;background:rgba(37,99,235,.75);opacity:0;transition:opacity .15s}
-.hz.c>i{width:12px;height:12px;font-size:8.5px;line-height:12px;top:1px;right:1px}
-.bbox:hover .hz>i,.hz:focus-visible>i,.hz.on>i{opacity:.8}
+.hz{position:absolute;pointer-events:none;border-radius:3px}
+.hz.on{background:rgba(37,99,235,.07);outline:1px solid rgba(37,99,235,.35)}
+.hz>button{position:absolute;top:2px;right:2px;width:15px;height:15px;padding:0;border:0;border-radius:50%;cursor:pointer;pointer-events:auto;
+  font:600 10px/15px system-ui,sans-serif;text-align:center;color:#fff;background:rgba(37,99,235,.75);opacity:0;transition:opacity .15s}
+.hz.c>button{width:12px;height:12px;font-size:8.5px;line-height:12px;top:1px;right:1px}
+.bbox:hover .hz>button,.hz>button:focus-visible,.hz.on>button{opacity:.85}
 .hpop{position:absolute;z-index:30;max-width:340px;padding:10px 12px;border-radius:8px;background:var(--card,#fff);color:var(--fg,#111);
   border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.18);font-size:13px;line-height:1.45;text-align:left;pointer-events:none}
 .hpop b{display:block;margin-bottom:3px}
+.thi{display:inline-block;margin-left:4px;width:14px;height:14px;border-radius:50%;border:0;padding:0;vertical-align:1px;cursor:help;
+  font:600 9.5px/14px system-ui,sans-serif;text-align:center;color:var(--acc2,#2563eb);background:var(--accsoft,#e8efff);opacity:.55}
+.thi:hover,.thi:focus-visible,.thi.on{opacity:1}
+.hpop.fix{position:fixed;z-index:1000}
 /* drawer */
 #scrim{position:fixed;inset:0;background:rgba(10,14,20,.35);z-index:20}
 #drawer{position:fixed;top:0;right:0;bottom:0;width:min(720px,100%);background:var(--card);border-left:1px solid var(--line);z-index:21;display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(0,0,0,.12)}
@@ -715,8 +719,71 @@ function zeigeBlatt(){
   }
   B.querySelectorAll('[data-tab]').forEach(d=>d.hidden=d.dataset.tab!==S.tab);
 }
+// Help on table column heads: every <th> whose text is in SPALTE gets a small (i); only a click on it shows the text.
+// A MutationObserver also covers tables built later (run comparison, comparison stars, plan).
+const SPALTE={
+  'Lauf':'Name des Laufs (Ordner unter RESULT). gui_<Datum>_<Zeit>_<Kalibrierung>.',
+  'Zustand':'Fertig, läuft, wartet oder mit Fehler beendet.',
+  'Kalibr.':'Kalibrierung der Lights: raw (keine), f (nur Flat), bf (Bias + Flat), bfd (Bias + Flat + Dark).',
+  'O-C':'Gemessene minus vorhergesagte Transitmitte in Minuten, mit Fehler. Nahe 0 innerhalb des Fehlers: Ephemeride bestätigt.',
+  'OOT-RMS':'Streuung der Lichtkurve außerhalb des Transits (Promille). Je kleiner, desto ruhiger die Messung; der kleinste Wert ist markiert.',
+  'β':'Faktor für rotes (zeitlich korreliertes) Rauschen. 1 = nur weißes Rauschen; größere Werte vergrößern die Fehler entsprechend.',
+  'Drift':'ExoClock-Kriterium: Abweichung von Rp/R* vom Literaturwert in Einheiten des Fehlers. Grün unter 2, gelb 2–3, rot ab 3.',
+  'Rp/Rs':'Gemessener Planetenradius relativ zum Sternradius (aus der Transittiefe).',
+  'Ausreißer':'Wie viele Messpunkte das Sigma-Clipping gegen den Transit-Fit entfernt hat (Schwelle in ausreisser.json).',
+  'Prüfungen':'Ergebnis der automatischen Prüfungen: Planung (Baseline, Airmass, Flip), Drift und Konvergenz (R-hat).',
+  'Planet':'Planet in ExoClock-Schreibweise.',
+  'Nacht':'Beobachtungsnacht (Datum des Abends).',
+  'Status':'gültig = der Lauf, der für diese Nacht zählt (Upload, O-C-Diagramm); variante = weitere Auswertung derselben Nacht.',
+  'Tiefe':'Transittiefe in Promille (Modell mit Randverdunkelung).',
+  'Upload-Datei':'Datei für den ExoClock-Upload dieses Laufs.',
+  'an':'Haken = Stern darf ins Ensemble der Vergleichssterne. Abgewählte Sterne schließt der nächste Lauf aus.',
+  'Stern':'Kandidat für die Vergleichssterne (interne Nummer). * = im Ensemble dieses Laufs.',
+  'G':'Gaia-G-Helligkeit in mag. Ideal: ähnlich hell wie der Zielstern.',
+  'BP-RP':'Gaia-Farbe (blau minus rot). Größer = röter. Ähnliche Farbe wie das Ziel verringert Airmass-Effekte.',
+  'RUWE':'Gaia-Astrometriegüte. Über 1,4 (gelb): möglicherweise Doppelstern.',
+  'Gaia':'Variabilitätskennung aus Gaia/VSX. VARIABLE = bekannter Veränderlicher, ungeeignet.',
+  'Ruhe':'Streuung des Sterns gegen die übrigen Kandidaten (10-min-Mittel), geteilt durch den Median aller. 1 = typisch, über 2 auffällig.',
+  'Transitfenster':'Scheinbarer „Transit“ dieses Sterns im Zeitfenster des Planeten (ppt ± Fehler). Sollte null sein; über 3 σ rot.',
+  'Score':'Gesamtwertung des Vorschlags aus ExoClock-Priorität, Signal-Rausch-Verhältnis, Abdeckung und Wetter.',
+  'Prio':'ExoClock-Priorität: alert, high, medium, low.',
+  'mag':'Helligkeit des Sterns (V, mag).',
+  'Tiefe ppt':'Erwartete Transittiefe in Promille.',
+  'SNR':'Erwartetes Signal-Rausch-Verhältnis des Transits mit deinem Teleskop (Rauschmodell: Photonen, Himmel, Szintillation).',
+  'Beobachten':'Empfohlenes Beobachtungsfenster inklusive Baseline vor und nach dem Transit (Ortszeit).',
+  'Ingress / Tc / Egress':'Vorhergesagter Beginn, Mitte (mit Unsicherheit) und Ende des Transits.',
+  'X max':'Größte Airmass im Beobachtungsfenster. Unter 2 ist gut.',
+  'Wolken':'Vorhergesagte mittlere Bewölkung im Fenster.',
+  'RA / Dec':'Himmelskoordinaten des Sterns (J2000).',
+  'Hinweise':'Warnungen zur Planung, z. B. kurze Baseline, Meridian-Flip, wenige Vergleichssterne.'
+};
+let thPop=null, thFest=null;
+function thZeige(b){
+  if(!thPop){ thPop=document.createElement('div'); thPop.className='hpop fix'; thPop.setAttribute('role','tooltip'); document.body.appendChild(thPop); }
+  thPop.innerHTML=`<b>${esc(b.dataset.titel)}</b>${esc(SPALTE[b.dataset.titel])}`; thPop.hidden=false;
+  const r=b.getBoundingClientRect(), w=Math.min(340,innerWidth-16);
+  thPop.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';
+  thPop.style.top=(r.bottom+6+thPop.offsetHeight>innerHeight?r.top-thPop.offsetHeight-6:r.bottom+6)+'px';
+}
+function thWeg(){ if(thPop&&!thFest) thPop.hidden=true; }
+function spaltenHilfe(root){
+  (root.querySelectorAll?root:document).querySelectorAll('th:not([data-hilfe])').forEach(th=>{
+    const t=th.textContent.trim(); th.dataset.hilfe='1'; if(!SPALTE[t]) return;
+    th.removeAttribute('title');
+    th.insertAdjacentHTML('beforeend',`<button type="button" class="thi" data-titel="${esc(t)}" aria-label="Erklärung: ${esc(t)}">i</button>`);
+    const b=th.lastElementChild;
+    b.addEventListener('click',ev=>{ ev.stopPropagation(); if(thFest) thFest.classList.remove('on');
+      if(thFest===b){ thFest=null; thWeg(); return; } thFest=b; b.classList.add('on'); thZeige(b); });
+  });
+}
+document.addEventListener('click',()=>{ if(thFest){ thFest.classList.remove('on'); thFest=null; thWeg(); } });
+addEventListener('scroll',()=>{ if(thPop&&!thPop.hidden){ if(thFest){ thFest.classList.remove('on'); thFest=null; } thPop.hidden=true; } },true);
+new MutationObserver(ms=>{ for(const m of ms) for(const n of m.addedNodes) if(n.nodeType===1) spaltenHilfe(n); })
+  .observe(document.documentElement,{childList:true,subtree:true});
+addEventListener('DOMContentLoaded',()=>spaltenHilfe(document));
+
 // Help on the result sheet: ergebnisblatt_hilfe.json holds rectangles (fractions of the PNG) with title and text; each
-// becomes an invisible area over the image with a small (i) that shows on hover over the sheet.  Hover or click shows the text.
+// gets a small (i) in its corner, visible while the mouse is over the sheet.  Only a click on the (i) shows the text.
 async function ladeHilfe(p,s,key,v){
   let H; try{ const r=await fetch(datei(p,s,'ergebnisblatt_hilfe.json')+'&v='+v); if(!r.ok) return; H=await r.json(); }catch(e){ return; }
   const B=$('blatt'); if(B.dataset.key!==key) return;
@@ -724,23 +791,20 @@ async function ladeHilfe(p,s,key,v){
     const L=H[bx.dataset.hilfe]||[]; if(!L.length) return;
     const pct=x=>(100*x).toFixed(2)+'%';
     bx.insertAdjacentHTML('beforeend',L.map((h,i)=>{ const [x0,y0,x1,y1]=h.r;
-      return `<button type="button" class="hz${h.art==='block'?'':' c'}" data-i="${i}" aria-label="Hilfe: ${esc(h.titel)}" style="left:${pct(x0)};top:${pct(y0)};width:${pct(x1-x0)};height:${pct(y1-y0)}"><i aria-hidden="true">i</i></button>`; }).join(''));
-    let pop=null, fest=null;
-    const zeige=(b)=>{ const h=L[+b.dataset.i]; if(!pop){ pop=document.createElement('div'); pop.className='hpop'; pop.setAttribute('role','tooltip'); bx.appendChild(pop); }
+      return `<div class="hz${h.art==='block'?'':' c'}" style="left:${pct(x0)};top:${pct(y0)};width:${pct(x1-x0)};height:${pct(y1-y0)}"><button type="button" data-i="${i}" aria-label="Erklärung: ${esc(h.titel)}" aria-expanded="false">i</button></div>`; }).join(''));
+    let pop=null, offen=null;
+    const zu=()=>{ if(offen){ offen.parentNode.classList.remove('on'); offen.setAttribute('aria-expanded','false'); offen=null; } if(pop) pop.hidden=true; };
+    const auf=b=>{ const h=L[+b.dataset.i], z=b.parentNode;
+      if(!pop){ pop=document.createElement('div'); pop.className='hpop'; pop.setAttribute('role','tooltip'); bx.appendChild(pop); }
       pop.innerHTML=`<b>${esc(h.titel)}</b>${esc(h.text)}`; pop.hidden=false;
-      const W=bx.clientWidth, x=b.offsetLeft, y=b.offsetTop+b.offsetHeight+6, w=Math.min(340,W-8);
-      pop.style.left=Math.max(4,Math.min(x,W-w-4))+'px'; pop.style.top=(y+pop.offsetHeight>bx.clientHeight&&b.offsetTop>pop.offsetHeight+6?b.offsetTop-pop.offsetHeight-6:y)+'px'; };
-    const weg=()=>{ if(pop&&!fest) pop.hidden=true; };
-    bx.querySelectorAll('.hz').forEach(b=>{
-      b.addEventListener('mouseenter',()=>{ if(!fest) zeige(b); });
-      b.addEventListener('mouseleave',weg);
-      b.addEventListener('focus',()=>{ if(!fest) zeige(b); }); b.addEventListener('blur',weg);
-      b.addEventListener('click',ev=>{ ev.preventDefault(); ev.stopPropagation();
-        if(fest===b){ fest=null; b.classList.remove('on'); weg(); return; }
-        if(fest) fest.classList.remove('on'); fest=b; b.classList.add('on'); zeige(b); });
-    });
-    document.addEventListener('click',function zu(ev){ if(!bx.isConnected) return document.removeEventListener('click',zu);
-      if(fest&&!bx.contains(ev.target)){ fest.classList.remove('on'); fest=null; weg(); } });
+      const W=bx.clientWidth, x=z.offsetLeft, y=z.offsetTop+z.offsetHeight+6, w=Math.min(340,W-8);
+      pop.style.left=Math.max(4,Math.min(x,W-w-4))+'px';
+      pop.style.top=(y+pop.offsetHeight>bx.clientHeight&&z.offsetTop>pop.offsetHeight+6?z.offsetTop-pop.offsetHeight-6:y)+'px';
+      offen=b; z.classList.add('on'); b.setAttribute('aria-expanded','true'); };
+    bx.querySelectorAll('.hz>button').forEach(b=>b.addEventListener('click',ev=>{ ev.preventDefault(); ev.stopPropagation();
+      const war=offen===b; zu(); if(!war) auf(b); }));
+    document.addEventListener('click',function weg(ev){ if(!bx.isConnected) return document.removeEventListener('click',weg);
+      if(offen&&!(pop&&pop.contains(ev.target))) zu(); });
   });
 }
 async function ladeSterne(p,s,key){
