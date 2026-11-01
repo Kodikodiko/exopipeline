@@ -51,8 +51,13 @@ def plot_comp_lcs(m, n, pred, ensemble=(), log=None, name="vergleichssterne_lc.p
         a.axhline(0, color="0.5", lw=.6)
         a.set_ylim(-lim, lim)
         tag = "VARIABEL" if p.get("variabel") else "verworfen" if rej else "Ensemble" if ens else ""
-        a.set_title(f"{d['name']}{'  ' + tag if tag else ''}\nRMS {d['rms_ppt']:.1f} | {cl['bin_min']:.0f}-min {d['bin_ppt']:.2f} ppt"
-                    f" | Ruhe {d['ruhe']:.1f} | beta {d['beta']:.1f}", fontsize=7.5, color=col)
+        j = n.names.index(d["name"])
+        kat = f"Gaia DR3 {n.c['star_gaia'][j]}" if "star_gaia" in n.c else ""
+        if "star_G" in n.c:
+            kat += f"  G {float(n.c['star_G'][j]):.2f}"
+        a.set_title(f"{d['name']}{'  ' + tag if tag else ''}" + (f"  ({kat.strip()})" if kat else "")
+                    + f"\nRMS {d['rms_ppt']:.1f} | {cl['bin_min']:.0f}-min {d['bin_ppt']:.2f} ppt"
+                    f" | Ruhe {d['ruhe']:.1f} | beta {d['beta']:.1f}", fontsize=7, color=col)
         for sp in a.spines.values():
             sp.set_edgecolor(col); sp.set_linewidth(1.6 if (rej or ens) else .8)
     for k in range(N, nr * nc):
