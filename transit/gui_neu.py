@@ -279,7 +279,7 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
     <h2 style="font-size:18px">Mehr</h2>
     <a href="/handbuch" target="_blank">Handbuch (HANDBUCH.md)</a>
     <a href="/klassisch">Klassische Oberfläche öffnen</a>
-    <span class="hint" style="font-size:13px">Die klassische Oberfläche bleibt immer erreichbar: unter /klassisch, mit <span class="mono">transit gui --klassisch</span> oder per Doppelklick auf <span class="mono">transit_gui_klassisch.cmd</span>.</span>
+    <span class="hint" style="font-size:13px">Die klassische Oberfläche bleibt immer erreichbar: unter /klassisch oder mit <span class="mono">transit gui --klassisch</span>.</span>
    </section>
   </div>
  </main>

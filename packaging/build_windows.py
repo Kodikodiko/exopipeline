@@ -20,7 +20,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD = os.path.join(ROOT, "build")
 DIST = os.path.join(ROOT, "dist")
 NAME = "exopipeline"
-FILES = ["transit.cmd", "transit_gui.cmd", "transit_gui_klassisch.cmd", "HANDBUCH.md", "README.md", "LICENSE", "config.example.toml",
+FILES = ["transit.cmd", "transit_gui.cmd", "HANDBUCH.md", "README.md", "LICENSE", "config.example.toml",
          "aij_vorlage.plotcfg", "requirements.txt"]
 
 
