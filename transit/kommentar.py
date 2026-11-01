@@ -31,7 +31,7 @@ def valid_run(root):
 def make(out, cfg=None):
     """Short remark (1-2 sentences, ~300 chars) with only what ExoClock cannot see in the data; "No special remarks." else.
     Frame count, exposure, time format, own fit values and the standard method are deliberately left out."""
-    fr, cj, inv = _j(out, "fit.json"), _j(out, "calib.json"), _j(out, "inventory.json")
+    fr, cj = _j(out, "fit.json"), _j(out, "calib.json")
     if not fr:
         raise SystemExit(f"{out}: keine fit.json - Lauf nicht fertig")
     hp = os.path.join(out, "headers.csv")
@@ -40,9 +40,9 @@ def make(out, cfg=None):
     info, mc, pred = fr["info"], fr["mcmc"], fr["ephemeris"]
     cfg = cfg or {}
     r = []                                                 # in order of importance
-    checks = json.dumps(inv.get("checks", []))
-    if info.get("flip_mode", "none") != "none" and "im/nahe am Transit" in checks:
-        r.append("Meridian flip during the transit; the flux step was corrected with a prior measured on the comparison stars.")
+    fl = flip_text(out, info, pred, hdr)
+    if fl:
+        r.append(fl)
     r.append(clipping_text(out, cfg))                     # reviewers ask for it: always stated
     if info.get("ensemble_fest"):
         r.append(f"Comparison stars selected manually ({', '.join(info['ensemble_fest'])}).")
@@ -71,7 +71,9 @@ def make(out, cfg=None):
     t = sorted(datetime.fromisoformat(h["DATE-OBS"][:19]).timestamp() for h in hdr if h.get("DATE-OBS"))
     if len(t) > 3:
         g = np.diff(t); cad = np.median(g)
-        big = [(i, d) for i, d in enumerate(g) if d > max(5 * cad, 600)]
+        side = {datetime.fromisoformat(h["DATE-OBS"][:19]).timestamp(): h.get("PIERSIDE", "") for h in hdr if h.get("DATE-OBS")}
+        big = [(i, d) for i, d in enumerate(g) if d > max(5 * cad, 600)
+               and side.get(t[i]) == side.get(t[i + 1])]     # the pause at the meridian flip is not a gap
         if big:
             r.append(f"Data gap(s) of {', '.join(f'{d / 60:.0f}' for _, d in big[:3])} min (clouds/interruption).")
     if cfg.get("export", {}).get("filter") and not any(h.get("FILTER") for h in hdr):
@@ -85,6 +87,29 @@ def make(out, cfg=None):
             break
         text = (text + " " + x).strip()
     return text or "No special remarks."
+
+
+def flip_text(out, info, pred, hdr):
+    """Where the meridian flip lies relative to the predicted transit, and how the flux step was handled.
+    Flip time = middle of the pause between the last frame on one pier side and the first on the other (as in inventory)."""
+    mode = info.get("flip_mode", "none")
+    tf = (_j(out, "compsearch.json").get("flip") or {}).get("t_flip_bjd")   # first frame after the flip
+    if mode == "none" or tf is None:
+        return ""
+    fr = sorted((datetime.fromisoformat(h["DATE-OBS"][:19]), h.get("PIERSIDE", "")) for h in hdr if h.get("DATE-OBS"))
+    for (a, sa), (b, sb) in zip(fr, fr[1:]):
+        if sa != sb:
+            tf -= (b - a).total_seconds() / 2 / 86400
+            break
+    if tf < pred["ingress"]:
+        lage = f"{(pred['ingress'] - tf) * 1440:.0f} min before ingress"
+    elif tf > pred["egress"]:
+        lage = f"{(tf - pred['egress']) * 1440:.0f} min after egress"
+    else:
+        lage = f"during the transit, {(tf - pred['ingress']) * 1440:.0f} min after ingress"
+    how = ("the flux step was corrected with a prior measured on the comparison stars" if mode == "prior"
+           else "the flux step was fitted as a free parameter")
+    return f"Meridian flip {lage}; {how}."
 
 
 def clipping_text(out, cfg):
