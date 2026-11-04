@@ -135,7 +135,7 @@ def cmd_solve(m, a):
 
 # ------------------------------------------------------------------ calibrate
 def cmd_calibrate(m, a):
-    from .calib import scan_library, match, estimate_dark_scale
+    from .calib import scan_library, scan_library_flat, match, estimate_dark_scale
     from .frames import read_headers
     from datetime import datetime
     hd = read_headers(m)
@@ -156,11 +156,27 @@ def cmd_calibrate(m, a):
             mt[k] = c_[0]
             log(f"  {k:5s}: Master aus dem Messordner: {os.path.basename(c_[0]['path'])}")
     for k in ("bias", "flat", "dark"):                 # explicit master paths in [calib] win
-        p = m.cfg["calib"].get(k, "")
-        if p:
-            r = next((x for x in rows if os.path.normcase(x["path"]) == os.path.normcase(p)), None)
-            mt[k] = r or dict(path=p, kind=k.upper(), master=True, instr="", gain=None, offset=None, xbin=1, nx=None, ny=None,
-                              filter="", exptime=0.0, ccd_temp=None, date=None, nstack=None)
+        p = str(m.cfg["calib"].get(k, "") or "").strip().strip('"')
+        if not p:
+            continue
+        if os.path.isdir(p):
+            # a folder instead of a file (e.g. the LIGHT folder typed into the GUI field): take the master of this kind
+            # from that folder, same size as the lights; dark with the closest exposure time
+            c_ = sorted([r for r in scan_library_flat(p) if r["master"] and r["kind"] == k.upper()
+                         and (r["nx"] in (None, h0.get("NAXIS1")) and r["ny"] in (None, h0.get("NAXIS2")))],
+                        key=lambda r: abs(r["exptime"] - exp0) if k == "dark" else 0)
+            if not c_:
+                raise SystemExit(f"[calib] {k} = {p} ist ein Ordner, darin liegt aber kein {k.upper()}-Master in Light-Groesse. "
+                                 f"Feld {k.capitalize()} in Erweitert > Kalibrierung leeren (automatische Suche) oder die Master-Datei angeben.")
+            mt[k] = c_[0]
+            log(f"  {k:5s}: [calib] {k} ist ein Ordner -> nehme {os.path.basename(c_[0]['path'])}")
+            continue
+        if not os.path.isfile(p):
+            raise SystemExit(f"[calib] {k} = {p} gibt es nicht. Feld {k.capitalize()} in Erweitert > Kalibrierung leeren "
+                             f"(automatische Suche) oder den Pfad korrigieren.")
+        r = next((x for x in rows if os.path.normcase(x["path"]) == os.path.normcase(p)), None)
+        mt[k] = r or dict(path=p, kind=k.upper(), master=True, instr="", gain=None, offset=None, xbin=1, nx=None, ny=None,
+                          filter="", exptime=0.0, ccd_temp=None, date=None, nstack=None)
     from .calib import effective_mode
     want = a.mode or m.cfg["calib"]["mode"]
     eff, notes = effective_mode(want, mt)
@@ -209,10 +225,10 @@ def relocate_masters(m, cj):
     and the measurement folder before giving up."""
     for k in ("bias", "flat", "dark"):
         r = cj.get(k)
-        if not r or not r.get("path") or os.path.exists(r["path"]):
+        if not r or not r.get("path") or os.path.isfile(r["path"]):
             continue
         name = os.path.basename(r["path"].replace("\\", "/"))
-        hit = next((q for q in (os.path.join(d, name) for d in (m.lights, m.root) if d) if os.path.exists(q)), None)
+        hit = next((q for q in (os.path.join(d, name) for d in (m.lights, m.root) if d) if os.path.isfile(q)), None)
         if hit:
             log(f"  {k:5s}: Master nicht mehr unter {r['path']}, nehme {hit}")
             r["path"] = hit

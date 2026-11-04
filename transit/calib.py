@@ -25,10 +25,12 @@ def _date(h):
         return None
 
 
-def scan_library(lib):
+def scan_library(lib, recursive=True):
     rows = []
     from . import xisf
-    files = glob.glob(os.path.join(lib, "**", "*.fit*"), recursive=True) + glob.glob(os.path.join(lib, "**", "*.xisf"), recursive=True)
+    sub = ("**",) if recursive else ()
+    files = (glob.glob(os.path.join(lib, *sub, "*.fit*"), recursive=recursive)
+             + glob.glob(os.path.join(lib, *sub, "*.xisf"), recursive=recursive))
     for f in sorted(files):
         try:
             h = xisf.read_header(f) if xisf.is_xisf(f) else fits.getheader(f)
@@ -47,6 +49,11 @@ def scan_library(lib):
                          filter=str(h.get("FILTER", "")), exptime=float(h.get("EXPTIME", h.get("EXPOSURE", 0)) or 0),
                          ccd_temp=h.get("CCD-TEMP"), date=_date(h), nstack=h.get("STACKCNT", h.get("NCOMBINE"))))
     return rows
+
+
+def scan_library_flat(folder):
+    """Masters directly in one folder (no subfolders), e.g. BIAS.fit / FLAT_0d.fit / DARK_120s.fit beside the lights."""
+    return scan_library(folder, recursive=False)
 
 
 def match(rows, light_h, night_date):
@@ -71,6 +78,10 @@ def match(rows, light_h, night_date):
 def load_master(path):
     # memmap needs unscaled data; integer masters carry BZERO, so scale by hand
     from . import xisf
+    if not path or not os.path.isfile(path):
+        what = "ein Ordner, keine Master-Datei" if path and os.path.isdir(path) else "nicht gefunden"
+        raise SystemExit(f"Master {path or '(leer)'} ist {what}. Schritt calibrate neu ausfuehren bzw. Feld in "
+                         f"Erweitert > Kalibrierung leeren (automatische Suche) oder die Master-Datei angeben.")
     if xisf.is_xisf(path):                                              # PixInsight/Siril master
         a = xisf.read_data(path)
     else:
