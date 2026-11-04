@@ -196,7 +196,7 @@ Die Standardwerte stehen in `_pipeline\config.local.toml` (beim ersten Einrichte
 | library | C:\Photometry\calibration | wird rekursiv nach Mastern durchsucht |
 | mode | "bf" | `raw`, `bf` (Bias+Flat) oder `bfd` (zusätzlich skalierter Dark) |
 | master_dir | "" | einen bestimmten Master-Ordner erzwingen |
-| flat, bias, dark | "" | Pfade zu bestimmten Mastern (gehen vor der automatischen Suche) |
+| flat, bias, dark | "" | Pfade zu bestimmten Mastern (gehen vor der automatischen Suche). Auch ein Ordner geht: dann wird der passende Master darin genommen (gleiche Bildgröße, Dark mit der nächsten Belichtungszeit). Gibt es den Pfad nicht oder liegt im Ordner kein passender Master, bricht `calibrate` mit einer klaren Meldung ab. Master direkt im LIGHT-Ordner findet die Pipeline auch ohne Eintrag. |
 | crop | [0, 0] | Versatz (x, y) des Light-Ausschnitts im Master, wenn die Kamera beschnittene Bilder liefert |
 
 **Gebinnte Lights:** Sind die Lights 2×2 (oder 3×3 …) gebinnt und die Master ungebinnt, also genau das b-Fache der Light-Größe, werden die Master in b×b-Blöcken gemittelt (bei `crop = [0, 0]`). Für das normierte Flat ist das exakt. Bias und Dark hängen vom Binning-Modus der Kamera ab (Mittel oder Summe); bei der ATR2600M sind sie mit ~9 ADU bzw. ~0,2 ADU/120 s ohnehin vernachlässigbar, daher meist Modus `f` (nur Flat).
