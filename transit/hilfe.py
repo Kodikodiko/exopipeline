@@ -1,4 +1,5 @@
-"""German help topics: transit hilfe <thema>.  The full manual is HANDBUCH.md in the _pipeline folder."""
+"""German help topics: transit hilfe <thema>.  The topics shared with the GUI help panel live in transit/hilfe/*.md
+(see hilfetexte.py); THEMEN below are the older command-line topics.  The full manual is HANDBUCH.md."""
 import os
 import re
 
@@ -174,19 +175,43 @@ THEMEN = {
 }
 
 
-def show(thema=""):
-    t = (thema or "").lower().replace("ä", "ae").replace("ü", "ue").replace("ö", "oe")
+def show(thema="", tief=False):
+    """New topics (transit/hilfe/*.md, same texts as the help panel of the GUI) first, then the older command-line
+    topics above, then a search in HANDBUCH.md."""
+    from .hilfetexte import GRUPPEN, text_von, themen
+    T = themen()
+    t = (thema or "").lower().replace("ä", "ae").replace("ü", "ue").replace("ö", "oe").replace("ß", "ss")
     if not t:
-        print("transit hilfe <thema>   Themen: " + ", ".join(THEMEN))
-        print(f"Handbuch: {os.path.join(PIPE_DIR, 'HANDBUCH.md')}")
+        for g, name in GRUPPEN:
+            print(name.upper())
+            for x in T:
+                if x["gruppe"] == g:
+                    print(f"  {x['id']:<26} {x['titel']}")
+            print()
+        print("KOMMANDOZEILE")
+        print("  " + ", ".join(THEMEN))
+        print()
+        print("transit hilfe <thema> [--tief]   (--tief: mit Physik, Formeln und Code)")
+        print(f"Handbuch: {os.path.join(PIPE_DIR, 'HANDBUCH.md')}   In der Oberflaeche: Taste F1 oder ?")
         print("Hilfe zu einem Befehl: transit <befehl> --help")
         return
+    for x in T:
+        if x["id"] == t:
+            print(x["titel"].upper() + "\n" + "=" * len(x["titel"]))
+            print(text_von(x["md"], tief=tief))
+            return
     if t in THEMEN:
         print(THEMEN[t]); return
+    treffer = [x for x in T if t in (x["titel"] + " " + x["md"]).lower()]
+    if treffer:
+        print(f"Themen mit '{thema}':")
+        for x in treffer:
+            print(f"  transit hilfe {x['id']:<26} {x['titel']}")
+        return
     hb = os.path.join(PIPE_DIR, "HANDBUCH.md")
     if os.path.exists(hb):
         txt = open(hb, encoding="utf-8").read()
         hits = [s for s in re.split(r"\n(?=#)", txt) if t in s.lower()]
         if hits:
             print("\n\n".join(hits[:3])); return
-    print(f"Kein Thema '{thema}'. Themen: " + ", ".join(THEMEN))
+    print(f"Kein Thema '{thema}'. Liste: transit hilfe")

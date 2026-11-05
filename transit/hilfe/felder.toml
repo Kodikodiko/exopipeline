@@ -1,0 +1,507 @@
+# Erklärung jedes Feldes und jeder Tabellenspalte der Oberfläche (eine Quelle für die ⓘ-Knöpfe und das Hilfe-Panel).
+#
+# [feld.<schlüssel>]   Feld der Oberfläche.  Der Schlüssel steht im HTML als data-k (Erweitert-Fenster) oder
+#                      data-hilfe-feld (übrige Seiten).  Upload-Felder heißen "up:<Bezeichnung links im Formular>".
+#   titel    Name wie auf dem Bildschirm
+#   was      Was ist das? (einfach, ohne Vorwissen)
+#   wirkung  Was bewirkt es?                       (optional)
+#   wann     Wann ändern? mit typischem Wert       (optional)
+#   formel   eine Formel für die Vertiefung        (optional)
+#   tief     ein Satz Hintergrund zur Formel        (optional)
+#   thema    Hilfethema für „mehr …“ (Datei transit/hilfe/<thema>.md)   (optional)
+#
+# [spalte."<Spaltenkopf>"]  Spalte einer Tabelle, Schlüssel = Text des Spaltenkopfs.
+#   text, thema, formel, tief  wie oben
+#
+# tests/test_hilfe.py prüft, dass jedes Feld und jede Spalte der Oberfläche hier einen Eintrag hat.
+
+# ================================================================ Erweitert-Fenster
+[feld."g-kal"]
+thema = "kein-master"
+titel = "Kalibrierung"
+was = "Welche Master-Bilder (Flat, Bias, Dark) die Pipeline von den Lights abzieht bzw. durch die sie teilt."
+wirkung = "Leer lassen ist der Normalfall: die Pipeline sucht passende Master in der Kalibrierbibliothek."
+wann = "Nur ändern, wenn sie falsche Master nimmt oder du bewusst einen bestimmten Master testen willst."
+
+[feld.flat]
+thema = "kein-master"
+titel = "Flat"
+was = "Pfad zu einem Master-Flat (Datei, oder ein Ordner, in dem der Master liegt). Teilt Vignettierung und Staub aus den Bildern heraus."
+wirkung = "Ein falsches Flat erzeugt Helligkeitsfehler, die mit der Sternposition wandern (vor allem nach dem Meridian-Flip)."
+wann = "Nur wenn die automatische Wahl nicht passt (anderer Filter, andere Kamera-Drehung)."
+
+[feld.bias]
+titel = "Bias"
+was = "Pfad zu einem Master-Bias (Datei oder Ordner; Grundrauschen der Kamera bei Belichtung 0)."
+wirkung = "Wirkt nur bei Kalibrierung „Bias + Flat“ oder „+ Dark“."
+wann = "Nur wenn die automatische Wahl nicht passt (anderer Gain oder Offset)."
+
+[feld.dark]
+titel = "Dark"
+was = "Pfad zu einem Master-Dark (Dunkelstrom; Datei oder Ordner, dann passt die Belichtungszeit). Wird auf die Belichtungszeit skaliert."
+wirkung = "Wirkt nur bei Kalibrierung „+ Dark“. Bei gekühlten CMOS-Kameras meist kleiner Effekt."
+wann = "Nur wenn die automatische Wahl nicht passt (andere Temperatur)."
+
+[feld.workers]
+titel = "Prozesse"
+was = "Wie viele Prozessorkerne parallel rechnen (Photometrie, Fits, MCMC)."
+wirkung = "Mehr = schneller, aber der PC ist während des Laufs stärker ausgelastet. Am Ergebnis ändert sich nichts."
+wann = "Kleiner setzen, wenn du nebenbei am PC arbeiten willst."
+
+[feld."g-kam"]
+titel = "Kamera & Gaia"
+was = "Wie die Bilder gelesen werden und woher die Sternkatalogdaten kommen."
+wirkung = "Beeinflusst die Photometrie bzw. nur die Erreichbarkeit des Katalogs."
+wann = "Farbkamera: bei fremden Daten prüfen. Gaia-Quelle: wenn ein Dienst nicht antwortet."
+
+[feld.farbkamera]
+thema = "rauschen"
+titel = "Farbkamera"
+was = "Farbkamera-Bilder (Bayer-Matrix) werden zu 2×2-Superpixeln zusammengefasst, damit jeder Bildpunkt alle Farben enthält."
+wirkung = "Ohne das springt die Helligkeit von Pixel zu Pixel und die Lichtkurve wird sehr verrauscht (so bei KPS-1b gesehen)."
+wann = "„automatisch“ erkennt es am Header (BAYERPAT). Nur ändern, wenn der Header fehlt oder falsch ist."
+
+[feld.gaia_quelle]
+thema = "lauf-haengt"
+titel = "Gaia-Quelle"
+was = "Über welchen Dienst die Gaia-Sterne (Positionen, Helligkeit, Farbe, Variabilität) geholt werden."
+wirkung = "Kein Einfluss aufs Ergebnis, nur auf die Erreichbarkeit. Bei Ausfall nimmt die Pipeline den anderen Dienst."
+wann = "Wenn ein Lauf lange bei der Gaia-Abfrage hängt."
+
+[feld."g-ver"]
+thema = "vergleichssterne-waehlen"
+titel = "Vergleichssterne"
+was = "Welche Sterne als Vergleich in Frage kommen und wie das Ensemble gewählt wird. Das ist der Teil mit dem größten Einfluss auf Rauschen und O-C."
+wirkung = "Andere Sterne ändern das Rauschen, die Tiefe und manchmal Tc."
+wann = "Wenn ein Reviewer das O-C oder das Rauschen anzweifelt, oder ein Stern im Bild unten auffällt."
+
+[feld.dmag_bright]
+titel = "hell ΔG"
+was = "Wie viel heller (in mag, negativ) ein Kandidat höchstens sein darf als das Ziel."
+wirkung = "Größerer Spielraum bringt hellere, rauschärmere Sterne, die aber eher sättigen."
+wann = "Wenn zu wenige Kandidaten gefunden werden oder helle Sterne sättigen."
+
+[feld.dmag_faint]
+titel = "schwach ΔG"
+was = "Wie viel schwächer (in mag) ein Kandidat höchstens sein darf."
+wirkung = "Schwache Sterne rauschen stark und verschlechtern das Ensemble."
+wann = "Erhöhen nur, wenn das Feld sonst zu wenige Sterne hat."
+
+[feld.neighbour_px]
+titel = "Nachbar px"
+was = "Kandidaten mit einem helleren oder ähnlich hellen Nachbarn näher als so viele Pixel werden verworfen."
+wirkung = "Nachbarn in der Apertur verfälschen die Helligkeit, besonders wenn das Seeing schwankt."
+wann = "Größer bei schlechtem Seeing oder großen Aperturen; kleiner in sehr dichten Feldern."
+
+[feld.edge_px]
+titel = "Rand px"
+was = "Mindestabstand eines Kandidaten zum Bildrand."
+wirkung = "Sterne nahe am Rand wandern bei Nachführfehlern oder nach dem Flip hinaus oder liegen in der Vignettierung."
+wann = "Größer, wenn die Nachführung driftet; kleiner bei kleinem Feld."
+
+[feld.einzel_tiefe_sigma]
+thema = "vergleichssterne-waehlen"
+titel = "Einzelstern-Grenze"
+was = "Methode des ExoClock-Reviewers: jeder Vergleichsstern wird allein gegen das Ziel gerechnet und gibt eine eigene Transittiefe (Rp/R*). „nur anzeigen“ zeigt das Ergebnis in der Tabelle unten und im Ergebnisblatt. Mit einer Grenze kommen Sterne, deren Tiefe allein um mehr als so viele σ vom Median aller Sterne UND vom Literaturwert abweicht, nicht in die Ensemble-Suche."
+wirkung = "Ein Stern, der allein eine ganz andere Tiefe gibt, verbiegt auch das Ensemble (Tiefe und oft Tc). Es bleiben immer mindestens so viele Sterne, wie die Suche braucht."
+wann = "Standard „nur anzeigen“. „> 3 σ“ wählen, wenn der Einzeltest auffällige Sterne zeigt und du sie nicht einzeln abwählen willst, oder bei einer Rückweisung wegen O-C."
+
+[feld.tiefen_gewicht]
+thema = "vergleichssterne-waehlen"
+titel = "Tiefen-Gewicht"
+was = "Normal gewinnt das Ensemble mit der kleinsten Streuung außerhalb des Transits. Mit einem Gewicht über 0 zählt zusätzlich, wie gut sein Rp/R* zum erwarteten Wert passt: Streuung × (1 + Gewicht × (Abweichung in σ / 3)²)."
+wirkung = "Gewicht 1: ein Ensemble mit 3 σ Abweichung zählt wie eines mit doppelter Streuung. Achtung: die Tiefe wird damit nicht mehr ganz unabhängig gemessen. Für Tc (das, was ExoClock braucht) ist das unkritisch."
+wann = "Standard 0. Auf 1 setzen, wenn die Tiefe deutlich von der Literatur abweicht oder Tc unsicher ist („Tc eindeutig?“ gelb/rot). Ergebnis mit dem Lauf ohne Gewicht vergleichen."
+
+[feld."g-ape"]
+thema = "rauschen"
+titel = "Apertur"
+was = "Wie groß der Kreis ist, in dem die Sternhelligkeit gemessen wird, und wo der Himmelshintergrund gemessen wird."
+wirkung = "Zu klein: Seeing-Schwankungen verlieren Licht. Zu groß: mehr Himmelsrauschen und Nachbarsterne."
+wann = "Die Pipeline probiert mehrere Radien und wählt nach der Streuung. Nur ändern, wenn alle Radien schlecht sind."
+
+[feld.aperture_mode]
+titel = "Modus"
+was = "Fest: ein Radius für die ganze Nacht. Mitwachsend: Radius = k × FWHM in jedem Bild. Beides: beide treten gegeneinander an."
+wirkung = "Mitwachsend hilft bei stark wechselndem Seeing oder Fokus."
+wann = "Standard „beides“ lassen. „fest“ zum Vergleich mit AstroImageJ-Auswertungen."
+
+[feld.ap_min]
+titel = "von × FWHM"
+was = "Kleinster getesteter Radius, als Vielfaches der FWHM."
+wirkung = "Kleinere Radien: weniger Himmelsrauschen bei schwachen Sternen, aber empfindlich auf Seeing."
+wann = "Bei schwachen Zielen etwas kleiner (1,5)."
+
+[feld.ap_max]
+titel = "bis × FWHM"
+was = "Größter getesteter Radius, als Vielfaches der FWHM."
+wirkung = "Größere Radien: robust bei Seeing, aber mehr Hintergrund und Nachbarn."
+wann = "Bei hellen Zielen oder unruhigem Seeing größer (4–5)."
+
+[feld.annulus]
+titel = "Ring innen,außen px"
+was = "Innerer und äußerer Radius des Rings, in dem der Himmelshintergrund gemessen wird."
+wirkung = "Der Ring muss frei von Sternlicht sein, sonst wird der Stern zu dunkel gemessen."
+wann = "Größer, wenn die Sterne sehr groß sind (Defokus) oder Nachbarn im Ring liegen."
+
+[feld."g-fit"]
+titel = "Fit & Ausreißer"
+was = "Wie das Transitmodell an die Lichtkurve angepasst wird."
+wirkung = "Beeinflusst Tc, Tiefe und die Fehlerbalken."
+wann = "Meist Standard. Siehe die einzelnen Felder."
+
+[feld.ausreisser_sigma]
+thema = "ausreisser"
+titel = "Ausreißer entfernen"
+was = "Bilder, deren Abweichung vom Transit-Fit größer als so viele σ ist, werden entfernt und der Fit wiederholt."
+wirkung = "Entfernt Wolken, Flugzeuge, Windstöße. Zu streng („viele“) entfernt auch echte Daten und macht die Fehler zu klein."
+wann = "„normal“ bei einzelnen Ausreißern; aus lassen bei sauberen Nächten. Die entfernten Bilder stehen in ausreisser.json."
+
+[feld.airmass_order]
+thema = "rauschen"
+titel = "Detrending"
+was = "Wie die Helligkeitsänderung durch die Luftmasse (Extinktion) modelliert wird: linear oder quadratisch."
+wirkung = "Quadratisch fängt gekrümmte Verläufe ab, kann aber auch einen Teil der Transittiefe schlucken."
+wann = "Quadratisch nur, wenn die Lichtkurve einen klaren Bogen zeigt und der BIC besser wird."
+
+[feld.flip]
+thema = "stufe"
+titel = "Meridian-Flip"
+was = "Wie der Helligkeitssprung beim Meridian-Flip behandelt wird. Prior: aus den Vergleichssternen geschätzt. Frei: im Fit bestimmt. Ignorieren: kein Sprung."
+wirkung = "Frei kann mit dem Transit verwechselt werden, wenn der Flip im Transit liegt."
+wann = "Standard „Prior“. „frei“ nur, wenn der Prior offensichtlich falsch ist."
+
+[feld.fix_geometry]
+titel = "Geometrie"
+was = "a/R* und Inklination aus ExoClock festhalten oder frei mitfitten."
+wirkung = "Frei braucht sehr gute Daten, sonst werden Tc und Tiefe unsicherer."
+wann = "Für ExoClock fast immer „fest“."
+
+[feld.airmass_max]
+thema = "luecken"
+titel = "Airmass-Grenze"
+was = "Bilder über dieser Luftmasse werden weggelassen."
+wirkung = "Tief am Horizont sind Szintillation und Extinktion stark; weglassen senkt das Rauschen, kürzt aber die Baseline."
+wann = "Wenn der Rand der Nacht sichtbar stark streut. Mindestens 30 min Baseline vor dem Ingress lassen."
+
+[feld.mcmc_steps]
+titel = "MCMC-Schritte"
+was = "Wie viele Zufallsschritte die MCMC für die Fehlerbalken macht."
+wirkung = "Mehr = stabilere Fehler, längere Rechenzeit. Tc selbst ändert sich kaum."
+wann = "Erhöhen, wenn R-hat über 1,05 liegt."
+
+[feld.symmetry_weight]
+titel = "Symmetrie-Gewicht"
+was = "Bevorzugt Ensembles, deren Sterne rund um das Ziel verteilt sind statt auf einer Seite."
+wirkung = "Gleicht Flat-Fehler aus, die sich beim Meridian-Flip umdrehen."
+wann = "Auf 1 setzen bei Nächten mit Flip und auffälligem Sprung."
+
+
+# ================================================================ Seite „Auswerten“: Messungen und neuer Lauf
+[feld.suche]
+titel = "Messungen suchen"
+was = "Filtert die Liste nach Planet oder Ordnername. Enter sucht zusätzlich am NAS."
+wann = "Wenn eine ältere Messung nicht in der Liste steht: Namen eintippen und Enter drücken, oder mit „Ordner…“ den Messordner direkt wählen."
+thema = "daten-laden"
+
+[feld.planet]
+titel = "Planet"
+was = "Name des Planeten genau so, wie ExoClock ihn schreibt (z. B. HAT-P-42b, TOI-628b). Damit holt die Pipeline die Vorhersage (Ephemeride) und die Literaturwerte."
+wirkung = "Ein falscher oder unbekannter Name: keine Vorhersage, kein O-C, Abbruch in der Inventur."
+wann = "Vorgeschlagen wird der Name aus dem FITS-Header (OBJECT). Ändern, wenn NINA einen anderen Namen geschrieben hat, z. B. ohne Bindestrich oder ohne „b“."
+thema = "auswerten"
+
+[feld.filter]
+titel = "Filter"
+was = "Der Filter, mit dem du aufgenommen hast, so wie er im ExoClock-Menü heißt (L → Luminance, R → Cousins R …)."
+wirkung = "Geht in die Upload-Datei und in den Vergleich der Transittiefe mit der Literatur. Die Messung selbst ändert sich nicht."
+wann = "Vorgeschlagen aus dem FITS-Header (FILTER). Ändern, wenn der Header keinen oder einen falschen Filter enthält."
+thema = "exoclock-upload"
+
+[feld.kalibrierung]
+titel = "Kalibrierung"
+was = "Welche Korrekturbilder von den Lights abgezogen bzw. durch die sie geteilt werden: Flat (Vignettierung, Staub), Bias (Grundsignal der Kamera), Dark (Wärmesignal)."
+wirkung = "Ein gutes Flat ist am wichtigsten: Ohne Flat wandern Staubschatten mit dem Stern mit und erzeugen falsche Helligkeitsänderungen."
+wann = "Standard „Bias + Flat“. „+ Dark“ nur, wenn die Kamera ihre Solltemperatur gehalten hat. „keine“ nur zum Vergleich."
+formel = "kalibriert = (Light − Bias − Dark) / (Flat / Mittelwert(Flat))"
+tief = "Das Flat wird auf 1 normiert, damit nur das Muster (Vignettierung, Staub, Pixelempfindlichkeit) herausgeteilt wird und der Fluss in ADU erhalten bleibt."
+thema = "kein-master"
+
+[feld.zweitlauf]
+titel = "Zweite Kalibrierung gleich danach"
+was = "Startet nach diesem Lauf automatisch einen zweiten mit der anderen üblichen Kalibrierung."
+wirkung = "Du kannst danach beide Läufe vergleichen und den ruhigeren nehmen. Kostet etwa doppelte Rechenzeit."
+wann = "Bei einer neuen Messung meist an lassen."
+thema = "bester-lauf"
+
+[feld.basis]
+titel = "Photometrie übernehmen von"
+was = "Die Helligkeitsmessung aller Sterne in allen Bildern (der „Cube“) ist der langsamste Schritt. Hier kannst du sie von einem fertigen Lauf mit derselben Kalibrierung übernehmen."
+wirkung = "Spart Minuten. Das Ergebnis ist gleich, solange Kalibrierung, Farbkamera-Einstellung und Apertur-Radien gleich bleiben."
+wann = "„neu messen“, wenn du Kalibrierung, Apertur oder Farbkamera geändert hast."
+thema = "auswerten"
+
+[feld.laufname]
+titel = "Name des Laufs"
+was = "Ordnername unter RESULT, in dem alle Ergebnisse dieses Laufs liegen. Vorschlag: gui_<Datum>_<Zeit>_<Kalibrierung>."
+wann = "Nur ändern, wenn du einen sprechenden Namen willst, z. B. „ohne_wolken“."
+
+[feld.erweitert]
+titel = "Erweitert"
+was = "Alle Einstellungen, die nur selten nötig sind: Kalibrier-Master, Vergleichssterne, Apertur, Fit und Ausreißer. Geänderte Werte stehen links als Kärtchen."
+wann = "Für den ersten Lauf einer Nacht nichts ändern. Erst wenn das Ergebnis auffällig ist, gezielt nach einem Fehlerbild vorgehen."
+thema = "auswerten"
+
+[feld.exclude]
+titel = "Vergleichssterne ausschließen (Spalte „an“)"
+was = "Liste aller Kandidaten für Vergleichssterne. Ein Stern ohne Haken wird im nächsten Lauf gar nicht verwendet."
+wirkung = "Vorbelegt sind die Haken so, dass verdächtige Sterne (Gaia VARIABLE, Einzeltest verworfen, Transitfenster auffällig) schon aus sind."
+wann = "Wenn du in einem Lauf siehst, dass ein Stern stört: hier abwählen und neu rechnen."
+thema = "vergleichssterne-waehlen"
+
+# ================================================================ Seite „Lauf“
+[feld.notify]
+titel = "Benachrichtigen, wenn fertig"
+was = "Der Browser zeigt eine Mitteilung, sobald der Lauf fertig oder abgebrochen ist."
+wann = "Praktisch bei langen Läufen. Der Browser fragt beim ersten Mal um Erlaubnis."
+
+# ================================================================ Seite „Planen“
+[feld.pl_n]
+titel = "Nächte"
+was = "Für wie viele Nächte ab heute Transits gesucht werden (1 bis 7)."
+thema = "planen"
+
+[feld.pl_top]
+titel = "pro Nacht"
+was = "Wie viele Vorschläge pro Nacht angezeigt werden, die besten zuerst."
+thema = "planen"
+
+[feld.pl_wx]
+titel = "Wetter (Open-Meteo)"
+was = "Holt die Bewölkungsvorhersage für deinen Standort und rechnet sie in den Score ein."
+wann = "Ausschalten, wenn kein Internet da ist oder du weiter als zwei bis drei Tage planst (dort ist die Vorhersage unsicher)."
+thema = "planen"
+
+[feld.pl_gaia]
+titel = "Vergleichssterne zählen"
+was = "Fragt für die besten Vorschläge bei Gaia ab, wie viele geeignete Vergleichssterne im Bildfeld liegen."
+wirkung = "Langsamer (bis drei Minuten), aber man sieht vorher, ob das Feld zu leer ist."
+thema = "planen"
+
+# ================================================================ Seite „Vergleichen“: Upload
+[feld.gueltig]
+titel = "Gültig setzen"
+was = "Pro Planet und Nacht zählt genau ein Lauf: der gültige. Nur er kommt ins O-C-Diagramm und in den Upload."
+wann = "Nachdem du die Läufe nach Datenqualität verglichen hast (Prüfungen, OOT-RMS, β), nicht nach dem schönsten O-C."
+thema = "bester-lauf"
+
+[feld.up_kommentar]
+titel = "Kommentar für ExoClock"
+was = "Englischer Text für das Kommentarfeld im Upload-Formular. Er beschreibt Kalibrierung, Vergleichssterne, entfernte Ausreißer und Besonderheiten der Nacht."
+wann = "Du darfst ihn frei ändern, z. B. Wolken oder Wind ergänzen. „Neu erzeugen“ setzt ihn zurück."
+thema = "exoclock-upload"
+
+[feld.up_done]
+titel = "Bei ExoClock hochgeladen"
+was = "Vermerk im Logbuch, dass diese Nacht hochgeladen ist."
+thema = "exoclock-upload"
+
+[feld."up:Datei"]
+titel = "Datei"
+was = "Diese Datei lädst du bei ExoClock hoch. Sie liegt im Upload-Ordner (Knopf „Upload-Ordner öffnen“)."
+thema = "exoclock-upload"
+
+[feld."up:Planet"]
+titel = "Planet"
+was = "Im ExoClock-Formular denselben Planeten auswählen."
+
+[feld."up:Datum"]
+titel = "Datum"
+was = "Beginn und Ende der Messreihe in UTC. Zur Kontrolle, ob die richtige Nacht gewählt ist."
+
+[feld."up:Time format"]
+titel = "Time format"
+was = "Zeitangabe der Datei: JD_UTC, also julianisches Datum in UTC. Im Formular genau so wählen."
+formel = "JD = Tage seit 1. Januar 4713 v. Chr., 12:00 UT"
+tief = "Das julianische Datum zählt die Tage fortlaufend ohne Monate und Zeitzonen; ExoClock rechnet daraus selbst die baryzentrische Zeit BJD_TDB."
+
+[feld."up:Time stamp"]
+titel = "Time stamp"
+was = "Die Zeit in der Datei ist der Beginn jeder Belichtung (Exposure start). Im Formular genau so wählen, sonst ist das O-C um eine halbe Belichtungszeit verschoben."
+
+[feld."up:Flux format"]
+titel = "Flux format"
+was = "Die Datei enthält relativen Fluss (Helligkeit), keine Magnituden. Im Formular „Flux“ wählen."
+
+[feld."up:Filter"]
+titel = "Filter"
+was = "Den hier genannten Filter im ExoClock-Menü wählen. In Klammern steht, woher die Angabe kommt."
+
+[feld."up:Belichtung"]
+titel = "Belichtung"
+was = "Belichtungszeit eines Bildes in Sekunden."
+
+[feld."up:Punkte"]
+titel = "Punkte"
+was = "Zahl der Messpunkte in der Datei, nach Weglassen der Ausreißer und verworfenen Bilder."
+thema = "luecken"
+
+[feld."up:Standort"]
+titel = "Standort"
+was = "Breite, Länge und Höhe der Sternwarte aus der Konfiguration."
+
+[feld."up:Vergleichssterne"]
+titel = "Vergleichssterne"
+was = "Die Sterne des Ensembles mit ihrer Gaia-Kennung. Kann im Kommentar oder in den Notizen angegeben werden."
+thema = "vergleichssterne-waehlen"
+
+[feld."up:Ziel"]
+titel = "Ziel"
+was = "Gaia-Kennung des Sterns mit dem Planeten, zur Kontrolle."
+
+[feld."up:Detrending"]
+titel = "Detrending"
+was = "Die Datei ist nicht von der Airmass bereinigt, weil ExoClock das selbst fittet. Nur ein Meridian-Flip-Sprung ist schon herausgerechnet."
+thema = "stufe"
+
+[feld."up:Fehlerskalierung"]
+titel = "Fehlerskalierung"
+was = "Die Fehlerbalken der Datei wurden mit diesem Faktor auf die tatsächlich gemessene Streuung gebracht."
+formel = "σ_neu = σ_Photonen × (RMS der Residuen / Median von σ_Photonen)"
+tief = "Die reine Photonenstatistik unterschätzt das Rauschen (Szintillation, Flat-Reste); ExoClock gewichtet die Punkte mit diesen Fehlern."
+
+# ================================================================ Tabellenspalten
+[spalte."Lauf"]
+thema = "auswerten"
+text = "Name des Laufs (Ordner unter RESULT). gui_<Datum>_<Zeit>_<Kalibrierung>."
+
+[spalte."Zustand"]
+thema = "auswerten"
+text = "Fertig, läuft, wartet oder mit Fehler beendet."
+
+[spalte."Kalibr."]
+text = "Kalibrierung der Lights: raw (keine), f (nur Flat), bf (Bias + Flat), bfd (Bias + Flat + Dark)."
+
+[spalte."O-C"]
+thema = "oc-zu-gross"
+text = "Gemessene minus vorhergesagte Transitmitte in Minuten, mit Fehler. Nahe 0 innerhalb des Fehlers: Ephemeride bestätigt."
+
+[spalte."OOT-RMS"]
+thema = "rauschen"
+text = "Streuung der Lichtkurve außerhalb des Transits (Promille). Je kleiner, desto ruhiger die Messung; der kleinste Wert ist markiert."
+
+[spalte."β"]
+thema = "rauschen"
+text = "Faktor für rotes (zeitlich korreliertes) Rauschen. 1 = nur weißes Rauschen; größere Werte vergrößern die Fehler entsprechend."
+
+[spalte."Drift"]
+thema = "tiefe"
+text = "ExoClock-Kriterium: Abweichung von Rp/R* vom Literaturwert in Einheiten des Fehlers. Grün unter 2, gelb 2–3, rot ab 3."
+
+[spalte."Rp/Rs"]
+thema = "tiefe"
+text = "Gemessener Planetenradius relativ zum Sternradius (aus der Transittiefe)."
+
+[spalte."Ausreißer"]
+thema = "ausreisser"
+text = "Wie viele Messpunkte das Sigma-Clipping gegen den Transit-Fit entfernt hat (Schwelle in ausreisser.json)."
+
+[spalte."Prüfungen"]
+thema = "bester-lauf"
+text = "Ergebnis der automatischen Prüfungen: Planung (Baseline, Airmass, Flip), Drift, Konvergenz (R-hat), „Tc eindeutig?“ (Tc-Profil und Kontrollfit) und Einzeltest der Vergleichssterne."
+
+[spalte."Planet"]
+text = "Planet in ExoClock-Schreibweise."
+
+[spalte."Nacht"]
+text = "Beobachtungsnacht (Datum des Abends)."
+
+[spalte."Status"]
+thema = "bester-lauf"
+text = "gültig = der Lauf, der für diese Nacht zählt (Upload, O-C-Diagramm); variante = weitere Auswertung derselben Nacht."
+
+[spalte."Tiefe"]
+text = "Transittiefe in Promille (Modell mit Randverdunkelung)."
+
+[spalte."Upload-Datei"]
+thema = "exoclock-upload"
+text = "Datei für den ExoClock-Upload dieses Laufs."
+
+[spalte."an"]
+thema = "vergleichssterne-waehlen"
+text = "Haken = Stern darf ins Ensemble der Vergleichssterne. Abgewählte Sterne schließt der nächste Lauf aus."
+
+[spalte."Stern"]
+text = "Kandidat für die Vergleichssterne (interne Nummer). * = im Ensemble dieses Laufs."
+
+[spalte."G"]
+text = "Gaia-G-Helligkeit in mag. Ideal: ähnlich hell wie der Zielstern."
+
+[spalte."BP-RP"]
+text = "Gaia-Farbe (blau minus rot). Größer = röter. Ähnliche Farbe wie das Ziel verringert Airmass-Effekte."
+
+[spalte."RUWE"]
+text = "Gaia-Astrometriegüte. Über 1,4 (gelb): möglicherweise Doppelstern."
+
+[spalte."Gaia"]
+text = "Variabilitätskennung aus Gaia/VSX. VARIABLE = bekannter Veränderlicher, ungeeignet."
+
+[spalte."Ruhe"]
+thema = "vergleichssterne-waehlen"
+text = "Streuung des Sterns gegen die übrigen Kandidaten (10-min-Mittel), geteilt durch den Median aller. 1 = typisch, über 2 auffällig."
+
+[spalte."Transitfenster"]
+thema = "vergleichssterne-waehlen"
+text = "Scheinbarer „Transit“ dieses Sterns im Zeitfenster des Planeten (ppt ± Fehler). Sollte null sein; über 3 σ rot."
+
+[spalte."wählen"]
+thema = "vergleichssterne-waehlen"
+text = "Haken = dieser Stern gehört zum Ensemble für „Vorschau berechnen“ und „Als neuen Lauf rechnen“. Vorbelegt mit den Sternen des Laufs (*). Gute Gründe zum Abwählen: Ruhe gelb/rot, Transitfenster rot, Einzeltest auffällig. Nicht so lange tauschen, bis O-C passt. Handbuch: „Vergleichssterne von Hand wählen“."
+
+[spalte."O-C (schnell)"]
+thema = "vergleichssterne-waehlen"
+text = "Transitmitte minus Vorhersage aus einem schnellen Fit ohne MCMC (beide Zeilen gleich gerechnet, daher vergleichbar). Der Fehler ist meist zu klein; echte Fehlerbalken liefert erst der neue Lauf. Erst OOT-RMS und β ansehen, dann O-C."
+
+[spalte."Rp/R*"]
+text = "Planetenradius relativ zum Sternradius aus dem schnellen Fit; in Klammern der Abstand zum Literaturwert (ExoClock) in σ. Bis etwa 2 σ unauffällig."
+
+[spalte."Einzeltest"]
+thema = "vergleichssterne-waehlen"
+text = "Transit-Fit mit nur diesem Stern als Vergleich: Abweichung seines Rp/R* vom Median aller Sterne, in Einheiten seines Fehlers. Grün = passt; gelb = auffällig (über 3 σ zum Median und zur Literatur); rot = in der Ensemble-Suche verworfen. Maus über dem Wert: Rp/R* und O-C dieses Sterns."
+
+[spalte."Score"]
+thema = "planen"
+text = "Gesamtwertung des Vorschlags aus ExoClock-Priorität, Signal-Rausch-Verhältnis, Abdeckung und Wetter."
+
+[spalte."Prio"]
+text = "ExoClock-Priorität: alert, high, medium, low."
+
+[spalte."mag"]
+text = "Helligkeit des Sterns (V, mag)."
+
+[spalte."Tiefe ppt"]
+text = "Erwartete Transittiefe in Promille."
+
+[spalte."SNR"]
+thema = "planen"
+text = "Erwartetes Signal-Rausch-Verhältnis des Transits mit deinem Teleskop (Rauschmodell: Photonen, Himmel, Szintillation)."
+
+[spalte."Beobachten"]
+thema = "planen"
+text = "Empfohlenes Beobachtungsfenster inklusive Baseline vor und nach dem Transit (Ortszeit)."
+
+[spalte."Ingress / Tc / Egress"]
+text = "Vorhergesagter Beginn, Mitte (mit Unsicherheit) und Ende des Transits."
+
+[spalte."X max"]
+text = "Größte Airmass im Beobachtungsfenster. Unter 2 ist gut."
+
+[spalte."Wolken"]
+text = "Vorhergesagte mittlere Bewölkung im Fenster."
+
+[spalte."RA / Dec"]
+text = "Himmelskoordinaten des Sterns (J2000)."
+
+[spalte."Hinweise"]
+thema = "planen"
+text = "Warnungen zur Planung, z. B. kurze Baseline, Meridian-Flip, wenige Vergleichssterne."
