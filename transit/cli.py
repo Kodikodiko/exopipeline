@@ -870,7 +870,7 @@ def cmd_logbuch(a):
 
 def cmd_hilfe(a):
     from .hilfe import show
-    show(a.thema)
+    show(a.thema, tief=getattr(a, "tief", False))
 
 
 def main(argv=None):
@@ -968,6 +968,7 @@ def main(argv=None):
                     help="fuer die besten N pro Nacht Vergleichssterne im Feld bei Gaia zaehlen (langsamer)")
     h = sub.add_parser("hilfe", help="Deutsche Hilfe zu einem Thema (ohne Thema: Themenliste)")
     h.add_argument("thema", nargs="?", default="")
+    h.add_argument("--tief", action="store_true", help="mit Hintergrund: Physik, Formeln, Code")
     h.set_defaults(func=None)
     a = p.parse_args(argv)
     if a.cmd == "hilfe":

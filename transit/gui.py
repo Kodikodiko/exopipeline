@@ -933,7 +933,18 @@ class H(BaseHTTPRequestHandler):
                 self._json(defaults())
             elif u.path == "/api/logbuch":
                 self._json(logbook())
-            elif u.path == "/handbuch":
+            elif u.path == "/api/hilfe":                   # help panel: topics, field and column help (transit/hilfe)
+                from .hilfetexte import fuer_gui
+                self._json(fuer_gui(os.path.join(PIPE_DIR, "HANDBUCH.md")))
+            elif u.path == "/handbuch":                     # manual as a readable page with contents and anchors
+                from .hilfetexte import handbuch_html
+                b = handbuch_html(os.path.join(PIPE_DIR, "HANDBUCH.md")).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(b)))
+                self.end_headers()
+                self.wfile.write(b)
+            elif u.path == "/handbuch.md":
                 b = open(os.path.join(PIPE_DIR, "HANDBUCH.md"), "rb").read()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain; charset=utf-8")

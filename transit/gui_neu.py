@@ -122,6 +122,35 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
 .g3{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;z-index:30;display:flex;gap:12px;align-items:center;max-width:min(680px,92vw);box-shadow:0 4px 16px rgba(0,0,0,.2)}
 #toast button{font:inherit;background:none;border:none;color:inherit;text-decoration:underline;cursor:pointer;font-weight:600}
+/* help: "?" in the header, side panel (F1), (i) popups with "mehr" */
+#hilfeknopf{width:34px;height:34px;min-height:34px;padding:0;border-radius:50%;font-size:16px;font-weight:700}
+#aktiv:not([hidden])+#hilfeknopf{margin-left:0} #hilfeknopf{margin-left:auto}
+#hp{position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--card);border-left:1px solid var(--line);z-index:25;display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(0,0,0,.12)}
+@media (min-width:1200px){body.hp-auf .shell,body.hp-auf header{margin-right:440px}}
+#hp .hpkopf{padding:14px 16px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+#hp .hpbody{flex:1;overflow-y:auto;padding:12px 18px 40px;font-size:14px;line-height:1.55}
+.hdoc h1{font-size:19px;margin:4px 0 10px;letter-spacing:-.01em} .hdoc h3{font-size:15px;margin:18px 0 6px} .hdoc h4{font-size:14px;margin:14px 0 4px}
+.hdoc p{margin:8px 0} .hdoc ol,.hdoc ul{margin:8px 0;padding-left:22px} .hdoc li{margin:4px 0}
+.hdoc code{font:12px Consolas,ui-monospace,monospace;background:var(--soft);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+.hdoc pre{font:12px/1.5 Consolas,ui-monospace,monospace;background:var(--soft);padding:8px 10px;border-radius:6px;overflow-x:auto}
+.hdoc .tab{overflow-x:auto;margin:8px 0} .hdoc table{font-size:13px} .hdoc th{white-space:normal;background:var(--soft)} .hdoc td{padding:6px 8px;vertical-align:top}
+.hdoc .tipp{margin:10px 0;padding:8px 12px;border-left:3px solid var(--acc);background:var(--accsoft);border-radius:0 6px 6px 0}
+.formel{font:13px/1.6 Consolas,ui-monospace,monospace;background:var(--soft);border:1px solid var(--line2);padding:8px 12px;border-radius:6px;margin:8px 0;overflow-x:auto;white-space:pre}
+details.tief{margin-top:18px;border:1px solid var(--accline);border-radius:8px;background:var(--accsoft)}
+details.tief>summary{cursor:pointer;padding:8px 12px;font-weight:600;color:var(--acc2)} details.tief>div{padding:0 12px 8px}
+.hliste{list-style:none;margin:6px 0 14px;padding:0;display:flex;flex-direction:column;gap:2px}
+.hliste button{font:inherit;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:6px;padding:6px 8px;cursor:pointer;color:var(--fg);display:flex;flex-direction:column;gap:1px}
+.hliste button:hover,.hliste button:focus-visible{background:var(--soft);border-color:var(--line2)}
+.hliste b{font-weight:600;color:var(--acc2)} .hliste span{font-size:12px;color:var(--mut)}
+.hgruppe{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin-top:8px}
+.hpop .mehr{display:inline-block;margin-top:6px;font-weight:600;cursor:pointer;color:var(--acc2);text-decoration:underline;background:none;border:0;padding:0;font:inherit}
+.hpop .ht{display:block;margin-top:6px;padding-top:6px;border-top:1px solid var(--line2);color:var(--mut)}
+.hpop .formel{font-size:12px;margin:4px 0;padding:4px 8px}
+.hpop.fix{pointer-events:auto}
+.wastun{font:inherit;font-size:12px;background:none;border:0;padding:0 0 0 6px;color:var(--acc2);text-decoration:underline;cursor:pointer}
+@keyframes zeig{0%,100%{outline-color:transparent}20%,60%{outline-color:var(--acc)}}
+.zeig{outline:3px solid transparent;outline-offset:3px;border-radius:8px;animation:zeig 1.8s ease-in-out 2}
+body.ohne-i .thi{display:none}
 @media (max-width:700px){header{padding:8px 16px}main{padding:16px}aside#side{max-width:none;border-right:none;border-bottom:1px solid var(--line)}.kv{grid-template-columns:110px minmax(0,1fr) auto}}
 </style></head><body>
 <header>
@@ -131,10 +160,11 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
   <a href="#/logbuch" data-area="logbuch">Logbuch</a><a href="#/hilfe" data-area="hilfe">Hilfe</a>
  </nav>
  <a id="aktiv" href="#" hidden><span class="dot puls"></span><span id="aktivtxt"></span></a>
+ <button id="hilfeknopf" class="btn sec" type="button" aria-label="Hilfe zu dieser Seite (F1)" title="Hilfe zu dieser Seite (F1)" aria-expanded="false" aria-controls="hp" onclick="hilfeUmschalten()">?</button>
 </header>
 <div class="shell">
  <aside id="side" aria-label="Messungen">
-  <div class="between" style="align-items:center"><h2 style="font-size:15px">Messungen</h2>
+  <div class="between" style="align-items:center"><h2 style="font-size:15px" data-hilfe-feld="suche">Messungen</h2>
    <div class="row" style="gap:6px"><button class="btn sec" style="padding:0 10px" aria-label="Liste neu einlesen" title="Liste neu einlesen (lokal und NAS)" onclick="ladeListe(1)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></button>
    <button class="btn sec" style="padding:0 12px" onclick="ordnerWaehlen()" title="Messordner mit dem Windows-Dialog wählen">Ordner…</button></div></div>
   <label style="position:relative;display:block"><span hidden>Suchen</span>
@@ -159,20 +189,20 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
     <section class="card" aria-labelledby="h-neu" style="display:flex;flex-direction:column;gap:18px">
      <div class="between"><h2 id="h-neu" style="font-size:18px">Neuer Lauf</h2><span class="hint">Werte aus dem FITS-Header vorgeschlagen</span></div>
      <div class="grid2">
-      <label class="lbl">Planet (ExoClock-Schreibweise)<input id="f_planet" class="inp" placeholder="z. B. HAT-P-42b"><span id="f_planet_h" class="hint"></span></label>
-      <label class="lbl">Filter (ExoClock-Menü)<select id="f_filter" class="inp"></select><span id="f_filter_h" class="hint"></span></label>
-      <div class="lbl" role="group" aria-label="Kalibrierung">Kalibrierung
+      <label class="lbl" data-hilfe-feld="planet">Planet (ExoClock-Schreibweise)<input id="f_planet" class="inp" placeholder="z. B. HAT-P-42b"><span id="f_planet_h" class="hint"></span></label>
+      <label class="lbl" data-hilfe-feld="filter">Filter (ExoClock-Menü)<select id="f_filter" class="inp"></select><span id="f_filter_h" class="hint"></span></label>
+      <div class="lbl" role="group" aria-label="Kalibrierung" data-hilfe-feld="kalibrierung">Kalibrierung
        <div class="seg" id="f_mode"></div>
-       <label style="display:flex;gap:8px;align-items:center;font-weight:400;font-size:13px;color:var(--fg2)"><input id="f_extra" type="checkbox" checked style="width:18px;height:18px;margin:0" onchange="zeigeFuss()"> <span id="f_extra_t"></span></label>
+       <label data-hilfe-feld="zweitlauf" style="display:flex;gap:8px;align-items:center;font-weight:400;font-size:13px;color:var(--fg2)"><input id="f_extra" type="checkbox" checked style="width:18px;height:18px;margin:0" onchange="zeigeFuss()"> <span id="f_extra_t"></span></label>
       </div>
-      <label class="lbl">Photometrie übernehmen von<select id="f_basis" class="inp" onchange="basisGeaendert()"></select><span class="hint">Cube und Kandidaten eines Laufs mit gleicher Kalibrierung</span></label>
+      <label class="lbl" data-hilfe-feld="basis">Photometrie übernehmen von<select id="f_basis" class="inp" onchange="basisGeaendert()"></select><span class="hint">Cube und Kandidaten eines Laufs mit gleicher Kalibrierung</span></label>
      </div>
      <div class="row" style="justify-content:space-between;padding:12px 14px;border-radius:8px;background:var(--soft);border:1px solid var(--line2)">
-      <div class="row" style="gap:8px"><b style="font-size:13px">Erweitert:</b><span id="erw-chips" class="row" style="gap:8px"></span></div>
-      <button class="btn sec" onclick="drawerAuf()">Erweitert bearbeiten…</button>
+      <div class="row" style="gap:8px"><b style="font-size:13px" data-hilfe-feld="erweitert">Erweitert:</b><span id="erw-chips" class="row" style="gap:8px"></span></div>
+      <button id="erwbtn" class="btn sec" onclick="drawerAuf()">Erweitert bearbeiten…</button>
      </div>
      <div class="row" style="justify-content:space-between;border-top:1px solid var(--line2);padding-top:16px">
-      <label class="hint row" style="font-size:13px;gap:6px">Name <input id="f_lauf" class="inp mono" style="width:220px;min-height:34px" oninput="zeigeFuss()"> <span id="f_fuss"></span></label>
+      <label class="hint row" style="font-size:13px;gap:6px" data-hilfe-feld="laufname">Name <input id="f_lauf" class="inp mono" style="width:220px;min-height:34px" oninput="zeigeFuss()"> <span id="f_fuss"></span></label>
       <button id="startbtn" class="btn big" onclick="start()"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg><span id="starttxt">Lauf starten</span></button>
      </div>
     </section>
@@ -206,7 +236,7 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
     </section>
     <section class="card" aria-labelledby="h-warten" style="flex:1 1 280px;display:flex;flex-direction:column;gap:12px">
      <h2 id="h-warten" style="font-size:16px">Während du wartest</h2>
-     <label style="display:flex;gap:10px;align-items:center;font-size:14px"><input id="notify" type="checkbox" style="width:18px;height:18px;margin:0" onchange="notifyUmschalten(this)"> Benachrichtigen, wenn fertig</label>
+     <label data-hilfe-feld="notify" style="display:flex;gap:10px;align-items:center;font-size:14px"><input id="notify" type="checkbox" style="width:18px;height:18px;margin:0" onchange="notifyUmschalten(this)"> Benachrichtigen, wenn fertig</label>
      <span class="hint" style="font-size:13px">Die Seite kann geschlossen werden, der Lauf läuft weiter. Beim nächsten Öffnen steht er unter „Läufe“.</span>
      <div id="l-folge"></div>
     </section>
@@ -230,7 +260,7 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
       <div id="blatt"></div>
      </section>
      <section class="card" aria-labelledby="h-pruef" style="flex:1 1 320px;display:flex;flex-direction:column;gap:12px">
-      <h2 id="h-pruef" style="font-size:18px">Prüfungen</h2>
+      <h2 id="h-pruef" style="font-size:18px" data-hilfe-feld="gueltig">Prüfungen und gültig</h2>
       <ul id="pruef" style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;font-size:13px"></ul>
       <div id="gueltigbox" style="border-top:1px solid var(--line2);padding-top:14px;display:flex;flex-direction:column;gap:10px"></div>
      </section>
@@ -245,13 +275,13 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
      <div class="row" style="align-items:flex-start;gap:24px">
       <div id="up-felder" style="flex:1 1 460px;min-width:0"></div>
       <div style="flex:1 1 420px;min-width:0;display:flex;flex-direction:column;gap:8px">
-       <label for="up-kom" style="font-size:13px;font-weight:600;color:var(--fg2)">Kommentar für ExoClock (Englisch, editierbar)</label>
+       <label for="up-kom" data-hilfe-feld="up_kommentar" style="font-size:13px;font-weight:600;color:var(--fg2)">Kommentar für ExoClock (Englisch, editierbar)</label>
        <textarea id="up-kom" rows="7" style="font:13px/1.5 Consolas,ui-monospace,monospace;padding:10px 12px;border:1px solid var(--line);border-radius:8px;resize:vertical;color:var(--fg);background:var(--card)"></textarea>
        <div class="row" style="gap:8px"><button class="btn" onclick="kopiere(document.getElementById('up-kom').value,'Kommentar kopiert')">Kommentar kopieren</button><button class="btn sec" onclick="ladeUpload(true)">Neu erzeugen</button></div>
       </div>
      </div>
      <div class="row" style="padding:12px 14px;border-radius:8px;background:var(--soft)">
-      <label style="display:flex;gap:10px;align-items:center;font-size:14px;font-weight:600"><input id="up-done" type="checkbox" style="width:18px;height:18px;margin:0" onchange="hochgeladen(this.checked)"> Bei ExoClock hochgeladen</label>
+      <label data-hilfe-feld="up_done" style="display:flex;gap:10px;align-items:center;font-size:14px;font-weight:600"><input id="up-done" type="checkbox" style="width:18px;height:18px;margin:0" onchange="hochgeladen(this.checked)"> Bei ExoClock hochgeladen</label>
       <span id="up-done-h" class="hint" style="font-size:13px"></span>
      </div>
     </section>
@@ -263,10 +293,10 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
    <h1 style="font-size:26px">Beobachtungsvorschlag</h1>
    <section class="card" style="display:flex;flex-direction:column;gap:12px">
     <div class="row" style="align-items:flex-end">
-     <label class="lbl">Nächte<input id="pl_n" class="inp" type="number" value="3" min="1" max="7" style="width:90px"></label>
-     <label class="lbl">pro Nacht<input id="pl_top" class="inp" type="number" value="10" min="1" max="50" style="width:90px"></label>
-     <label style="display:flex;gap:8px;align-items:center;min-height:40px"><input id="pl_wx" type="checkbox" checked style="width:18px;height:18px;margin:0"> Wetter (Open-Meteo)</label>
-     <label style="display:flex;gap:8px;align-items:center;min-height:40px"><input id="pl_gaia" type="checkbox" style="width:18px;height:18px;margin:0"> Vergleichssterne zählen (Gaia, langsamer)</label>
+     <label class="lbl" data-hilfe-feld="pl_n">Nächte<input id="pl_n" class="inp" type="number" value="3" min="1" max="7" style="width:90px"></label>
+     <label class="lbl" data-hilfe-feld="pl_top">pro Nacht<input id="pl_top" class="inp" type="number" value="10" min="1" max="50" style="width:90px"></label>
+     <label data-hilfe-feld="pl_wx" style="display:flex;gap:8px;align-items:center;min-height:40px"><input id="pl_wx" type="checkbox" checked style="width:18px;height:18px;margin:0"> Wetter (Open-Meteo)</label>
+     <label data-hilfe-feld="pl_gaia" style="display:flex;gap:8px;align-items:center;min-height:40px"><input id="pl_gaia" type="checkbox" style="width:18px;height:18px;margin:0"> Vergleichssterne zählen (Gaia, langsamer)</label>
      <button id="pl_btn" class="btn" onclick="planRechnen()">Berechnen</button><span id="pl_msg" class="hint"></span>
     </div>
     <div class="hint">Transits aus der ExoClock-Datenbank, vollständig in der Dunkelheit über der Mindesthöhe ([planning] in der Konfiguration), tief genug für das Teleskop. Score = Priorität × erwartete Genauigkeit × Wetter × Abzüge für Hinweise. Zeiten lokal.</div>
@@ -283,21 +313,15 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
 
   <!-- HILFE -->
   <div class="view" id="v-hilfe" hidden style="max-width:900px">
-   <h1 style="font-size:26px">Hilfe</h1>
-   <section class="card" style="display:flex;flex-direction:column;gap:12px">
-    <h2 style="font-size:18px">Ablauf in vier Schritten</h2>
-    <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px">
-     <li><b>Daten:</b> Messung links wählen. Hinweise aus dem FITS-Header (Farbkamera, Filter) stehen über dem Formular.</li>
-     <li><b>Lauf starten:</b> Planet, Filter und Kalibrierung prüfen, Start. Mit dem Haken wird eine zweite Kalibrierung gleich danach gerechnet. Der Fortschritt jedes Schritts ist unter „Details“ zu sehen.</li>
-     <li><b>Vergleichen:</b> Läufe nach Datenqualität vergleichen (OOT-RMS, β, Prüfungen) und den besten als gültig setzen.</li>
-     <li><b>Hochladen:</b> Felder einzeln kopieren, Kommentar übernehmen, bei ExoClock hochladen und abhaken.</li>
-    </ol>
-   </section>
+   <div class="between" style="align-items:flex-end"><h1 style="font-size:26px">Hilfe</h1>
+    <button class="btn sec" onclick="hilfeAuf()">Hilfe-Leiste öffnen (F1)</button></div>
+   <p class="hint" style="font-size:14px;margin:0">Auf jeder Seite öffnet das <b>?</b> oben rechts oder die Taste <b>F1</b> die Hilfe zu dieser Seite, ohne sie zu verlassen. Die kleinen <b>i</b> an Feldern und Spalten erklären jedes Feld einzeln. Jedes Thema hat unten einen aufklappbaren <b>Hintergrund</b> mit Physik, Formeln und dem Programmcode.</p>
+   <div id="hilfe-seite" style="display:flex;flex-direction:column;gap:16px"><span class="hint">lade Hilfe …</span></div>
    <section class="card" style="display:flex;flex-direction:column;gap:10px">
     <h2 style="font-size:18px">Mehr</h2>
-    <a href="/handbuch" target="_blank">Handbuch (HANDBUCH.md)</a>
+    <a href="/handbuch" target="_blank">Handbuch (alle Einstellungen und Details)</a>
     <a href="/klassisch">Klassische Oberfläche öffnen</a>
-    <span class="hint" style="font-size:13px">Die klassische Oberfläche bleibt immer erreichbar: unter /klassisch oder mit <span class="mono">transit gui --klassisch</span>.</span>
+    <span class="hint" style="font-size:13px">Die klassische Oberfläche bleibt immer erreichbar: unter /klassisch oder mit <span class="mono">transit gui --klassisch</span>. Auf der Kommandozeile: <span class="mono">transit hilfe</span>.</span>
    </section>
   </div>
  </main>
@@ -350,6 +374,15 @@ img.blatt{max-width:100%;border:1px solid var(--line);border-radius:8px;backgrou
    <button class="btn" onclick="drawerZu(true)">Übernehmen</button></div>
  </div>
 </div>
+<aside id="hp" hidden aria-label="Hilfe">
+ <div class="hpkopf">
+  <div class="between" style="align-items:center"><h2 style="font-size:17px">Hilfe</h2>
+   <button class="btn sec" style="padding:0 10px;min-height:34px" aria-label="Hilfe schließen (Esc)" onclick="hilfeZu()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <label style="position:relative;display:block"><span hidden>In der Hilfe suchen</span>
+   <input id="hp-such" class="inp" placeholder="Suchen, z. B. Wolken, Flip, O-C" style="min-height:36px" oninput="hilfeZeig(null)"></label>
+ </div>
+ <div class="hpbody" id="hp-body"></div>
+</aside>
 <div id="toast" hidden></div>
 
 <script>
@@ -403,6 +436,7 @@ function route(){
   document.querySelectorAll('nav.areas a').forEach(a=>{a.classList.toggle('on',a.dataset.area===area); if(a.dataset.area===area)a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current');});
   $('side').hidden=v!=='auswerten';
   S.view=v;
+  if(!$('hp').hidden&&!S.hilfeThema) hilfeZeig(null);
   if(v==='lauf') ladeLauf();
   if(v==='vergleich') zeigeVergleich();
   if(v==='planen' && !window.PLAN) planLaden();
@@ -476,7 +510,7 @@ async function waehle(p){
 function zeigeKopf(){
   const M=S.M; $('a-planet').textContent=M.planet; $('a-nacht').textContent=M.nacht?'· Nacht '+M.nacht:''; $('a-pfad').textContent=M.pfad;
   const zur='← '+M.planet+(M.nacht?' · Nacht '+M.nacht:''); $('l-zurueck').textContent=zur; $('v-zurueck').textContent=zur;
-  $('hinweise').innerHTML=(M.hinweise||[]).map(n=>`<div role="note" class="note ${n.level==='info'?'info':''}">${n.level==='info'?IINFO:IWARN}<div style="display:flex;flex-direction:column;gap:2px"><b>${esc(n.titel)}</b><span style="font-size:13px">${esc(n.text)}</span></div></div>`).join('');
+  $('hinweise').innerHTML=(M.hinweise||[]).map(n=>`<div role="note" class="note ${n.level==='info'?'info':''}">${n.level==='info'?IINFO:IWARN}<div style="display:flex;flex-direction:column;gap:2px"><b>${esc(n.titel)}</b><span style="font-size:13px">${esc(n.text)}${n.level==='info'?'':wasTun(n.titel+' '+n.text)}</span></div></div>`).join('');
 }
 function zeigeStepper(){
   const L=S.M?S.M.laeufe:[]; const fertig=L.some(l=>l.oc!==undefined), g=L.find(l=>l.status==='gueltig'&&l.oc!==undefined);
@@ -608,7 +642,7 @@ function zeigeLauf(){
   $('l-stop').hidden=!(laeuft&&L.laeuft_aus_gui)&&!L.wartet;
   const lr=S.M&&S.M.laeufe.find(l=>l.lauf===L.lauf); $('l-ergebnis').hidden=!(lr&&lr.oc!==undefined);
   $('l-ergebnis').onclick=()=>{S.sel=L.lauf;};
-  $('l-fehler').innerHTML=state==='fehler'?`<div class="note bad" role="alert">${IWARN}<div style="display:flex;flex-direction:column;gap:2px"><b>Lauf mit Fehler beendet</b><span style="font-size:13px" class="mono">${esc(st.error||'siehe Protokoll')}</span></div></div>`:
+  $('l-fehler').innerHTML=state==='fehler'?`<div class="note bad" role="alert">${IWARN}<div style="display:flex;flex-direction:column;gap:2px"><b>Lauf mit Fehler beendet</b><span style="font-size:13px" class="mono">${esc(st.error||'siehe Protokoll')}</span><span><button type="button" class="wastun" style="padding:0" data-thema="${wasTunThema(st.error)||'lauf-haengt'}">Was tun?</button></span></div></div>`:
     haengt?`<div class="note" role="alert">${IWARN}<div><b>Kein Lebenszeichen seit ${mmss(hb)} min</b><br><span style="font-size:13px">Der Prozess antwortet nicht. Läuft der PC noch? Sonst abbrechen und neu starten (fertige Schritte werden übersprungen).</span></div></div>`:'';
   // steps
   const steps=(st.steps&&st.steps.length?st.steps:STEPS.map(n=>({name:n,state:'offen'})));
@@ -717,7 +751,7 @@ function zeigeVergleich(poll){
   $('h-blatt').textContent='Ergebnisblatt '+s.lauf;
   $('tabs').innerHTML=[['kurve','Lichtkurve'],['feld','Feld'],['sterne','Vergleichssterne'],['tc','Tc eindeutig?']].map(([k,t])=>`<button role="tab" aria-selected="${S.tab===k}" class="btn sm ${S.tab===k?'':'sec'}" onclick="S.tab='${k}';zeigeBlatt()">${t}</button>`).join('');
   if(!poll) zeigeBlatt();
-  $('pruef').innerHTML=(s.pruefungen||[]).map(p=>`<li style="display:flex;gap:10px;align-items:flex-start"><span class="pill ${p.level==='ok'?'pg':p.level==='bad'?'pr':'py'}">${p.level==='ok'?'ok':p.level==='bad'?'rot':'prüfen'}</span><span>${esc(p.text)}</span></li>`).join('')||'<li class="hint">keine Angaben</li>';
+  $('pruef').innerHTML=(s.pruefungen||[]).map(p=>`<li style="display:flex;gap:10px;align-items:flex-start"><span class="pill ${p.level==='ok'?'pg':p.level==='bad'?'pr':'py'}">${p.level==='ok'?'ok':p.level==='bad'?'rot':'prüfen'}</span><span>${esc(p.text)}${p.level==='ok'?'':wasTun(p.text)}</span></li>`).join('')||'<li class="hint">keine Angaben</li>';
   $('gueltigbox').innerHTML=s.status==='gueltig'?`<div class="row" style="gap:8px"><span class="pill pg" style="font-size:13px;padding:6px 10px">${ICHK} gültige Messung dieser Nacht</span></div><span class="hint" style="font-size:13px">Ein anderer Lauf kann jederzeit stattdessen gültig gesetzt werden.</span>`:
     `<button class="btn ok big" onclick="gueltig('${esc(s.lauf)}')">${ICHK} Als gültige Messung dieser Nacht setzen</button><span class="hint" style="font-size:13px">Ersetzt die Upload-Datei unter RESULT\\. Rückgängig über die Meldung danach oder „gültig“ beim anderen Lauf.</span>`;
   $('upcard').hidden=!g;
@@ -741,127 +775,130 @@ function zeigeBlatt(){
   }
   B.querySelectorAll('[data-tab]').forEach(d=>d.hidden=d.dataset.tab!==S.tab);
 }
-// Help on table column heads: every <th> whose text is in SPALTE gets a small (i); only a click on it shows the text.
-// A MutationObserver also covers tables built later (run comparison, comparison stars, plan).
-const SPALTE={
-  'Lauf':'Name des Laufs (Ordner unter RESULT). gui_<Datum>_<Zeit>_<Kalibrierung>.',
-  'Zustand':'Fertig, läuft, wartet oder mit Fehler beendet.',
-  'Kalibr.':'Kalibrierung der Lights: raw (keine), f (nur Flat), bf (Bias + Flat), bfd (Bias + Flat + Dark).',
-  'O-C':'Gemessene minus vorhergesagte Transitmitte in Minuten, mit Fehler. Nahe 0 innerhalb des Fehlers: Ephemeride bestätigt.',
-  'OOT-RMS':'Streuung der Lichtkurve außerhalb des Transits (Promille). Je kleiner, desto ruhiger die Messung; der kleinste Wert ist markiert.',
-  'β':'Faktor für rotes (zeitlich korreliertes) Rauschen. 1 = nur weißes Rauschen; größere Werte vergrößern die Fehler entsprechend.',
-  'Drift':'ExoClock-Kriterium: Abweichung von Rp/R* vom Literaturwert in Einheiten des Fehlers. Grün unter 2, gelb 2–3, rot ab 3.',
-  'Rp/Rs':'Gemessener Planetenradius relativ zum Sternradius (aus der Transittiefe).',
-  'Ausreißer':'Wie viele Messpunkte das Sigma-Clipping gegen den Transit-Fit entfernt hat (Schwelle in ausreisser.json).',
-  'Prüfungen':'Ergebnis der automatischen Prüfungen: Planung (Baseline, Airmass, Flip), Drift, Konvergenz (R-hat), „Tc eindeutig?“ (Tc-Profil und Kontrollfit) und Einzeltest der Vergleichssterne.',
-  'Planet':'Planet in ExoClock-Schreibweise.',
-  'Nacht':'Beobachtungsnacht (Datum des Abends).',
-  'Status':'gültig = der Lauf, der für diese Nacht zählt (Upload, O-C-Diagramm); variante = weitere Auswertung derselben Nacht.',
-  'Tiefe':'Transittiefe in Promille (Modell mit Randverdunkelung).',
-  'Upload-Datei':'Datei für den ExoClock-Upload dieses Laufs.',
-  'an':'Haken = Stern darf ins Ensemble der Vergleichssterne. Abgewählte Sterne schließt der nächste Lauf aus.',
-  'Stern':'Kandidat für die Vergleichssterne (interne Nummer). * = im Ensemble dieses Laufs.',
-  'G':'Gaia-G-Helligkeit in mag. Ideal: ähnlich hell wie der Zielstern.',
-  'BP-RP':'Gaia-Farbe (blau minus rot). Größer = röter. Ähnliche Farbe wie das Ziel verringert Airmass-Effekte.',
-  'RUWE':'Gaia-Astrometriegüte. Über 1,4 (gelb): möglicherweise Doppelstern.',
-  'Gaia':'Variabilitätskennung aus Gaia/VSX. VARIABLE = bekannter Veränderlicher, ungeeignet.',
-  'Ruhe':'Streuung des Sterns gegen die übrigen Kandidaten (10-min-Mittel), geteilt durch den Median aller. 1 = typisch, über 2 auffällig.',
-  'Transitfenster':'Scheinbarer „Transit“ dieses Sterns im Zeitfenster des Planeten (ppt ± Fehler). Sollte null sein; über 3 σ rot.',
-  'wählen':'Haken = dieser Stern gehört zum Ensemble für „Vorschau berechnen“ und „Als neuen Lauf rechnen“. Vorbelegt mit den Sternen des Laufs (*). Gute Gründe zum Abwählen: Ruhe gelb/rot, Transitfenster rot, Einzeltest auffällig. Nicht so lange tauschen, bis O-C passt. Handbuch: „Vergleichssterne von Hand wählen“.',
-  'O-C (schnell)':'Transitmitte minus Vorhersage aus einem schnellen Fit ohne MCMC (beide Zeilen gleich gerechnet, daher vergleichbar). Der Fehler ist meist zu klein; echte Fehlerbalken liefert erst der neue Lauf. Erst OOT-RMS und β ansehen, dann O-C.',
-  'Rp/R*':'Planetenradius relativ zum Sternradius aus dem schnellen Fit; in Klammern der Abstand zum Literaturwert (ExoClock) in σ. Bis etwa 2 σ unauffällig.',
-  'Einzeltest':'Transit-Fit mit nur diesem Stern als Vergleich: Abweichung seines Rp/R* vom Median aller Sterne, in Einheiten seines Fehlers. Grün = passt; gelb = auffällig (über 3 σ zum Median und zur Literatur); rot = in der Ensemble-Suche verworfen. Maus über dem Wert: Rp/R* und O-C dieses Sterns.',
-  'Score':'Gesamtwertung des Vorschlags aus ExoClock-Priorität, Signal-Rausch-Verhältnis, Abdeckung und Wetter.',
-  'Prio':'ExoClock-Priorität: alert, high, medium, low.',
-  'mag':'Helligkeit des Sterns (V, mag).',
-  'Tiefe ppt':'Erwartete Transittiefe in Promille.',
-  'SNR':'Erwartetes Signal-Rausch-Verhältnis des Transits mit deinem Teleskop (Rauschmodell: Photonen, Himmel, Szintillation).',
-  'Beobachten':'Empfohlenes Beobachtungsfenster inklusive Baseline vor und nach dem Transit (Ortszeit).',
-  'Ingress / Tc / Egress':'Vorhergesagter Beginn, Mitte (mit Unsicherheit) und Ende des Transits.',
-  'X max':'Größte Airmass im Beobachtungsfenster. Unter 2 ist gut.',
-  'Wolken':'Vorhergesagte mittlere Bewölkung im Fenster.',
-  'RA / Dec':'Himmelskoordinaten des Sterns (J2000).',
-  'Hinweise':'Warnungen zur Planung, z. B. kurze Baseline, Meridian-Flip, wenige Vergleichssterne.'
-};
+// ------------------------------------------------------------------ help
+// All texts come from transit/hilfe (GET /api/hilfe): topics (Markdown -> HTML), FELD = every field (key = data-k in the
+// drawer or data-hilfe-feld elsewhere, upload rows "up:<label>"), SPALTE = every table column (key = header text).
+// A small (i) shows the short text; "mehr" and the "?" in the header (or F1) open the side panel with the topics.
+let HILFE={themen:[],gruppen:[],handbuch:[]}, FELD={}, SPALTE={};
+const KONTEXT={auswerten:['daten-laden','auswerten','vergleichssterne-waehlen','kein-master'],lauf:['auswerten','lauf-haengt','luecken'],
+  vergleich:['bester-lauf','oc-zu-gross','exoclock-upload','vergleichssterne-waehlen'],planen:['planen','aufnehmen'],logbuch:['archivieren','exoclock-upload'],hilfe:[]};
+async function ladeHilfeDaten(){
+  const r=await api('/api/hilfe'); if(r.fehler||!r.themen) return;
+  HILFE=r; FELD=r.feld||{}; SPALTE={}; for(const [k,v] of Object.entries(r.spalte||{})) SPALTE[k]=v;
+  spaltenHilfe(document); feldHilfe(document); erwHilfe(); zeigeHilfeSeite();
+  new MutationObserver(ms=>{ for(const m of ms) for(const n of m.addedNodes) if(n.nodeType===1){ spaltenHilfe(n); feldHilfe(n); } })
+    .observe(document.documentElement,{childList:true,subtree:true});
+  if(lsGet('transit.hilfe.offen',null)) hilfeAuf(lsGet('transit.hilfe.offen',null)===1?null:lsGet('transit.hilfe.offen',null));
+}
+addEventListener('DOMContentLoaded',()=>{ document.body.classList.toggle('ohne-i',!!lsGet('transit.ohne_i',false)); ladeHilfeDaten(); });
+const thema=id=>HILFE.themen.find(t=>t.id===id);
+function mehrKnopf(id){ const t=thema(id); return t?`<button type="button" class="mehr" data-thema="${esc(id)}">mehr: ${esc(t.titel)} →</button>`:''; }
+function tiefHtml(h){ return h.formel||h.tief?`<span class="ht">${h.formel?`<span class="formel">${esc(h.formel)}</span>`:''}${esc(h.tief||'')}</span>`:''; }
+function popHtml(art,k){
+  if(art==='spalte'){ const h=SPALTE[k]; return `<b>${esc(k)}</b>${esc(h.text)}${tiefHtml(h)}${h.thema?'<br>'+mehrKnopf(h.thema):''}`; }
+  const h=FELD[k];
+  return `<b>${esc(h.titel)}</b>${esc(h.was)}`+(h.wirkung?`<br><br><b>Auswirkung</b>${esc(h.wirkung)}`:'')+(h.wann?`<br><br><b>Wann ändern?</b>${esc(h.wann)}`:'')+
+    tiefHtml(h)+(h.thema?'<br>'+mehrKnopf(h.thema):'');
+}
+function iKnopf(art,k){ const t=art==='spalte'?k:FELD[k].titel;
+  return `<button type="button" class="thi" data-art="${art}" data-key="${esc(k)}" aria-label="Erklärung: ${esc(t)}" aria-expanded="false">i</button>`; }
 let thPop=null, thFest=null;
 function thZeige(b){
-  if(!thPop){ thPop=document.createElement('div'); thPop.className='hpop fix'; thPop.setAttribute('role','tooltip'); document.body.appendChild(thPop); }
-  thPop.innerHTML=`<b>${esc(b.dataset.titel)}</b>${esc(SPALTE[b.dataset.titel])}`; thPop.style.maxWidth=''; thPop.hidden=false;
-  const r=b.getBoundingClientRect(), w=Math.min(340,innerWidth-16);
+  if(!thPop){ thPop=document.createElement('div'); thPop.className='hpop fix'; thPop.setAttribute('role','tooltip'); document.body.appendChild(thPop);
+    thPop.addEventListener('click',ev=>{ const m=ev.target.closest('[data-thema]'); if(m){ ev.preventDefault(); ev.stopPropagation(); thZu(); hilfeAuf(m.dataset.thema); } else ev.stopPropagation(); }); }
+  thPop.innerHTML=popHtml(b.dataset.art,b.dataset.key); thPop.hidden=false;
+  const r=b.getBoundingClientRect(), w=Math.min(420,innerWidth-16); thPop.style.maxWidth=w+'px';
   thPop.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';
-  thPop.style.top=(r.bottom+6+thPop.offsetHeight>innerHeight?r.top-thPop.offsetHeight-6:r.bottom+6)+'px';
+  thPop.style.top=(r.bottom+6+thPop.offsetHeight>innerHeight?Math.max(8,r.top-thPop.offsetHeight-6):r.bottom+6)+'px';
 }
-function thWeg(){ if(thPop&&!thFest) thPop.hidden=true; }
+function thZu(){ if(thFest){ thFest.classList.remove('on'); thFest.setAttribute('aria-expanded','false'); thFest=null; } if(thPop) thPop.hidden=true; }
+document.addEventListener('click',ev=>{
+  const b=ev.target.closest&&ev.target.closest('button.thi[data-key]');
+  if(b){ ev.preventDefault(); ev.stopPropagation(); const war=thFest===b; thZu(); if(war) return;
+    thFest=b; b.classList.add('on'); b.setAttribute('aria-expanded','true'); thZeige(b); return; }
+  thZu();
+},true);
+addEventListener('scroll',ev=>{ if(thPop&&!thPop.hidden&&!thPop.contains(ev.target)) thZu(); },true);
 function spaltenHilfe(root){
   (root.querySelectorAll?root:document).querySelectorAll('th:not([data-hilfe])').forEach(th=>{
-    const t=th.textContent.trim(); th.dataset.hilfe='1'; if(!SPALTE[t]) return;
-    th.removeAttribute('title');
-    th.insertAdjacentHTML('beforeend',`<button type="button" class="thi" data-titel="${esc(t)}" aria-label="Erklärung: ${esc(t)}">i</button>`);
-    const b=th.lastElementChild;
-    b.addEventListener('click',ev=>{ ev.stopPropagation(); if(thFest) thFest.classList.remove('on');
-      if(thFest===b){ thFest=null; thWeg(); return; } thFest=b; b.classList.add('on'); thZeige(b); });
+    const t=th.textContent.trim(); if(!SPALTE[t]) return; th.dataset.hilfe='1';
+    th.removeAttribute('title'); th.insertAdjacentHTML('beforeend',iKnopf('spalte',t));
   });
 }
-document.addEventListener('click',()=>{ if(thFest){ thFest.classList.remove('on'); thFest=null; thWeg(); } });
-addEventListener('scroll',()=>{ if(thPop&&!thPop.hidden){ if(thFest){ thFest.classList.remove('on'); thFest=null; } thPop.hidden=true; } },true);
-new MutationObserver(ms=>{ for(const m of ms) for(const n of m.addedNodes) if(n.nodeType===1) spaltenHilfe(n); })
-  .observe(document.documentElement,{childList:true,subtree:true});
-addEventListener('DOMContentLoaded',()=>spaltenHilfe(document));
-
-
-// Help for every field of the advanced settings: what it does, what changes, when to set it.  A small (i) next to the
-// label, only a click shows the text (same popup as the column help).
-const ERW_HILFE={
- 'g-kal':['Kalibrierung','Welche Master-Bilder (Flat, Bias, Dark) die Pipeline von den Lights abzieht bzw. durch die sie teilt.','Leer lassen ist der Normalfall: die Pipeline sucht passende Master in der Kalibrierbibliothek.','Nur ändern, wenn sie falsche Master nimmt oder du bewusst einen bestimmten Master testen willst.'],
- flat:['Flat','Pfad zu einem Master-Flat (Datei, oder ein Ordner, in dem der Master liegt). Teilt Vignettierung und Staub aus den Bildern heraus.','Ein falsches Flat erzeugt Helligkeitsfehler, die mit der Sternposition wandern (vor allem nach dem Meridian-Flip).','Nur wenn die automatische Wahl nicht passt (anderer Filter, andere Kamera-Drehung).'],
- bias:['Bias','Pfad zu einem Master-Bias (Datei oder Ordner; Grundrauschen der Kamera bei Belichtung 0).','Wirkt nur bei Kalibrierung „Bias + Flat“ oder „+ Dark“.','Nur wenn die automatische Wahl nicht passt (anderer Gain oder Offset).'],
- dark:['Dark','Pfad zu einem Master-Dark (Dunkelstrom; Datei oder Ordner, dann passt die Belichtungszeit). Wird auf die Belichtungszeit skaliert.','Wirkt nur bei Kalibrierung „+ Dark“. Bei gekühlten CMOS-Kameras meist kleiner Effekt.','Nur wenn die automatische Wahl nicht passt (andere Temperatur).'],
- workers:['Prozesse','Wie viele Prozessorkerne parallel rechnen (Photometrie, Fits, MCMC).','Mehr = schneller, aber der PC ist während des Laufs stärker ausgelastet. Am Ergebnis ändert sich nichts.','Kleiner setzen, wenn du nebenbei am PC arbeiten willst.'],
- 'g-kam':['Kamera & Gaia','Wie die Bilder gelesen werden und woher die Sternkatalogdaten kommen.','Beeinflusst die Photometrie bzw. nur die Erreichbarkeit des Katalogs.','Farbkamera: bei fremden Daten prüfen. Gaia-Quelle: wenn ein Dienst nicht antwortet.'],
- farbkamera:['Farbkamera','Farbkamera-Bilder (Bayer-Matrix) werden zu 2×2-Superpixeln zusammengefasst, damit jeder Bildpunkt alle Farben enthält.','Ohne das springt die Helligkeit von Pixel zu Pixel und die Lichtkurve wird sehr verrauscht (so bei KPS-1b gesehen).','„automatisch“ erkennt es am Header (BAYERPAT). Nur ändern, wenn der Header fehlt oder falsch ist.'],
- gaia_quelle:['Gaia-Quelle','Über welchen Dienst die Gaia-Sterne (Positionen, Helligkeit, Farbe, Variabilität) geholt werden.','Kein Einfluss aufs Ergebnis, nur auf die Erreichbarkeit. Bei Ausfall nimmt die Pipeline den anderen Dienst.','Wenn ein Lauf lange bei der Gaia-Abfrage hängt.'],
- 'g-ver':['Vergleichssterne','Welche Sterne als Vergleich in Frage kommen und wie das Ensemble gewählt wird. Das ist der Teil mit dem größten Einfluss auf Rauschen und O-C.','Andere Sterne ändern das Rauschen, die Tiefe und manchmal Tc.','Wenn ein Reviewer das O-C oder das Rauschen anzweifelt, oder ein Stern im Bild unten auffällt.'],
- dmag_bright:['hell ΔG','Wie viel heller (in mag, negativ) ein Kandidat höchstens sein darf als das Ziel.','Größerer Spielraum bringt hellere, rauschärmere Sterne, die aber eher sättigen.','Wenn zu wenige Kandidaten gefunden werden oder helle Sterne sättigen.'],
- dmag_faint:['schwach ΔG','Wie viel schwächer (in mag) ein Kandidat höchstens sein darf.','Schwache Sterne rauschen stark und verschlechtern das Ensemble.','Erhöhen nur, wenn das Feld sonst zu wenige Sterne hat.'],
- neighbour_px:['Nachbar px','Kandidaten mit einem helleren oder ähnlich hellen Nachbarn näher als so viele Pixel werden verworfen.','Nachbarn in der Apertur verfälschen die Helligkeit, besonders wenn das Seeing schwankt.','Größer bei schlechtem Seeing oder großen Aperturen; kleiner in sehr dichten Feldern.'],
- edge_px:['Rand px','Mindestabstand eines Kandidaten zum Bildrand.','Sterne nahe am Rand wandern bei Nachführfehlern oder nach dem Flip hinaus oder liegen in der Vignettierung.','Größer, wenn die Nachführung driftet; kleiner bei kleinem Feld.'],
- einzel_tiefe_sigma:['Einzelstern-Grenze','Methode des ExoClock-Reviewers: jeder Vergleichsstern wird allein gegen das Ziel gerechnet und gibt eine eigene Transittiefe (Rp/R*). „nur anzeigen“ zeigt das Ergebnis in der Tabelle unten und im Ergebnisblatt. Mit einer Grenze kommen Sterne, deren Tiefe allein um mehr als so viele σ vom Median aller Sterne UND vom Literaturwert abweicht, nicht in die Ensemble-Suche.','Ein Stern, der allein eine ganz andere Tiefe gibt, verbiegt auch das Ensemble (Tiefe und oft Tc). Es bleiben immer mindestens so viele Sterne, wie die Suche braucht.','Standard „nur anzeigen“. „> 3 σ“ wählen, wenn der Einzeltest auffällige Sterne zeigt und du sie nicht einzeln abwählen willst, oder bei einer Rückweisung wegen O-C.'],
- tiefen_gewicht:['Tiefen-Gewicht','Normal gewinnt das Ensemble mit der kleinsten Streuung außerhalb des Transits. Mit einem Gewicht über 0 zählt zusätzlich, wie gut sein Rp/R* zum erwarteten Wert passt: Streuung × (1 + Gewicht × (Abweichung in σ / 3)²).','Gewicht 1: ein Ensemble mit 3 σ Abweichung zählt wie eines mit doppelter Streuung. Achtung: die Tiefe wird damit nicht mehr ganz unabhängig gemessen. Für Tc (das, was ExoClock braucht) ist das unkritisch.','Standard 0. Auf 1 setzen, wenn die Tiefe deutlich von der Literatur abweicht oder Tc unsicher ist („Tc eindeutig?“ gelb/rot). Ergebnis mit dem Lauf ohne Gewicht vergleichen.'],
- 'g-ape':['Apertur','Wie groß der Kreis ist, in dem die Sternhelligkeit gemessen wird, und wo der Himmelshintergrund gemessen wird.','Zu klein: Seeing-Schwankungen verlieren Licht. Zu groß: mehr Himmelsrauschen und Nachbarsterne.','Die Pipeline probiert mehrere Radien und wählt nach der Streuung. Nur ändern, wenn alle Radien schlecht sind.'],
- aperture_mode:['Modus','Fest: ein Radius für die ganze Nacht. Mitwachsend: Radius = k × FWHM in jedem Bild. Beides: beide treten gegeneinander an.','Mitwachsend hilft bei stark wechselndem Seeing oder Fokus.','Standard „beides“ lassen. „fest“ zum Vergleich mit AstroImageJ-Auswertungen.'],
- ap_min:['von × FWHM','Kleinster getesteter Radius, als Vielfaches der FWHM.','Kleinere Radien: weniger Himmelsrauschen bei schwachen Sternen, aber empfindlich auf Seeing.','Bei schwachen Zielen etwas kleiner (1,5).'],
- ap_max:['bis × FWHM','Größter getesteter Radius, als Vielfaches der FWHM.','Größere Radien: robust bei Seeing, aber mehr Hintergrund und Nachbarn.','Bei hellen Zielen oder unruhigem Seeing größer (4–5).'],
- annulus:['Ring innen,außen px','Innerer und äußerer Radius des Rings, in dem der Himmelshintergrund gemessen wird.','Der Ring muss frei von Sternlicht sein, sonst wird der Stern zu dunkel gemessen.','Größer, wenn die Sterne sehr groß sind (Defokus) oder Nachbarn im Ring liegen.'],
- 'g-fit':['Fit & Ausreißer','Wie das Transitmodell an die Lichtkurve angepasst wird.','Beeinflusst Tc, Tiefe und die Fehlerbalken.','Meist Standard. Siehe die einzelnen Felder.'],
- ausreisser_sigma:['Ausreißer entfernen','Bilder, deren Abweichung vom Transit-Fit größer als so viele σ ist, werden entfernt und der Fit wiederholt.','Entfernt Wolken, Flugzeuge, Windstöße. Zu streng („viele“) entfernt auch echte Daten und macht die Fehler zu klein.','„normal“ bei einzelnen Ausreißern; aus lassen bei sauberen Nächten. Die entfernten Bilder stehen in ausreisser.json.'],
- airmass_order:['Detrending','Wie die Helligkeitsänderung durch die Luftmasse (Extinktion) modelliert wird: linear oder quadratisch.','Quadratisch fängt gekrümmte Verläufe ab, kann aber auch einen Teil der Transittiefe schlucken.','Quadratisch nur, wenn die Lichtkurve einen klaren Bogen zeigt und der BIC besser wird.'],
- flip:['Meridian-Flip','Wie der Helligkeitssprung beim Meridian-Flip behandelt wird. Prior: aus den Vergleichssternen geschätzt. Frei: im Fit bestimmt. Ignorieren: kein Sprung.','Frei kann mit dem Transit verwechselt werden, wenn der Flip im Transit liegt.','Standard „Prior“. „frei“ nur, wenn der Prior offensichtlich falsch ist.'],
- fix_geometry:['Geometrie','a/R* und Inklination aus ExoClock festhalten oder frei mitfitten.','Frei braucht sehr gute Daten, sonst werden Tc und Tiefe unsicherer.','Für ExoClock fast immer „fest“.'],
- airmass_max:['Airmass-Grenze','Bilder über dieser Luftmasse werden weggelassen.','Tief am Horizont sind Szintillation und Extinktion stark; weglassen senkt das Rauschen, kürzt aber die Baseline.','Wenn der Rand der Nacht sichtbar stark streut. Mindestens 30 min Baseline vor dem Ingress lassen.'],
- mcmc_steps:['MCMC-Schritte','Wie viele Zufallsschritte die MCMC für die Fehlerbalken macht.','Mehr = stabilere Fehler, längere Rechenzeit. Tc selbst ändert sich kaum.','Erhöhen, wenn R-hat über 1,05 liegt.'],
- symmetry_weight:['Symmetrie-Gewicht','Bevorzugt Ensembles, deren Sterne rund um das Ziel verteilt sind statt auf einer Seite.','Gleicht Flat-Fehler aus, die sich beim Meridian-Flip umdrehen.','Auf 1 setzen bei Nächten mit Flip und auffälligem Sprung.']
-};
-function hilfeHtml(k){ const h=ERW_HILFE[k]; return `<b>${esc(h[0])}</b>${esc(h[1])}<br><br><b>Auswirkung</b>${esc(h[2])}<br><br><b>Wann ändern?</b>${esc(h[3])}`; }
-function knopfNachText(el,k){ const t=[...el.childNodes].find(n=>n.nodeType===3&&n.textContent.trim()); if(!t||!ERW_HILFE[k]) return;
+// the (i) goes right after the first words of the element (label text), else at its end
+function knopfNachText(el,k){ if(!FELD[k]||el.querySelector(':scope button.thi[data-key="'+k+'"]')) return;
+  const t=[...el.childNodes].find(n=>n.nodeType===3&&n.textContent.trim());
+  if(!t){ el.insertAdjacentHTML('beforeend',iKnopf('feld',k)); return; }
   const sp=document.createElement('span'); sp.style.whiteSpace='nowrap'; sp.textContent=t.textContent.trim(); t.replaceWith(sp);
-  sp.insertAdjacentHTML('beforeend',erwHilfeKnopf(k)); }
-function erwHilfeKnopf(k){ return `<button type="button" class="thi" data-erw="${esc(k)}" aria-label="Erklärung: ${esc(ERW_HILFE[k][0])}">i</button>`; }
+  sp.insertAdjacentHTML('beforeend',iKnopf('feld',k)); }
+function feldHilfe(root){
+  const R=root.querySelectorAll?root:document;
+  const L=[...R.querySelectorAll('[data-hilfe-feld]:not([data-hf])')]; if(R.matches&&R.matches('[data-hilfe-feld]:not([data-hf])')) L.push(R);
+  L.forEach(el=>{ const k=el.dataset.hilfeFeld; if(!FELD[k]) return; el.dataset.hf='1'; knopfNachText(el,k); });
+}
 function erwHilfe(){
   const D=$('drawer'); if(!D||D.dataset.hilfe) return; D.dataset.hilfe='1';
-  D.querySelectorAll('section[data-g]').forEach(sec=>{ const k='g-'+sec.dataset.g, h3=sec.querySelector('h3'); if(ERW_HILFE[k]&&h3) h3.querySelector('.gz').insertAdjacentHTML('beforebegin',erwHilfeKnopf(k)); });
+  D.querySelectorAll('section[data-g]').forEach(sec=>{ const k='g-'+sec.dataset.g, h3=sec.querySelector('h3'); if(FELD[k]&&h3) h3.querySelector('.gz').insertAdjacentHTML('beforebegin',iKnopf('feld',k)); });
   D.querySelectorAll('[data-k]').forEach(el=>{ const lab=el.closest('label'); if(lab) knopfNachText(lab,el.dataset.k); });
   const aus=$('seg-aus'); if(aus&&!aus.parentNode.dataset.h) aus.parentNode.dataset.h='ausreisser_sigma';
   D.querySelectorAll('[data-h]').forEach(g=>knopfNachText(g,g.dataset.h));
-  D.querySelectorAll('button[data-erw]').forEach(b=>b.addEventListener('click',ev=>{ ev.preventDefault(); ev.stopPropagation();
-    if(thFest) thFest.classList.remove('on');
-    if(thFest===b){ thFest=null; thWeg(); return; } thFest=b; b.classList.add('on');
-    if(!thPop){ thPop=document.createElement('div'); thPop.className='hpop fix'; thPop.setAttribute('role','tooltip'); document.body.appendChild(thPop); }
-    thPop.innerHTML=hilfeHtml(b.dataset.erw); thPop.style.maxWidth='420px'; thPop.hidden=false;
-    const r=b.getBoundingClientRect(), w=Math.min(420,innerWidth-16);
-    thPop.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';
-    thPop.style.top=(r.bottom+6+thPop.offsetHeight>innerHeight?Math.max(8,r.top-thPop.offsetHeight-6):r.bottom+6)+'px'; }));
 }
-addEventListener('DOMContentLoaded',erwHilfe);
+// "Was tun?" next to warnings: which topic fits a check or note text
+function wasTunThema(t){ t=String(t||'');
+  return /Tc eindeutig|O-C/.test(t)?'oc-zu-gross':/Drift|Tiefe|Rp\/R/.test(t)?'tiefe':/Einzeltest|Vergleichsstern|variab/i.test(t)?'vergleichssterne-waehlen':
+    /Flip/.test(t)?'stufe':/Ausrei/.test(t)?'ausreisser':/Baseline|Airmass|Lücke|Sättig|Peak/i.test(t)?'luecken':/Dark|Flat|Bias|Master|Kalibr/.test(t)?'kein-master':
+    /Gaia|VizieR|hängt|Timeout/i.test(t)?'lauf-haengt':null; }
+function wasTun(t){ const id=wasTunThema(t); return id&&thema(id)?`<button type="button" class="wastun" data-thema="${id}">Was tun?</button>`:''; }
+
+// ---- side panel
+function hilfeListe(L){ return `<ul class="hliste">${L.map(t=>`<li><button type="button" data-thema="${esc(t.id)}"><b>${esc(t.titel)}</b>${t.kurz?`<span>${esc(t.kurz)}</span>`:''}</button></li>`).join('')}</ul>`; }
+function hilfeUebersicht(such){
+  const T=HILFE.themen; if(!T.length) return '<p class="hint">Hilfetexte nicht geladen.</p>';
+  if(such){ const w=such.toLowerCase().split(/\s+/).filter(Boolean); const L=T.filter(t=>w.every(x=>t.such.includes(x)));
+    const F=Object.entries(FELD).filter(([k,h])=>w.every(x=>(h.titel+' '+h.was).toLowerCase().includes(x))).slice(0,8);
+    return (L.length?hilfeListe(L):'<p class="hint">Kein Thema gefunden.</p>')+(F.length?`<div class="hgruppe">Felder</div><ul class="hliste">${F.map(([k,h])=>`<li><button type="button" data-feld="${esc(k)}"><b>${esc(h.titel)}</b><span>${esc(h.was.slice(0,90))}${h.was.length>90?' …':''}</span></button></li>`).join('')}</ul>`:''); }
+  const K=(KONTEXT[S.view]||[]).map(thema).filter(Boolean);
+  let h=K.length?`<div class="hgruppe">Zu dieser Seite</div>${hilfeListe(K)}`:'';
+  for(const [g,name] of HILFE.gruppen){ const L=T.filter(t=>t.gruppe===g); if(L.length) h+=`<div class="hgruppe">${esc(name)}</div>${hilfeListe(L)}`; }
+  h+=`<div class="hgruppe">Nachschlagen</div><ul class="hliste"><li><button type="button" onclick="window.open('/handbuch','_blank')"><b>Handbuch</b><span>alle Einstellungen und Details, ${HILFE.handbuch.length} Kapitel</span></button></li></ul>`;
+  h+=`<label class="hint row" style="gap:6px;margin-top:16px"><input type="checkbox" ${document.body.classList.contains('ohne-i')?'checked':''} onchange="ohneI(this.checked)"> kleine ⓘ an den Feldern ausblenden</label>`;
+  return h;
+}
+function ohneI(v){ document.body.classList.toggle('ohne-i',v); lsSet('transit.ohne_i',v); }
+function hilfeZeig(id){
+  const B=$('hp-body'), t=id&&thema(id);
+  if(t){ B.innerHTML=`<button type="button" class="lnk" style="padding:0" onclick="hilfeZeig(null)">← Übersicht</button><div class="hdoc"><h1>${esc(t.titel)}</h1>${t.html}</div>`; S.hilfeThema=id; }
+  else { B.innerHTML=hilfeUebersicht($('hp-such').value.trim()); S.hilfeThema=null; }
+  B.scrollTop=0; lsSet('transit.hilfe.offen',S.hilfeThema||1);
+}
+function hilfeAuf(id){ const P=$('hp'); P.hidden=false; document.body.classList.add('hp-auf'); $('hilfeknopf').setAttribute('aria-expanded','true'); hilfeZeig(id||null);
+  if(!id) setTimeout(()=>$('hp-such').focus(),0); }
+function hilfeZu(){ $('hp').hidden=true; document.body.classList.remove('hp-auf'); $('hilfeknopf').setAttribute('aria-expanded','false'); lsSet('transit.hilfe.offen',null); $('hilfeknopf').focus(); }
+function hilfeUmschalten(){ if($('hp').hidden) hilfeAuf(); else hilfeZu(); }
+function zeigeFeld(id){
+  const el=$(id); if(!el) return toast('Dieses Feld gibt es auf dieser Seite gerade nicht.');
+  const v=el.closest('.view');
+  const los=()=>{ const z=el.closest('.lbl,label,section,table')||el; z.scrollIntoView({behavior:'smooth',block:'center'}); z.classList.remove('zeig'); void z.offsetWidth; z.classList.add('zeig');
+    setTimeout(()=>z.classList.remove('zeig'),3800); };
+  if(v&&v.hidden){ const n=v.id.slice(2); if(n==='lauf') return toast('Erst einen Lauf öffnen.'); if(n==='auswerten'&&!S.pfad) toast('Erst links eine Messung wählen.'); location.hash='#/'+n; setTimeout(los,350); }
+  else if(el.offsetParent===null) toast('Dieses Feld ist gerade nicht sichtbar (erst eine Messung oder einen Lauf wählen).'); else los();
+}
+document.addEventListener('click',ev=>{
+  const a=ev.target.closest&&ev.target.closest('[data-thema],[data-zeige],[data-feld]'); if(!a||(thPop&&thPop.contains(a))) return;
+  ev.preventDefault();
+  if(a.dataset.thema) hilfeAuf(a.dataset.thema);
+  else if(a.dataset.zeige) zeigeFeld(a.dataset.zeige);
+  else if(a.dataset.feld){ const h=FELD[a.dataset.feld]; $('hp-body').innerHTML=`<button type="button" class="lnk" style="padding:0" onclick="hilfeZeig(null)">← Übersicht</button><div class="hdoc hpop" style="position:static;box-shadow:none;max-width:none;border:0;padding:0">${popHtml('feld',a.dataset.feld)}</div>`; }
+});
+addEventListener('keydown',ev=>{
+  const tip=/^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName)||ev.target.isContentEditable;
+  if(ev.key==='F1'||(ev.key==='?'&&!tip)){ ev.preventDefault(); hilfeUmschalten(); }
+  else if(ev.key==='Escape'){ if(thPop&&!thPop.hidden) thZu(); else if(!$('hp').hidden&&$('drawer').hidden) hilfeZu(); }
+});
+// the "Hilfe" page: the same overview, full width
+function zeigeHilfeSeite(){ const B=$('hilfe-seite'); if(!B||!HILFE.themen.length) return;
+  let h=''; for(const [g,name] of HILFE.gruppen){ const L=HILFE.themen.filter(t=>t.gruppe===g); if(L.length) h+=`<section class="card" style="display:flex;flex-direction:column;gap:4px"><h2 style="font-size:18px">${esc(name)}</h2>${hilfeListe(L)}</section>`; }
+  B.innerHTML=h; }
 
 // Help on the result sheet: ergebnisblatt_hilfe.json holds rectangles (fractions of the PNG) with title and text; each
 // gets a small (i) in its corner, visible while the mouse is over the sheet.  Only a click on the (i) shows the text.
@@ -923,7 +960,7 @@ async function ladeUpload(neu){
     let v=m[2], h=''; const i=v.indexOf('  ('); if(i>0){ h=v.slice(i+2); v=v.slice(0,i); }
     felder.push([m[1],v,h]); }
   window.FELDER=felder;
-  $('up-felder').innerHTML=felder.map(([k,v,h],i)=>`<div class="kv"><span>${esc(k)}</span><span><span class="mono" style="font-size:13px;overflow-wrap:anywhere">${esc(v)}</span>${h?`<br><span class="hint">${esc(h)}</span>`:''}</span><button class="btn sec sm" aria-label="${esc(k)} kopieren" title="kopieren" onclick="kopiere(FELDER[${i}][1],'${esc(k)} kopiert')">${ICOPY}</button></div>`).join('')||'<span class="hint">exoclock_formular.txt fehlt</span>';
+  $('up-felder').innerHTML=felder.map(([k,v,h],i)=>`<div class="kv"><span data-hilfe-feld="up:${esc(k)}">${esc(k)}</span><span><span class="mono" style="font-size:13px;overflow-wrap:anywhere">${esc(v)}</span>${h?`<br><span class="hint">${esc(h)}</span>`:''}</span><button class="btn sec sm" aria-label="${esc(k)} kopieren" title="kopieren" onclick="kopiere(FELDER[${i}][1],'${esc(k)} kopiert')">${ICOPY}</button></div>`).join('')||'<span class="hint">exoclock_formular.txt fehlt</span>';
   $('up-kom').value=r.kommentar||''; if(neu) toast('Kommentar neu erzeugt');
 }
 async function kopiere(t,msg){ try{ await navigator.clipboard.writeText(t); }catch(e){ const a=document.createElement('textarea'); a.value=t; document.body.appendChild(a); a.select(); document.execCommand('copy'); a.remove(); } toast(msg||'kopiert'); }
