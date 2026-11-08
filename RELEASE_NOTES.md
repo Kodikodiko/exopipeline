@@ -1,5 +1,43 @@
 # Release Notes
 
+## v1.2 (Entwurf, 2026-11-08)
+
+Änderungen seit **v1.1** (Tag `next_release`, Stand nach PR #21).
+Umfasst PR #22 bis #28, alle gemergt. Offene, noch nicht gemergte PRs gibt es zu diesem Stand keine.
+
+### Hilfe
+
+- **Hilfe nach Arbeitsabläufen:** In der neuen Oberfläche öffnen **?** im Kopf oder die Taste **F1** eine Hilfe-Leiste mit den Themen zur gerade offenen Seite, einer Suche und „Zeig mir das Feld“. Sie richtet sich an Einsteiger ohne Vorwissen. (#23)
+- **Acht Abläufe** Schritt für Schritt: Nacht planen, Aufnehmen (kurz), Daten laden, Auswerten, besten Lauf wählen, Vergleichssterne ausschließen oder von Hand wählen, ExoClock-Upload, Archivieren. (#23)
+- **Neun Fehlerbilder** mit Ursachen und Abhilfe: O−C zu groß, Löcher in den Daten, Ausreißer und Sigma-Clipping, hohes Rauschen, unplausible Tiefe, Stufe beim Meridian-Flip, Lauf hängt, kein Kalibrier-Master gefunden, ExoClock lehnt ab. Dazu eine Seite mit Begriffen. (#23)
+- **Hintergrund zum Aufklappen:** je Thema die Formel, ein Satz Erklärung und der Bezug auf Code und Bibliotheken (numpy, scipy, astropy, photutils, astroquery). (#23)
+- **ⓘ an jedem Feld und jeder Spalte**, auch im Formular Neuer Lauf, beim Planen, im Upload-Formular und bei „gültig“. Jedes Popup hat ein „mehr“, das zum passenden Hilfethema führt; Warnungen haben ein „Was tun?“. Die ⓘ lassen sich ausblenden. (#23)
+- **Handbuch im Browser** als Seite mit Inhaltsverzeichnis (`/handbuch`, Rohtext unter `/handbuch.md`). `transit hilfe` auf der Kommandozeile zeigt dieselben Themen, `--tief` mit Hintergrund. Die klassische Oberfläche bleibt unverändert. (#23)
+
+### Bedienoberfläche (GUI)
+
+- **Hinweise ausblendbar:** Meldungen aus dem Header (Farbkamera, unklarer Filter, Lights am NAS …) haben ein **×**. Die Ausblendung gilt je Messung und wird im Browser gemerkt; ändert sich der Text der Meldung, erscheint sie wieder. „Ausgeblendete Meldungen wieder anzeigen“ holt alle zurück. (#24)
+
+### Export und ExoClock
+
+- **Vergleichssterne im ExoClock-Kommentar:** Hinter den Hinweisen folgt das Ensemble des Laufs, je Stern Gaia-DR3-Nummer, G-Helligkeit, Farbe BP−RP und Abstand zum Ziel in Bogenminuten, dazu G und BP−RP des Zielsterns. Der ganze Kommentar bleibt unter `[export] kommentar_max` Zeichen (Standard 600); passen nicht alle Sterne hinein, endet die Liste mit „+N more“. Abschalten mit `[export] kommentar_sterne = false`. (#26)
+- **Farbkamera im Kommentar:** Bei Aufnahmen mit Farbkamera steht „Colour (Bayer) camera: photometry on 2x2 superpixels (no debayering).“ (#26)
+
+### Kalibrierung
+
+- **Ordner statt Master-Datei:** In `[calib] flat`, `bias` und `dark` (in der GUI unter Erweitert → Kalibrierung) darf auch ein Ordner stehen. Darin wird der passende Master gesucht (gleiche Bildgröße, Dark mit der nächstliegenden Belichtungszeit). (#22)
+
+### Fehlerbehebungen
+
+- **Kalibrierung:** Stand ein Ordner (z. B. der LIGHT-Ordner) statt einer Master-Datei in den Einstellungen, brach der Lauf später mit `PermissionError` ab. Jetzt gibt es eine verständliche Meldung, wenn der Pfad fehlt oder im Ordner kein passender Master liegt. (#22)
+- **Leeres Gaia-Feld:** Lieferte ein VizieR-Server eine Antwort mit 0 Sternen, wurde das leere Feld gespeichert, in andere Läufe derselben Messung kopiert, und der Lauf stürzte mit „argmin of an empty sequence“ ab. Jetzt gilt eine leere Antwort als Fehlschlag, die nächste Quelle (Spiegel oder ESA-Archiv) wird gefragt, und ein leeres oder defektes `gaia_field.csv` wird weder verwendet noch kopiert. Wird der Zielstern nicht gefunden, nennt die Meldung Bildmitte und Abstand. (#27)
+- **AstroImageJ auf einem anderen Rechner:** Das Makro `aij\oeffnen.ijm` enthielt den absoluten Pfad des Rechners, auf dem es erzeugt wurde. Auf einem anderen Gerät (anderer Laufwerksbuchstabe, NAS) fand AstroImageJ die Messtabelle dann nicht. Das Makro wird jetzt bei jedem Öffnen (`transit aij --oeffnen`, Knopf „AstroImageJ“) mit dem aktuellen Ort neu geschrieben. (#25)
+- **Airmass-Prüfung:** Die Warnung „Header-AIRMASS weicht ab“ kommt erst ab einer Abweichung von 0,1 zur berechneten Airmass. Kleinere Unterschiede (Rundung, Refraktion, Pier-Seite) spielen keine Rolle, weil immer mit der berechneten Airmass gerechnet wird. Bei großer Abweichung empfiehlt die Meldung, Zielkoordinaten und Uhrzeit des Aufnahme-PCs zu prüfen. Eine Meridianseite ohne Bilder wird weggelassen statt als „Ost +nan“ angezeigt. (#28)
+
+### Intern
+
+- Neue Tests: `tests/test_hilfe.py` (jedes Feld und jede Spalte hat einen Hilfetext, alle Verweise stimmen), `tests/test_aij_makro.py`, `tests/test_airmass_check.py`. (#23, #25, #28)
+
 ## v1.1 (Entwurf, 2026-11-01)
 
 Änderungen seit **ExoPipeline v1.0** (Tag `release`, 30.10.2026, enthält bereits `transit plan` aus PR #1).
