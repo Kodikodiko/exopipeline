@@ -12,17 +12,20 @@ import astropy.units as u
 def gaia_field(m, h0, log=None):
     """Gaia DR3 stars on the frame (cached per run in gaia_field.csv); source per [gaia] quelle (VizieR or ESA)."""
     cache = m.path("gaia_field.csv")
-    if not os.path.exists(cache):                      # same night, same field: reuse another run's Gaia query
+    g = _read_field(cache, log)
+    if g is None:                                      # same night, same field: reuse another run's Gaia query
         import glob
         import shutil
         old = sorted(glob.glob(os.path.join(os.path.dirname(m.out), "*", "gaia_field.csv")), key=os.path.getmtime, reverse=True)
-        if old:
-            shutil.copy2(old[0], cache)
-            if log:
-                log(f"  Gaia-Feld aus Lauf {os.path.basename(os.path.dirname(old[0]))} uebernommen (keine Netzabfrage)")
-    if os.path.exists(cache):
-        g = Table.read(cache)
-    else:
+        for o in old:
+            if os.path.abspath(o) == os.path.abspath(cache) or _read_field(o) is None:
+                continue                               # an empty/broken field from an earlier run is not reused
+            shutil.copy2(o, cache)
+            g = _read_field(cache, log)
+            if g is not None and log:
+                log(f"  Gaia-Feld aus Lauf {os.path.basename(os.path.dirname(o))} uebernommen (keine Netzabfrage)")
+            break
+    if g is None:
         from . import gaia
         w = WCS(h0)
         nx, ny = h0["NAXIS1"], h0["NAXIS2"]
@@ -37,6 +40,23 @@ def gaia_field(m, h0, log=None):
     for n in g.colnames:                      # Gaia archive 3.15 returns SOURCE_ID in upper case
         if n != n.lower():
             g.rename_column(n, n.lower())
+    return g
+
+
+def _read_field(path, log=None):
+    """The cached Gaia field, or None when it is missing, unreadable or holds no stars (then it is queried again)."""
+    if not os.path.exists(path):
+        return None
+    try:
+        g = Table.read(path, format="ascii.csv")
+    except Exception as e:
+        if log:
+            log(f"  Gaia-Feld {path} nicht lesbar ({type(e).__name__}) - frage neu ab")
+        return None
+    if len(g) == 0:
+        if log:
+            log(f"  Gaia-Feld {path} ist leer - frage neu ab")
+        return None
     return g
 
 
@@ -74,9 +94,18 @@ def select(m, headers, epoch_jyear, target):
     x0, y0 = WCS(h0).world_to_pixel_values(ra, de)
     allc = SkyCoord(ra * u.deg, de * u.deg)
     sep = allc.separation(target).arcsec
+    if len(sep) == 0:
+        raise SystemExit("FEHLER: Das Gaia-Feld enthaelt keinen einzigen Stern (gaia_field.csv leer). "
+                         "Meist hat der Gaia-Dienst keine Daten geliefert. Abhilfe: gaia_field.csv im Ergebnisordner "
+                         "loeschen und den Lauf neu starten, ggf. unter [gaia] quelle = \"esa\" oder einen anderen "
+                         "vizier_server eintragen.")
     it = int(np.argmin(sep))
     if sep[it] > 5:
-        raise SystemExit(f"Kein Gaia-Stern innerhalb 5\" der Zielkoordinaten (naechster {sep[it]:.1f}\")")
+        c0 = WCS(h0).pixel_to_world(nx / 2, ny / 2)
+        raise SystemExit(f"FEHLER: Kein Gaia-Stern innerhalb 5\" der Zielkoordinaten (naechster {sep[it]:.1f}\" entfernt). "
+                         f"Ziel RA {target.ra.deg:.4f} Dec {target.dec.deg:+.4f}, Bildmitte laut Plate-Solve "
+                         f"RA {c0.ra.deg:.4f} Dec {c0.dec.deg:+.4f} ({c0.separation(target).deg:.2f} Grad entfernt). "
+                         "Pruefen: richtiges Objekt im Ordnernamen/OBJECT, Plate-Solve der Bilder (headers.csv).")
     Gt, ct = G[it], bprp[it]
     # known variables: Gaia DR3 flag (already in the table) and AAVSO VSX
     kat = bool(cc.get("katalog_variable", True))

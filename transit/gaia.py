@@ -112,13 +112,20 @@ def cone(cfg, ra, dec, radius_deg, gmax=None, gmin=None, log=None):
                 log(f"  Gaia ueber {label} nicht erreichbar ({type(e).__name__}) - naechste Quelle")
             continue
         t = _lower(t)
+        if len(t) == 0:                                   # some mirrors answer but deliver no rows: try the next one
+            errs.append(f"{label}: 0 Sterne geliefert")
+            if label.startswith("VizieR "):
+                down(label[7:])
+            if log:
+                log(f"  Gaia ueber {label}: 0 Sterne geliefert - naechste Quelle")
+            continue
         for n in COLS:                                    # same columns whatever the service returned
             if n not in t.colnames:
                 t[n] = np.full(len(t), "" if n == "phot_variable_flag" else np.nan, dtype=object if n == "phot_variable_flag" else float)
         if log:
             log(f"  Gaia DR3 ueber {label}: {len(t)} Sterne")
         return t
-    raise RuntimeError("Gaia-Abfrage fehlgeschlagen, keine Quelle erreichbar: " + "; ".join(errs) + ". Internetverbindung pruefen.")
+    raise RuntimeError("Gaia-Abfrage fehlgeschlagen, keine Quelle lieferte Sterne: " + "; ".join(errs) + ". Internetverbindung pruefen.")
 
 
 def flags(row):
