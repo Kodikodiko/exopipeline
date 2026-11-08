@@ -167,7 +167,7 @@ THEMEN = {
     "warnungen": """WARNUNGEN UND ABHILFE
   [CRIT] Meridian-Flip im/nahe Transit  -> fit.flip = prior; kuenftig Flip verlegen
   [WARN] Baseline zu kurz / zu hohe Airmass -> laengere Sequenz, Transit nahe Kulmination
-  [WARN] Header-AIRMASS weicht ab -> wird automatisch ersetzt
+  [WARN] Header-AIRMASS weicht um >= 0.1 ab -> Koordinaten und PC-Uhrzeit pruefen (kleinere Abweichungen werden nicht gemeldet)
   [WARN] Kameratemperatur nicht gehalten -> calib.mode = bf
   [WARN] Ziel-Peak > Saettigung -> kuerzer belichten / defokussieren
   [WARN] Frames ohne WCS -> transit solve

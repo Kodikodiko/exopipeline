@@ -40,11 +40,9 @@ def night_checks(m, headers, tm, pred):
             lage = f"{dt_in:.1f} h vor Ingress" if dt_in > 0 else f"{dt_eg:.1f} h nach Egress"
             add("INFO", f"Meridian-Flip ausserhalb des Transits ({lage})")
     # header airmass vs computed
-    d = tm["airmass_header"] - am
-    if np.nanmax(np.abs(d)) > 0.01:
-        add("WARN", f"Header-AIRMASS weicht um bis zu {np.nanmax(np.abs(d)):.3f} von der berechneten ab "
-                    f"(Mittel West {np.nanmean(d[e == 0]):+.3f}, Ost {np.nanmean(d[e == 1]):+.3f})",
-            "Das Werkzeug benutzt immer die aus den Zielkoordinaten berechnete Airmass.")
+    c = airmass_check(tm["airmass_header"], am, e)
+    if c:
+        out.append(c)
     # temperature
     ct = np.array([float(x["header"].get("CCD-TEMP", np.nan)) for x in headers])
     stp = h0.get("SET-TEMP")
@@ -56,6 +54,31 @@ def night_checks(m, headers, tm, pred):
     if ns:
         add("WARN", f"{ns} Frames ohne WCS (nicht plate-solved)", "transit solve <Messordner> (schreibt Kopien nach SOLVED\\)")
     return out
+
+
+AIRMASS_GRENZE = 0.1
+
+
+def airmass_check(header, calc, east):
+    """Compare the AIRMASS written by NINA with the one computed from the target coordinates.
+
+    Differences below AIRMASS_GRENZE (rounding, refraction, start vs. middle of exposure, pier side) are normal
+    and irrelevant, because the tool always uses the computed airmass; they are not reported. Larger ones point
+    to wrong target coordinates or a wrong clock. A meridian side without frames is left out instead of "nan"."""
+    d = np.asarray(header, float) - np.asarray(calc, float)
+    east = np.asarray(east)
+    ok = np.isfinite(d)
+    if not ok.any():
+        return None
+    dmax = float(np.max(np.abs(d[ok])))
+    if dmax < AIRMASS_GRENZE:
+        return None
+    seiten = [f"{name} im Mittel {float(np.mean(d[ok & (east == w)])):+.3f}"
+              for name, w in (("West", 0), ("Ost", 1)) if (ok & (east == w)).any()]
+    return dict(level="WARN",
+                text=f"Header-AIRMASS weicht um bis zu {dmax:.3f} von der berechneten ab ({', '.join(seiten)})",
+                fix="Ausgewertet wird ohnehin mit der berechneten Airmass. Eine so grosse Abweichung deutet aber auf "
+                    "falsche Zielkoordinaten oder eine falsche Uhrzeit am Aufnahme-PC hin: beides pruefen.")
 
 
 def peak_checks(cube, cfg):
