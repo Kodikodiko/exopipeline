@@ -3,7 +3,7 @@
 ## v1.2 (Entwurf, 2026-11-08)
 
 Änderungen seit **v1.1** (Tag `next_release`, Stand nach PR #21).
-Umfasst PR #22 bis #30, alle gemergt. Offene, noch nicht gemergte PRs gibt es zu diesem Stand keine.
+Umfasst PR #22 bis #31.
 
 ### Installation
 
