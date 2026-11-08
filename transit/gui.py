@@ -1366,7 +1366,7 @@ function planZeigen(P){
         <td>${Math.round(s.score)}</td><td style="white-space:nowrap"><b>${esc(s.planet)}</b></td><td>${esc(s.prio)}</td><td>${s.mag!=null?s.mag.toFixed(1):''}</td><td>${s.tiefe_ppt.toFixed(1)}</td><td>${s.snr??''}</td>
         <td style="white-space:nowrap">${hhmm(s.start)}&ndash;${hhmm(s.ende)}</td><td>${hhmm(s.ingress)} / ${hhmm(s.tc)} &plusmn;${s.tc_err_min} min / ${hhmm(s.egress)}</td><td>${s.airmass_max}</td>
         <td>${s.wetter?`<span class="pill ${AMP[s.ampel]||'n'}">${Math.round(s.wetter.wolken)} %</span>`:'?'}</td><td class="mono">${esc(s.ra)}<br>${esc(s.dec)}</td>
-        <td>${esc(s.warnungen.concat(s.vergleichssterne!=null?[s.vergleichssterne+' Vergleichssterne']:[]).join('; '))}</td></tr>`).join('')+'</table>';
+        <td>${esc(s.warnungen.concat(s.vergleichssterne!=null&&!s.warnungen.some(w=>/Vergleichssterne/.test(w))?[s.vergleichssterne+' Vergleichssterne']:[]).join('; '))}</td></tr>`).join('')+'</table>';
   }
   $('plan').innerHTML=h; }
 init();
