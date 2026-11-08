@@ -79,6 +79,9 @@ li.done .num{background:var(--ok);color:#fff} li.cur .num{background:#fff;color:
 .note{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:10px;background:var(--warnbg);border:1px solid var(--warnline);color:var(--warnfg)}
 .note.info{background:var(--accsoft);border-color:var(--accline);color:var(--fg)}
 .note.bad{background:var(--badbg);border-color:var(--badline);color:var(--fg)}
+.note .zu{margin-left:auto;flex:none;font:inherit;font-size:20px;line-height:1;background:none;border:0;padding:0 2px;color:inherit;opacity:.6;cursor:pointer}
+.note .zu:hover,.note .zu:focus-visible{opacity:1}
+.hwzeigen{font:inherit;font-size:12px;background:none;border:0;padding:0;color:var(--acc2);text-decoration:underline;cursor:pointer;align-self:flex-start}
 .bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
 .bar>i{display:block;height:100%;background:var(--acc);border-radius:4px}
 @keyframes slide{0%{margin-left:-35%}100%{margin-left:100%}}
@@ -510,8 +513,28 @@ async function waehle(p){
 function zeigeKopf(){
   const M=S.M; $('a-planet').textContent=M.planet; $('a-nacht').textContent=M.nacht?'· Nacht '+M.nacht:''; $('a-pfad').textContent=M.pfad;
   const zur='← '+M.planet+(M.nacht?' · Nacht '+M.nacht:''); $('l-zurueck').textContent=zur; $('v-zurueck').textContent=zur;
-  $('hinweise').innerHTML=(M.hinweise||[]).map(n=>`<div role="note" class="note ${n.level==='info'?'info':''}">${n.level==='info'?IINFO:IWARN}<div style="display:flex;flex-direction:column;gap:2px"><b>${esc(n.titel)}</b><span style="font-size:13px">${esc(n.text)}${n.level==='info'?'':wasTun(n.titel+' '+n.text)}</span></div></div>`).join('');
+  zeigeHinweise();
 }
+// Notes can be hidden with ×. Remembered per measurement folder (in this browser);
+// the key is title+text, so a note comes back as soon as its content changes.
+function hwKey(n){ return n.titel+'\n'+n.text; }
+function hwWeg(){ const a=lsGet('transit.hinweise_aus',{}); return (a&&typeof a==='object')?a:{}; }
+function zeigeHinweise(){
+  const M=S.M; if(!M) return;
+  const H=M.hinweise||[], aus=hwWeg()[M.pfad]||[];
+  const sicht=H.filter(n=>!aus.includes(hwKey(n))), weg=H.length-sicht.length;
+  $('hinweise').innerHTML=sicht.map(n=>`<div role="note" class="note ${n.level==='info'?'info':''}">${n.level==='info'?IINFO:IWARN}<div style="display:flex;flex-direction:column;gap:2px"><b>${esc(n.titel)}</b><span style="font-size:13px">${esc(n.text)}${n.level==='info'?'':wasTun(n.titel+' '+n.text)}</span></div><button type="button" class="zu" data-hwzu="${H.indexOf(n)}" title="Ausblenden (kommt wieder, wenn sich die Meldung ändert)" aria-label="Meldung ausblenden">×</button></div>`).join('')
+    +(weg?`<button type="button" class="hwzeigen" data-hwzeigen="1">${weg===1?'1 ausgeblendete Meldung':weg+' ausgeblendete Meldungen'} wieder anzeigen</button>`:'');
+}
+document.addEventListener('click',ev=>{
+  const z=ev.target.closest('[data-hwzu],[data-hwzeigen]'); if(!z||!S.M) return;
+  const a=hwWeg(), p=S.M.pfad, H=S.M.hinweise||[];
+  if(z.dataset.hwzeigen){ delete a[p]; }
+  else { const n=H[+z.dataset.hwzu]; if(!n) return;
+    // keep only keys of notes that still exist, so the list cannot grow forever
+    const akt=H.map(hwKey); a[p]=(a[p]||[]).filter(k=>akt.includes(k)).concat([hwKey(n)]); }
+  lsSet('transit.hinweise_aus',a); zeigeHinweise();
+});
 function zeigeStepper(){
   const L=S.M?S.M.laeufe:[]; const fertig=L.some(l=>l.oc!==undefined), g=L.find(l=>l.status==='gueltig'&&l.oc!==undefined);
   const done=[!!S.M, fertig, !!g, !!(g&&g.hochgeladen)];

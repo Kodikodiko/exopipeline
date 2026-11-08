@@ -6,7 +6,7 @@ Eine **Messung** ist ein Ordner mit den Bildern (Lights) einer Nacht. Die Pipeli
 1. Seite **Auswerten** öffnen. Links steht die Liste aller Messungen, lokal und am NAS.
 2. Die Messung anklicken. Nicht dabei? Oben den Planeten eintippen. [Zeig mir die Suche](#zeige:such)
 3. Immer noch nicht dabei? **Enter** sucht auch am NAS, oder **Ordner…** öffnet den Windows-Dialog.
-4. Rechts erscheinen Planet und Nacht, darunter Hinweise aus dem FITS-Header (z. B. Farbkamera, Filter).
+4. Rechts erscheinen Planet und Nacht, darunter Hinweise aus dem FITS-Header (z. B. Farbkamera, Filter). Bekannte Hinweise lassen sich mit **×** rechts ausblenden. Das gilt nur für diese Messung, und die Meldung kommt wieder, sobald sich ihr Inhalt ändert. „ausgeblendete Meldungen wieder anzeigen“ holt sie zurück.
 
 ## So muss der Ordner aussehen
 
