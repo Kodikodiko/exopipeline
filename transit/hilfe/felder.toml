@@ -297,7 +297,7 @@ thema = "bester-lauf"
 
 [feld.up_kommentar]
 titel = "Kommentar für ExoClock"
-was = "Englischer Text für das Kommentarfeld im Upload-Formular. Er beschreibt Kalibrierung, Vergleichssterne, entfernte Ausreißer und Besonderheiten der Nacht."
+was = "Englischer Text für das Kommentarfeld im Upload-Formular. Er beschreibt Kalibrierung, Vergleichssterne, entfernte Ausreißer und Besonderheiten der Nacht. Am Ende stehen die Vergleichssterne des Ensembles mit Gaia-DR3-Nummer, G-Helligkeit, Farbe BP-RP und Abstand zum Ziel in Bogenminuten."
 wann = "Du darfst ihn frei ändern, z. B. Wolken oder Wind ergänzen. „Neu erzeugen“ setzt ihn zurück."
 thema = "exoclock-upload"
 

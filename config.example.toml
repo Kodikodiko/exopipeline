@@ -129,4 +129,7 @@ bin_min = 10                # Mittelwert-Bins der Lichtkurve auf dem Ergebnisbla
 
 [export]
 filter = ""                 # Filter fuer ExoClock, falls der FITS-Header kein FILTER hat (z. B. "L"); leer = aus dem Header
+# kommentar_zusatz = ""      # eigener Satz am Anfang des ExoClock-Kommentars (z. B. "Replaces my earlier submission.")
+# kommentar_sterne = true    # Vergleichssterne (Gaia DR3, G, BP-RP, Abstand zum Ziel) an den Kommentar haengen
+# kommentar_max = 600        # Hoechstlaenge des ganzen Kommentars; passen nicht alle Sterne, steht "+N more"
 
