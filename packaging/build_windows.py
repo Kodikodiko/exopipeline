@@ -21,7 +21,7 @@ BUILD = os.path.join(ROOT, "build")
 DIST = os.path.join(ROOT, "dist")
 NAME = "exopipeline"
 FILES = ["transit.cmd", "transit_gui.cmd", "HANDBUCH.md", "README.md", "LICENSE", "config.example.toml",
-         "aij_vorlage.plotcfg", "requirements.txt"]
+         "aij_vorlage.plotcfg", "requirements.txt", "RELEASE_NOTES.md"]
 
 
 def version():
@@ -86,7 +86,8 @@ def main():
             crlf(os.path.join(ROOT, n), os.path.join(out, n))
         else:
             shutil.copy2(os.path.join(ROOT, n), os.path.join(out, n))
-    crlf(os.path.join(ROOT, "packaging", "LIESMICH.txt"), os.path.join(out, "LIESMICH.txt"))
+    for n in ("LIESMICH.txt", "Verknuepfung_anlegen.cmd"):
+        crlf(os.path.join(ROOT, "packaging", n), os.path.join(out, n))
 
     # 4. ZIP with a top-level folder "exopipeline"
     os.makedirs(DIST, exist_ok=True)

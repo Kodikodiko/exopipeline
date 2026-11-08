@@ -15,6 +15,13 @@ Bedienung über eine Browser-Oberfläche oder die Kommandozeile (Windows).
 
 ## Installation
 
+**Ohne Git und ohne Python (empfohlen für Einsteiger):** unter
+[Releases](https://github.com/Kodikodiko/exopipeline/releases) die Datei `exopipeline-<version>-windows.zip`
+herunterladen, entpacken und `transit_gui.cmd` doppelklicken. Python und alle Pakete sind enthalten,
+Schritt für Schritt steht es in der `LIESMICH.txt` im ZIP.
+
+**Mit Git und eigenem Python:**
+
 ```
 git clone https://github.com/Kodikodiko/exopipeline.git _pipeline
 cd _pipeline
