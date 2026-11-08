@@ -245,7 +245,7 @@ Die Standardwerte stehen in `_pipeline\config.local.toml` (beim ersten Einrichte
 | `[CRIT] Meridian-Flip … vor Ingress` | Flip im Transit oder kurz davor; der Flip-Versatz ist nur über den Prior bestimmt | Auswertung mit `fit.flip = "prior"`. Beim Beobachten den Flip vor die Baseline legen oder über den Meridian nachführen lassen. |
 | `[WARN] Baseline … nur xx min` | zu wenig Daten außerhalb des Transits | längere Sequenz; Nächte wählen, in denen der Transit nahe der Kulmination liegt |
 | `[WARN] Baseline nach Egress bei Airmass …` | Ziel steht zu tief, Extinktion und Farbeffekte | wie oben |
-| `[WARN] Header-AIRMASS weicht ab` | NINA rechnet mit der Montierungsposition | nichts zu tun; das Werkzeug rechnet selbst |
+| `[WARN] Header-AIRMASS weicht ab` | Abweichung ab 0,1 zur berechneten Airmass; kleinere (Rundung, Refraktion, Pier-Seite) werden nicht gemeldet | ausgewertet wird ohnehin mit der berechneten Airmass; bei so großer Abweichung Zielkoordinaten und Uhrzeit des Aufnahme-PCs prüfen |
 | `[WARN] Kameratemperatur … nicht gehalten` | kein passender Dark | `calib.mode = "bf"`; künftig Solltemperatur so wählen, dass sie erreicht wird |
 | `[WARN] Ziel-Peak > …` | Sättigung | kürzer belichten oder leicht defokussieren |
 | `[WARN] Frames ohne WCS` | Plate-Solve fehlt | `transit solve` |
