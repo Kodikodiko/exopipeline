@@ -128,6 +128,8 @@ def comp_count(name, c, gmag, inst, cfg, log=print, net=True):
         cache = {}
     cc = cfg["comps"]
     key = f"{name}|{gmag:.2f}|{cc['dmag_bright']}|{cc['dmag_faint']}|{min(inst['fov_arcmin']):.0f}"
+    if cache.get(key) == 0:                                # 0 = empty answer of a mirror before the Gaia fix, not a real count
+        cache.pop(key)
     if key in cache or not net:
         return cache.get(key)
     from . import gaia
@@ -147,7 +149,8 @@ def comp_count(name, c, gmag, inst, cfg, log=print, net=True):
 
 # ------------------------------------------------------------------ nights
 def night_dates(n, now=None):
-    """Local evening dates; before local noon the running night counts as the first."""
+    """Local evening dates, starting with yesterday's evening before local noon (the night may still be running).
+    plan() drops a night whose darkness is already over and moves on to the next one."""
     loc = (now or datetime.now(timezone.utc)).astimezone()
     d0 = (loc - timedelta(hours=12)).date()
     return [d0 + timedelta(days=i) for i in range(n)]
@@ -199,7 +202,8 @@ def plan(cfg, pc, n_nights=None, top=10, gaia_top=0, use_weather=None, log=print
     am_max = float(pl.get("airmass_max_baseline", 2.0))
     n_nights = n_nights or int(pc["naechte"])
     use_weather = pc["wetter"] if use_weather is None else use_weather
-    dates = night_dates(n_nights, now)
+    jetzt = now or datetime.now(timezone.utc)
+    dates = night_dates(n_nights + 1, now)                 # one spare: a night already over in the morning is skipped
     days = (dates[-1] - datetime.now(timezone.utc).astimezone().date()).days + 2
     wx = weather(lat, lon, days, log) if use_weather else None
     rows, coords = candidates(exoclock_db(), set(pc["prioritaeten"]))
@@ -209,6 +213,8 @@ def plan(cfg, pc, n_nights=None, top=10, gaia_top=0, use_weather=None, log=print
     out = []
     gaia = dict(ok=True, ende=time.time() + GAIA_BUDGET_S)
     for d in dates:
+        if len(out) >= n_nights:
+            break
         t0 = local_noon_utc(d)
         grid = [t0 + timedelta(minutes=STEP_MIN * i) for i in range(24 * 60 // STEP_MIN + 1)]
         t = Time(grid)
@@ -217,6 +223,8 @@ def plan(cfg, pc, n_nights=None, top=10, gaia_top=0, use_weather=None, log=print
         sun = sun_c.transform_to(frame).alt.deg
         moon_alt = moon_c.transform_to(frame).alt.deg
         dark = sun < pc["sonne_max"]
+        if d < jetzt.astimezone().date() and (not dark.any() or grid[len(dark) - 1 - int(np.argmax(dark[::-1]))] < jetzt):
+            continue                                       # last night, its darkness is over: start with the coming night
         if not dark.any():
             out.append(dict(datum=d.isoformat(), dunkel=None, vorschlaege=[], hinweis="keine astronomische Dunkelheit"))
             continue
@@ -384,7 +392,8 @@ def show(res):
             print(f"  {s['score']:5.0f} {s['planet']:13s} {s['prio']:6s} {s['mag'] or 0:5.1f} {s['tiefe_ppt']:6.1f} "
                   f"{s['snr'] or 0:5.1f}  {loc(s['start'])}-{loc(s['ende'])} {loc(s['ingress'])} {loc(s['tc'])} {loc(s['egress'])} "
                   f"{s['airmass_max']:5.2f} {(str(round(s['wetter']['wolken'])) + ' %') if s['wetter'] else '?':>6s}  "
-                  + "; ".join(s["warnungen"] + ([f"{s['vergleichssterne']} Vgl.-Sterne"] if s.get("vergleichssterne") is not None else [])))
+                  + "; ".join(s["warnungen"] + ([f"{s['vergleichssterne']} Vgl.-Sterne"] if s.get("vergleichssterne") is not None
+                                               and not any("Vergleichssterne" in x for x in s["warnungen"]) else [])))
     print("\nZeiten lokal. Tiefe in ppt, SNR = Tiefe / Rauschen eines 10-min-Bins (Schaetzung). Beobachten = mit Baseline.")
 
 
