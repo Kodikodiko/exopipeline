@@ -3,7 +3,11 @@
 ## v1.2 (Entwurf, 2026-11-08)
 
 Änderungen seit **v1.1** (Tag `next_release`, Stand nach PR #21).
-Umfasst PR #22 bis #28, alle gemergt. Offene, noch nicht gemergte PRs gibt es zu diesem Stand keine.
+Umfasst PR #22 bis #31.
+
+### Installation
+
+- **Portables Windows-Paket für Einsteiger:** `exopipeline-1.2-windows.zip` enthält Python und alle Pakete. Entpacken, `transit_gui.cmd` doppelklicken, fertig; Git, Python-Installation oder Administratorrechte sind nicht nötig. Neu im Paket: `Verknuepfung_anlegen.cmd` legt eine Desktop-Verknüpfung „Transit GUI“ an, die `LIESMICH.txt` erklärt die Schritte ausführlicher, die README verweist auf den Download. Die Versionsnummer (Ergebnisblatt, ZIP-Name) lautet jetzt `1.2`. (#31)
 
 ### Hilfe
 
@@ -33,6 +37,7 @@ Umfasst PR #22 bis #28, alle gemergt. Offene, noch nicht gemergte PRs gibt es zu
 - **Leeres Gaia-Feld:** Lieferte ein VizieR-Server eine Antwort mit 0 Sternen, wurde das leere Feld gespeichert, in andere Läufe derselben Messung kopiert, und der Lauf stürzte mit „argmin of an empty sequence“ ab. Jetzt gilt eine leere Antwort als Fehlschlag, die nächste Quelle (Spiegel oder ESA-Archiv) wird gefragt, und ein leeres oder defektes `gaia_field.csv` wird weder verwendet noch kopiert. Wird der Zielstern nicht gefunden, nennt die Meldung Bildmitte und Abstand. (#27)
 - **AstroImageJ auf einem anderen Rechner:** Das Makro `aij\oeffnen.ijm` enthielt den absoluten Pfad des Rechners, auf dem es erzeugt wurde. Auf einem anderen Gerät (anderer Laufwerksbuchstabe, NAS) fand AstroImageJ die Messtabelle dann nicht. Das Makro wird jetzt bei jedem Öffnen (`transit aij --oeffnen`, Knopf „AstroImageJ“) mit dem aktuellen Ort neu geschrieben. (#25)
 - **Airmass-Prüfung:** Die Warnung „Header-AIRMASS weicht ab“ kommt erst ab einer Abweichung von 0,1 zur berechneten Airmass. Kleinere Unterschiede (Rundung, Refraktion, Pier-Seite) spielen keine Rolle, weil immer mit der berechneten Airmass gerechnet wird. Bei großer Abweichung empfiehlt die Meldung, Zielkoordinaten und Uhrzeit des Aufnahme-PCs zu prüfen. Eine Meridianseite ohne Bilder wird weggelassen statt als „Ost +nan“ angezeigt. (#28)
+- **Planen:** Der Beobachtungsvorschlag überspringt die schon vergangene Nacht und zeigt die kommende Nacht zuoberst. Ein Gaia-Cache-Eintrag mit 0 Sternen wird neu abgefragt, und der Vergleichsstern-Hinweis erscheint nicht mehr doppelt. (#30)
 
 ### Intern
 
