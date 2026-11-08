@@ -2,8 +2,11 @@
 
 transit kommentar <Messordner> [--lauf L]   prints it and copies it to the clipboard (valid run by default).
 Also appended to exoclock_formular.txt by transit export.  Extra fixed text: [export] kommentar_zusatz.
+After the remarks: the comparison-star ensemble (Gaia DR3 ID, G, BP-RP, distance to the target), switch
+[export] kommentar_sterne = false; whole comment at most [export] kommentar_max characters (default 600).
 """
 import csv
+import glob
 import json
 import os
 import subprocess
@@ -11,7 +14,8 @@ from datetime import datetime
 
 import numpy as np
 
-MAXLEN = 300
+MAXLEN = 300          # remarks proper: the most important ones within ~300 characters
+MAXLEN_ALLES = 600    # whole comment incl. the comparison-star list ([export] kommentar_max)
 
 
 def _j(out, name):
@@ -49,6 +53,9 @@ def make(out, cfg=None):
     comps = comps_text(out, info, fr)
     if comps:
         r.append(comps)
+    osc = colour_text(out)
+    if osc:
+        r.append(osc)
     tc = fr.get("tc_check") or {}
     if tc.get("ampel") in ("gelb", "rot"):
         r.append("Tc profile shows a second, almost equal minimum: the timing may be ambiguous."
@@ -86,7 +93,74 @@ def make(out, cfg=None):
         if len(text) + len(x) + 1 > MAXLEN:
             break
         text = (text + " " + x).strip()
-    return text or "No special remarks."
+    text = text or "No special remarks."
+    ex = cfg.get("export", {})
+    if ex.get("kommentar_sterne", True):
+        lim = int(ex.get("kommentar_max") or MAXLEN_ALLES)
+        st = ensemble_text(out, fr, lim - len(text) - 1)
+        if st:
+            text += " " + st
+    return text
+
+
+def colour_text(out):
+    """Colour (Bayer/OSC) camera: photometry on 2x2 superpixels (pixbin in the cube; see photometry.measure)."""
+    for p in sorted(glob.glob(os.path.join(out, "cube_*.npz"))):
+        try:
+            with np.load(p) as z:
+                if "pixbin" in z.files and int(z["pixbin"]) > 1:
+                    b = int(z["pixbin"])
+                    return f"Colour (Bayer) camera: photometry on {b}x{b} superpixels (no debayering)."
+        except Exception:
+            continue
+        return ""
+    return ""
+
+
+def _sep_arcmin(ra1, de1, ra2, de2):
+    r1, d1, r2, d2 = map(np.radians, (ra1, de1, ra2, de2))
+    c = np.sin(d1) * np.sin(d2) + np.cos(d1) * np.cos(d2) * np.cos(r1 - r2)
+    return float(np.degrees(np.arccos(np.clip(c, -1, 1))) * 60)
+
+
+def _f(x):
+    try:
+        v = float(x)
+        return v if np.isfinite(v) else None
+    except (TypeError, ValueError):
+        return None
+
+
+def ensemble_text(out, fr, room):
+    """Comparison stars of the final ensemble: Gaia DR3 ID, G, BP-RP, distance to the target ('), from fit.json
+    (best.comps/gaia) and candidates.csv.  Fits into `room` characters; stars that do not fit are counted ("+2 more")."""
+    best = fr.get("best") or {}
+    names, ids = list(best.get("comps") or []), [str(x) for x in (best.get("gaia") or [])]
+    if not names:
+        return ""
+    cp = os.path.join(out, "candidates.csv")
+    cand = {r["name"]: r for r in csv.DictReader(open(cp, encoding="utf-8"))} if os.path.exists(cp) else {}
+    tg = next((r for r in cand.values() if r.get("role") == "target"), None)
+    head = f"Comparison ensemble ({len(names)} stars; Gaia DR3 ID G/BP-RP/dist. from target)"
+    if tg and _f(tg.get("G")) is not None:
+        head += f", target G {float(tg['G']):.1f}" + (f" BP-RP {_f(tg.get('bp_rp')):.2f}" if _f(tg.get("bp_rp")) is not None else "")
+    items = []
+    for k, n in enumerate(names):
+        c = cand.get(n, {})
+        sid = ids[k] if k < len(ids) else str(c.get("source_id", "") or n)
+        g, col = _f(c.get("G")), _f(c.get("bp_rp"))
+        val = [f"{g:.1f}" if g is not None else "-", f"{col:.2f}" if col is not None else "-"]
+        ra, de = _f(c.get("ra")), _f(c.get("dec"))
+        if tg and None not in (ra, de, _f(tg.get("ra")), _f(tg.get("dec"))):
+            val.append(f"{_sep_arcmin(ra, de, float(tg['ra']), float(tg['dec'])):.1f}'")
+        items.append(f"{sid} {'/'.join(val)}")
+    text = ""
+    for k in range(len(items), 0, -1):                   # as many stars as fit, the rest counted
+        rest = len(items) - k
+        text = head + ": " + "; ".join(items[:k]) + (f"; +{rest} more" if rest else "") + "."
+        if len(text) <= room:
+            return text
+    return ""
 
 
 def flip_text(out, info, pred, hdr):
