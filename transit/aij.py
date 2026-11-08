@@ -49,6 +49,23 @@ def _esc(v):
     return str(v).replace("\\", "\\\\").replace(":", "\\:").replace("=", "\\=")
 
 
+def write_macro(tab):
+    """aij\\oeffnen.ijm: start Multi-Plot and load the table <tab> (+ the .plotcfg of the same name).
+    AIJ needs an absolute path here, so the macro only fits the computer and drive it was written on.  It is
+    therefore rewritten from the table's current location every time AIJ is opened (cmd_aij), not only when the
+    table is created: a measurement opened on another computer, under another drive letter or from the NAS
+    then still finds its table."""
+    tab = os.path.abspath(tab)
+    ijm = os.path.join(os.path.dirname(tab), "oeffnen.ijm")
+    with open(ijm, "w", encoding="utf-8") as fh:
+        fh.write("// von transit erzeugt: Multi-Plot starten, dann Messtabelle + gleichnamige .plotcfg laden\n"
+                 "// (openDataAndConfig ohne offenes Multi-Plot wirft eine Exception - getestet mit AIJ 6.0.11)\n"
+                 "// Der Pfad unten gilt nur fuer diesen Rechner; transit aij schreibt das Makro bei jedem Oeffnen neu.\n"
+                 'call("ij.IJ.runPlugIn", "Astronomy.MultiPlot_", "");\nwait(4000);\n'
+                 f'call("Astronomy.MultiPlot_.openDataAndConfig", "{tab.replace(chr(92), "/")}");\n')
+    return ijm
+
+
 def write_aij(m, n, c, fr, inv, log=print):
     best = fr["best"]
     r_px = best["radius"]
@@ -156,12 +173,7 @@ def write_aij(m, n, c, fr, inv, log=print):
         for k in sorted(kv):
             fh.write(f"{k}={_esc(kv[k]) if kv[k] != '' else ''}\n")
     # ---------------- macro + readme
-    ijm = os.path.join(out, "oeffnen.ijm")
-    with open(ijm, "w", encoding="utf-8") as fh:
-        fh.write("// von transit erzeugt: Multi-Plot starten, dann Messtabelle + gleichnamige .plotcfg laden\n"
-                 "// (openDataAndConfig ohne offenes Multi-Plot wirft eine Exception - getestet mit AIJ 6.0.11)\n"
-                 'call("ij.IJ.runPlugIn", "Astronomy.MultiPlot_", "");\nwait(4000);\n'
-                 f'call("Astronomy.MultiPlot_.openDataAndConfig", "{tab.replace(chr(92), "/")}");\n')
+    ijm = write_macro(tab)
     with open(os.path.join(out, "LIESMICH.txt"), "w", encoding="utf-8") as fh:
         fh.write(readme(planet, date, lauf, tab, cfg, shown, n.flip_mode != "none"))
     log(f"AIJ: {os.path.relpath(tab, m.root)} (+ .plotcfg, oeffnen.ijm, LIESMICH.txt)")
@@ -195,6 +207,8 @@ Oeffnen - von Hand in AstroImageJ
      AIJ laedt die gleichnamige .plotcfg automatisch dazu.
      (Alternativ: "Open table from file..." und danach "Open plot configuration from file...".)
   4. Oder: Makro ausfuehren: Plugins -> Macros -> Run... -> oeffnen.ijm
+     (Das Makro enthaelt den vollen Pfad dieses Rechners. Auf einem anderen Rechner oder nach dem
+     Verschieben der Messung zuerst "transit aij <Messordner>" aufrufen - das schreibt es neu.)
   Hinweis: Die Tabelle ist nur eine Ansicht der transit-Messung. Ein Fit in AIJ ist eine eigene,
   unabhaengige Auswertung; fuer ExoClock gilt die Datei direkt unter RESULT\\.
 """
@@ -227,7 +241,8 @@ def cmd_aij(a):
         inv = json.load(open(m.path("inventory.json"), encoding="utf-8"))
         tab, cfg, ijm = write_aij(m, n, c, fr, inv, print)
     else:
-        tab = tabs[0]; ijm = os.path.join(m.out, "aij", "oeffnen.ijm")
+        tab = tabs[0]
+        ijm = write_macro(tab)                             # path of this computer, not of the one that made the table
         print(f"AIJ-Dateien vorhanden: {tab} (neu erzeugen: --neu)")
     if a.oeffnen:
         exe = find_aij()

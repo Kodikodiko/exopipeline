@@ -1,5 +1,12 @@
 # TODO – geplante Erweiterungen (nicht umgesetzt)
 
+## Fix bereit: AstroImageJ findet die Messtabelle auf einem anderen Rechner nicht
+Gemeldet 2026-11-06: Auf einem anderen Gerät meldet AIJ beim Knopf „AstroImageJ“ `MeasurementTable: D:\aaa\Astro\Photometry\auto\…\…_Measurements.xls`.
+- Ursache: `RESULT\<lauf>\aij\oeffnen.ijm` enthält den absoluten Pfad des Rechners, auf dem die AIJ-Dateien erzeugt wurden. Existieren sie schon, startet `transit aij --oeffnen` (und damit der GUI-Knopf) AIJ mit dem alten Makro.
+- Fix (PR #25, Branch `claude/project-thread-f44ltz`, nicht eingespielt): `aij.write_macro()` schreibt das Makro bei jedem Öffnen aus dem aktuellen Ort der Tabelle neu; Hinweis in `LIESMICH.txt`; Test `tests/test_aij_makro.py`.
+- Offen: am anderen Gerät mit HAT-P-12b (`gui_20261101_2227_bf`) testen, dann PR #25 mergen und in `_pipeline` einspielen.
+- Bis dahin: in AIJ Multi-Plot → *File → Open table and plot configuration from file…* und die `.xls` von Hand wählen, oder `.\transit aij <Messordner> --lauf <lauf> --neu --oeffnen`.
+
 ## Als Nächstes: Vergleichssterne per Haken – Abnahme am echten Lauf
 Dokumentation ist erledigt (2026-11-01: Handbuch-Kapitel „Vergleichssterne von Hand wählen“, Parametertabelle `[search] ensemble`, `config.example.toml`, `transit hilfe vergleichssterne`, ⓘ an „wählen“, „O-C (schnell)“, „Rp/R*“, Tooltips an den Knöpfen, Ergebnisblatt-Hilfe). Offen:
 - Ablauf einmal an einem echten Lauf (z. B. HAT-P-42b) durchspielen und zwei Screenshots (Tabelle mit Haken, Vorschau) ins Handbuch.
