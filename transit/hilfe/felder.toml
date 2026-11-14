@@ -157,6 +157,13 @@ was = "Bilder, deren Abweichung vom Transit-Fit größer als so viele σ ist, we
 wirkung = "Entfernt Wolken, Flugzeuge, Windstöße. Zu streng („viele“) entfernt auch echte Daten und macht die Fehler zu klein."
 wann = "„normal“ bei einzelnen Ausreißern; aus lassen bei sauberen Nächten. Die entfernten Bilder stehen in ausreisser.json."
 
+[feld.wolken]
+thema = "ausreisser"
+titel = "Wolken"
+was = "Für jedes Bild wird das Licht aller Vergleichssterne zusammengezählt und mit dem üblichen Wert der Umgebung verglichen. Fehlt mehr als der gewählte Anteil, gilt das Bild als Wolke."
+wirkung = "Wolkenbilder gehen nicht in Ensemble-Suche und Fit. Im Ergebnisblatt sind sie grau eingezeichnet, die Zeitbereiche stehen in summary.md und im ExoClock-Kommentar."
+wann = "Standard (> 50 %) passt meist. „empfindlich“ bei dünnem, wechselndem Dunst; „nur melden“, wenn alle Bilder im Fit bleiben sollen. Ganz zugezogene Bilder fallen schon vorher heraus, weil ASTAP sie nicht lösen kann."
+
 [feld.airmass_order]
 thema = "rauschen"
 titel = "Detrending"

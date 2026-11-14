@@ -497,6 +497,16 @@ def einzel_html(fr):
 
 
 # ------------------------------------------------------------------ main
+def cloud_spans(n, c, gap_min=5):
+    """BJD_TDB (start, end) of each run of cloud frames found by Night (analysis.cloud_frames)."""
+    cl = getattr(n, "cloud", None)
+    if cl is None or not np.any(cl):
+        return []
+    t = np.sort(np.asarray(c["bjd_tdb"])[np.asarray(cl, bool)])
+    cut = np.where(np.diff(t) * 1440 > gap_min)[0]
+    return [(float(t[a]), float(t[b])) for a, b in zip(np.r_[0, cut + 1], np.r_[cut, len(t) - 1])]
+
+
 def make_sheet(m, n, c, log):
     fr = json.load(open(m.path("fit.json"), encoding="utf-8"))
     inv = json.load(open(m.path("inventory.json"), encoding="utf-8"))
@@ -711,6 +721,11 @@ def make_sheet(m, n, c, log):
             bh.append(h[s].mean()); bd.append(det[s].mean()); be.append(det[s].std(ddof=1) / math.sqrt(s.sum()))
             br.append(fb["res"][s].mean())
     a0.errorbar(bh, bd, be, fmt="o", color="#1f3b73", ms=4, capsize=0, zorder=3, label=f"{binm:g}-min-Mittel")
+    for i, (w0, w1) in enumerate(cloud_spans(n, c)):        # cloud frames (comparison flux < 1 - wolken_schwelle): grey bands
+        for ax in (a0, a1):
+            ax.axvspan((w0 - off) * 24 - 0.5 / 60, (w1 - off) * 24 + 0.5 / 60, color="0.6", alpha=.22, lw=0, zorder=0,
+                       label=("Wolken (nicht im Fit)" if getattr(n, "wolken_entfernen", True) else "Wolken (nur markiert)")
+                       if (i == 0 and ax is a0) else None)
     tm = np.linspace(fb["t"].min(), fb["t"].max(), 2000)
     a0.plot((tm - off) * 24, model(tm, tc, P, k, geo["ars"], geo["inc"], *u), color="#c0392b", lw=1.6, zorder=4, label="Modell (MCMC)")
     yl = a0.get_ylim()

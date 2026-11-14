@@ -11,6 +11,18 @@ from .analysis import linearity
 from .model import model
 
 
+def cloud_lines(fr):
+    """Cloud frames found from the comparison-star flux ([fit] wolken_schwelle), as UT time ranges."""
+    info = fr.get("info", {})
+    rg = info.get("cloud_ranges") or []
+    if not rg:
+        return []
+    zeit = ", ".join(f"{a}-{b} UT ({k})" if a != b else f"{a} UT ({k})" for a, b, k in rg)
+    was = "nicht im Fit" if info.get("wolken_entfernen", True) else "nur markiert"
+    return [f"- Wolken (Vergleichssterne < {100 * (1 - float(info.get('wolken_schwelle', 0.5))):.0f} % des ueblichen Flusses): "
+            f"{info.get('clouds_marked', 0)} Frames, {was}: {zeit}"]
+
+
 def outlier_lines(m):
     p = m.path("ausreisser.json")
     if not os.path.exists(p):
@@ -235,8 +247,8 @@ def make_report(m, n, c, log):
           "- Tests: " + ", ".join(f"{k} {v['OC_min']:+.1f} min" for k, v in fr["tests"].items())] + tc_lines(fr) + ["",
           "## Daten", "",
           f"- Frames: {fr['info']['frames_used']} von {fr['info']['frames_total']} (ausgeschlossen: Liste {fr['info']['excluded_list']}, "
-          f"Saettigung {fr['info']['excluded_saturation']}); OOT {fr['info']['n_oot']} ({fr['info']['n_oot_pre']} vor, {fr['info']['n_oot_post']} nach)",
-          f"- Flip-Versatz Ziel (Prior): {fr['flip_target'][0] * 1e3:+.2f} +- {fr['flip_target'][1] * 1e3:.2f} ppt"] + outlier_lines(m) + ["",
+          f"Wolken {fr['info'].get('excluded_clouds', 0)}, Saettigung {fr['info']['excluded_saturation']}); OOT {fr['info']['n_oot']} ({fr['info']['n_oot_pre']} vor, {fr['info']['n_oot_post']} nach)",
+          f"- Flip-Versatz Ziel (Prior): {fr['flip_target'][0] * 1e3:+.2f} +- {fr['flip_target'][1] * 1e3:.2f} ppt"] + cloud_lines(fr) + outlier_lines(m) + ["",
           "## Warnungen", ""] + [f"- [{x['level']}] {x['text']}" + (f" -> {x['fix']}" if x.get("fix") else "") for x in inv["checks"]]
     if lin:
         md += ["", "## Linearitaet (helle Vergleichssterne vs. schwaches Ensemble, gutes Seeing)", "",

@@ -395,7 +395,8 @@ def start_run(q, launch=None):
            "search": {"radii": a.get("radii"), "airmass_max": a.get("airmass_max"), "symmetry_weight": a.get("symmetry_weight"),
                       "einzel_tiefe_sigma": a.get("einzel_tiefe_sigma"), "tiefen_gewicht": a.get("tiefen_gewicht")},
            "fit": {"airmass_order": a.get("airmass_order"), "flip": a.get("flip"), "fix_geometry": a.get("fix_geometry"),
-                   "mcmc_steps": a.get("mcmc_steps"), "ausreisser_sigma": a.get("ausreisser_sigma")},
+                   "mcmc_steps": a.get("mcmc_steps"), "ausreisser_sigma": a.get("ausreisser_sigma"),
+                   "wolken_schwelle": a.get("wolken_schwelle"), "wolken_entfernen": a.get("wolken_entfernen")},
            "calib": {"flat": a.get("flat"), "bias": a.get("bias"), "dark": a.get("dark")},
            "camera": {"farbkamera": a.get("farbkamera")}, "gaia": {"quelle": a.get("gaia_quelle")}}
     if q.get("ensemble"):                                  # stars chosen by hand (tab Vergleichssterne): no ensemble search
@@ -593,7 +594,8 @@ def defaults(p=None):
                 aperture_mode=g("photometry", "aperture_mode", "beides"), k_fwhm=g("photometry", "k_fwhm"), radii=g("search", "radii"),
                 airmass_order=g("fit", "airmass_order", 1), airmass_max=g("search", "airmass_max", 0), flip=g("fit", "flip", "prior"),
                 fix_geometry=g("fit", "fix_geometry", True), mcmc_steps=g("fit", "mcmc_steps"), symmetry_weight=g("search", "symmetry_weight", 0),
-                ausreisser_sigma=g("fit", "ausreisser_sigma", 0), einzel_tiefe_sigma=g("search", "einzel_tiefe_sigma", 0),
+                ausreisser_sigma=g("fit", "ausreisser_sigma", 0), wolken_schwelle=g("fit", "wolken_schwelle", 0.5),
+                wolken_entfernen=g("fit", "wolken_entfernen", True), einzel_tiefe_sigma=g("search", "einzel_tiefe_sigma", 0),
                 tiefen_gewicht=g("search", "tiefen_gewicht", 0))
 
 

@@ -77,6 +77,8 @@ mcmc_chains = 0             # parallele MCMC-Ketten; 0 = automatisch (bis 16, je
 weights = "none"            # "none" = alle Bilder gleich genau; "modell" = Fehler pro Bild aus Szintillation (Airmass, Belichtung) + Photonen
 aperture_cm = 15.0          # Teleskopoeffnung fuer das Szintillationsmodell (z. B. 15 cm)
 detrend_fwhm = false        # zusaetzlicher Detrending-Term FWHM (Seeing/Fokus); nur wenn der BIC besser wird
+wolken_schwelle = 0.5       # Wolken: Frames, in denen die Vergleichssterne mehr als 50 % ihres ueblichen Flusses verlieren (0 = aus)
+wolken_entfernen = true     # true: Wolken-Frames nicht im Fit; false: nur in Log/summary.md melden
 ausreisser_sigma = 0        # 0 = aus; z. B. 3: Frames, deren Abweichung vom Transit-Fit > 3 sigma ist, werden entfernt (iterativ)
 tc_profil_min = 60          # Tc-Profil ("Ist Tc eindeutig?"): Fit bei festem Tc im Raster +- so viele Minuten um die Vorhersage
 tc_zweites_tal = 4          # Warnung, wenn ein zweites Tal im Tc-Profil weniger als so viel (Delta-chi2 / beta^2) schlechter ist

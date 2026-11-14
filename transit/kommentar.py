@@ -47,6 +47,9 @@ def make(out, cfg=None):
     fl = flip_text(out, info, pred, hdr)
     if fl:
         r.append(fl)
+    cl = clouds_text(info)
+    if cl:
+        r.append(cl)
     r.append(clipping_text(out, cfg))                     # reviewers ask for it: always stated
     if info.get("ensemble_fest"):
         r.append(f"Comparison stars selected manually ({', '.join(info['ensemble_fest'])}).")
@@ -184,6 +187,17 @@ def flip_text(out, info, pred, hdr):
     how = ("the flux step was corrected with a prior measured on the comparison stars" if mode == "prior"
            else "the flux step was fitted as a free parameter")
     return f"Meridian flip {lage}; {how}."
+
+
+def clouds_text(info):
+    """Frames removed because the comparison stars lost more than wolken_schwelle of their flux (clouds)."""
+    rg = info.get("cloud_ranges") or []
+    n = int(info.get("excluded_clouds") or 0)
+    if not rg or not n:
+        return ""
+    zeit = ", ".join(f"{a}-{b}" if a != b else a for a, b, _ in rg[:3]) + (" ..." if len(rg) > 3 else "")
+    return (f"{n} cloud-affected frame{'s' if n != 1 else ''} removed (comparison flux < "
+            f"{100 * (1 - float(info.get('wolken_schwelle', 0.5))):.0f} % of normal; {zeit} UT).")
 
 
 def clipping_text(out, cfg):
