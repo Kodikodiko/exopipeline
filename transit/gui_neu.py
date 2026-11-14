@@ -363,6 +363,8 @@ body.ohne-i .thi{display:none}
   <section id="g-fit" data-g="fit"><div class="sec-h"><h3>Fit &amp; Ausreißer <span class="gz"></span></h3><button class="lnk" onclick="gruppeReset('fit')">Zurücksetzen</button></div>
    <div class="lbl" role="group" aria-label="Ausreißer entfernen">Ausreißer entfernen<div class="seg" id="seg-aus"></div>
     <span class="hint">Wolken, Flugzeug, Wind: betroffene Bilder werden entfernt und der Fit wiederholt (Liste in summary.md und ausreisser.json).</span></div>
+   <div class="lbl" role="group" aria-label="Wolken">Wolken<div class="seg" id="seg-wolken"></div>
+    <span class="hint">Bilder, in denen die Vergleichssterne viel Licht verlieren, gehen nicht in den Fit. Die Zeiten stehen in summary.md, im Ergebnisblatt und im ExoClock-Kommentar.</span></div>
    <div class="g3"><label class="lbl">Detrending<select class="inp" data-k="airmass_order"><option value="">Standard</option><option value="1">linear</option><option value="2">quadratisch</option></select></label>
     <label class="lbl">Meridian-Flip<select class="inp" data-k="flip"><option value="">Standard</option><option value="prior">Prior aus Vergleichssternen</option><option value="free">frei</option><option value="none">ignorieren</option></select></label>
     <label class="lbl">Geometrie<select class="inp" data-k="fix_geometry"><option value="">Standard</option><option value="true">fest (ExoClock)</option><option value="false">frei</option></select></label>
@@ -398,11 +400,12 @@ const MODNAME={f:'Flat',bf:'Bias + Flat',bfd:'Bias + Flat + Dark',raw:'ohne Kali
 const SCHRITT={inventory:'Inventur',solve:'Plate-Solve',calibrate:'Kalibrieren',cube:'Photometrie',compsearch:'Vergleichssterne',fit:'Fit (MCMC)',export:'Export',report:'Ergebnisblatt'};
 const STEPS=['inventory','calibrate','cube','compsearch','fit','export','report'];
 const GRUPPEN={kal:['flat','bias','dark','workers'],kam:['farbkamera','gaia_quelle'],ver:['dmag_bright','dmag_faint','neighbour_px','edge_px','einzel_tiefe_sigma','tiefen_gewicht','exclude'],ape:['aperture_mode','ap_min','ap_max','annulus'],
-  fit:['ausreisser_sigma','airmass_order','flip','fix_geometry','airmass_max','mcmc_steps','symmetry_weight']};
+  fit:['ausreisser_sigma','wolken','airmass_order','flip','fix_geometry','airmass_max','mcmc_steps','symmetry_weight']};
 const GNAME={kal:'Kalibrierung',kam:'Kamera & Gaia',ver:'Vergleichssterne',ape:'Apertur',fit:'Fit & Ausreißer'};
 const ELBL={flat:'Flat',bias:'Bias',dark:'Dark',workers:'Prozesse',farbkamera:'Farbkamera',gaia_quelle:'Gaia-Quelle',dmag_bright:'hell ΔG',dmag_faint:'schwach ΔG',neighbour_px:'Nachbar',edge_px:'Rand',
-  aperture_mode:'Apertur',ap_min:'Apertur von',ap_max:'Apertur bis',annulus:'Ring',ausreisser_sigma:'Ausreißer',airmass_order:'Detrending',flip:'Flip',fix_geometry:'Geometrie',airmass_max:'Airmass-Grenze',mcmc_steps:'MCMC',symmetry_weight:'Symmetrie',exclude:'ohne Sterne',einzel_tiefe_sigma:'Einzelstern-Grenze',tiefen_gewicht:'Tiefen-Gewicht'};
+  aperture_mode:'Apertur',ap_min:'Apertur von',ap_max:'Apertur bis',annulus:'Ring',ausreisser_sigma:'Ausreißer',wolken:'Wolken',airmass_order:'Detrending',flip:'Flip',fix_geometry:'Geometrie',airmass_max:'Airmass-Grenze',mcmc_steps:'MCMC',symmetry_weight:'Symmetrie',exclude:'ohne Sterne',einzel_tiefe_sigma:'Einzelstern-Grenze',tiefen_gewicht:'Tiefen-Gewicht'};
 const AUS=[['','aus'],['4','wenige > 4 σ'],['3','normal > 3 σ'],['2.5','viele > 2,5 σ']];
+const WOLKEN=[['','Standard > 50 %'],['0.3','empfindlich > 30 %'],['0.7','nur dichte > 70 %'],['melden','nur melden'],['0','aus']];
 const EIN=[['','nur anzeigen'],['4','verwerfen > 4 σ'],['3','verwerfen > 3 σ']];
 const ICHK='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>';
 const ICOPY='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>';
@@ -620,6 +623,7 @@ function erweitertBody(){
     airmass_order:num('airmass_order'),airmass_max:num('airmass_max'),flip:e.flip||null,fix_geometry:e.fix_geometry==='false'?false:e.fix_geometry==='true'?true:null,
     mcmc_steps:num('mcmc_steps'),symmetry_weight:num('symmetry_weight'),gaia_quelle:e.gaia_quelle||null,farbkamera:e.farbkamera||null,ausreisser_sigma:num('ausreisser_sigma'),
     einzel_tiefe_sigma:num('einzel_tiefe_sigma'),tiefen_gewicht:num('tiefen_gewicht')};
+  if(e.wolken==='melden') er.wolken_entfernen=false; else if(e.wolken!==undefined&&e.wolken!=='') er.wolken_schwelle=+e.wolken;
   if(e.annulus) er.annulus=String(e.annulus).split(',').map(Number);
   if(e.exclude!==undefined) er.exclude_stars=e.exclude;
   const amin=num('ap_min'),amax=num('ap_max');
@@ -864,6 +868,7 @@ function erwHilfe(){
   D.querySelectorAll('section[data-g]').forEach(sec=>{ const k='g-'+sec.dataset.g, h3=sec.querySelector('h3'); if(FELD[k]&&h3) h3.querySelector('.gz').insertAdjacentHTML('beforebegin',iKnopf('feld',k)); });
   D.querySelectorAll('[data-k]').forEach(el=>{ const lab=el.closest('label'); if(lab) knopfNachText(lab,el.dataset.k); });
   const aus=$('seg-aus'); if(aus&&!aus.parentNode.dataset.h) aus.parentNode.dataset.h='ausreisser_sigma';
+  const wo=$('seg-wolken'); if(wo&&!wo.parentNode.dataset.h) wo.parentNode.dataset.h='wolken';
   D.querySelectorAll('[data-h]').forEach(g=>knopfNachText(g,g.dataset.h));
 }
 // "Was tun?" next to warnings: which topic fits a check or note text
@@ -1002,10 +1007,11 @@ function drawerAuf(){
   const std={gaia_quelle:V.gaia_quelle==='esa'?'ESA-Archiv':'VizieR',aperture_mode:V.aperture_mode,airmass_order:V.airmass_order==2?'quadratisch':'linear',flip:V.flip,fix_geometry:V.fix_geometry?'fest':'frei'};
   for(const [k,t] of Object.entries(std)){ const o=document.querySelector(`#drawer [data-k="${k}"] option[value=""]`); if(o) o.textContent='Standard ('+t+')'; }
   $('h-gaia').textContent='Standard '+(V.gaia_quelle==='esa'?'ESA-Archiv':'VizieR')+'; der andere Dienst, wenn einer nicht antwortet';
-  zeigeAus(); zeigeEin(); erwMarkieren(); ladeKand();
+  zeigeAus(); zeigeWolken(); zeigeEin(); erwMarkieren(); ladeKand();
   $('scrim').hidden=false; $('drawer').hidden=false; $('drawer').querySelector('button').focus();
 }
 function zeigeAus(){ const v=String(S.erw.ausreisser_sigma||''); $('seg-aus').innerHTML=AUS.map(([k,t])=>`<button class="${v===k?'on':''}" aria-pressed="${v===k}" onclick="S.erw.ausreisser_sigma='${k}';zeigeAus();erwMarkieren()">${t}</button>`).join(''); }
+function zeigeWolken(){ const v=String(S.erw.wolken??''); $('seg-wolken').innerHTML=WOLKEN.map(([k,t])=>`<button class="${v===k?'on':''}" aria-pressed="${v===k}" onclick="S.erw.wolken='${k}';zeigeWolken();erwMarkieren()">${t}</button>`).join(''); }
 function zeigeEin(){ const v=String(S.erw.einzel_tiefe_sigma||''); $('seg-ein').innerHTML=EIN.map(([k,t])=>`<button class="${v===k?'on':''}" aria-pressed="${v===k}" onclick="S.erw.einzel_tiefe_sigma='${k}';zeigeEin();erwMarkieren()">${t}</button>`).join(''); }
 function geaendert(k){ const v=S.erw[k]; return k==='exclude'?Array.isArray(v)&&S.K&&!gleich(v,vorschlagAus(S.K)):v!==undefined&&v!==''&&v!==null; }
 function gleich(a,b){ return JSON.stringify([...a].sort())===JSON.stringify([...b].sort()); }
@@ -1020,6 +1026,7 @@ function erwMarkieren(){
   zeigeErwChips(); zeigeFuss();
 }
 function chipWert(k){ const v=S.erw[k]; if(k==='exclude') return v.join(', ')||'keiner'; if(k==='ausreisser_sigma'||k==='einzel_tiefe_sigma') return '> '+String(v).replace('.',',')+' σ'; if(k==='gaia_quelle') return v==='esa'?'ESA-Archiv':'VizieR';
+  if(k==='wolken') return (WOLKEN.find(w=>w[0]===String(v))||['',String(v)])[1];
   if(k==='airmass_order') return v==2?'quadratisch':'linear'; if(k==='fix_geometry') return v==='false'?'frei':'fest'; return String(v); }
 function zeigeErwChips(){
   const ks=Object.values(GRUPPEN).flat().filter(geaendert);
