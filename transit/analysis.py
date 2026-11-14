@@ -8,6 +8,51 @@ SIG_RES = 6e-3
 STARTS = np.array([-30, -15, 0, 15, 30]) / 1440
 
 
+def cloud_frames(flux, schwelle, window=61):
+    """Transmission per frame from the summed flux of the comparison stars, relative to a running upper reference
+    (80th percentile over +-window/2 frames, so a long cloud bank does not pull the reference down and the slow
+    airmass trend is followed).  Returns (transmission, cloud mask): cloud = transmission < 1 - schwelle.
+    Frames without a finite flux get transmission nan and are not marked here (the finite-flux cut removes them)."""
+    f = np.asarray(flux, float)
+    n = len(f)
+    tr = np.full(n, np.nan)
+    ok = np.isfinite(f) & (f > 0)
+    idx = np.where(ok)[0]
+    h = window // 2
+    for k, i in enumerate(idx):
+        ref = np.percentile(f[idx[max(0, k - h):k + h + 1]], 80)
+        tr[i] = f[i] / ref if ref > 0 else np.nan
+    if not schwelle or schwelle <= 0:
+        return tr, np.zeros(n, bool)
+    return tr, ok & (tr < 1 - schwelle)
+
+
+_LOGGED = set()
+
+
+def _once(key):
+    """Night is built several times per run (compsearch, fit, outliers): log the cloud line only once."""
+    if key in _LOGGED:
+        return False
+    _LOGGED.add(key)
+    return True
+
+
+def time_ranges(jd, mask, gap_min=5):
+    """Runs of marked frames as [(start 'HH:MM', end 'HH:MM', n)] in UT; frames closer than gap_min belong together."""
+    from astropy.time import Time
+    t = np.asarray(jd)[np.asarray(mask, bool)]
+    if not len(t):
+        return []
+    t = np.sort(t)
+    cut = np.where(np.diff(t) * 1440 > gap_min)[0]
+    out = []
+    for a, b in zip(np.r_[0, cut + 1], np.r_[cut, len(t) - 1]):
+        hm = lambda x: Time(x + 30 / 86400, format="jd").datetime.strftime("%H:%M")   # rounded to the minute
+        out.append((hm(t[a]), hm(t[b]), int(b - a + 1)))
+    return out
+
+
 class Night:
     """Everything the search/fit needs, built from a cube + config + ephemeris prediction."""
 
@@ -32,6 +77,21 @@ class Night:
         frac = (pk[keep][:, cand] > sat).mean(0)
         self.cand = [j for j, f in zip(cand, frac) if f <= 0.05]
         self.dropped_saturating = [self.names[j] for j, f in zip(cand, frac) if f > 0.05]
+        # clouds: summed flux of the comparison candidates against a running reference ([fit] wolken_schwelle, 0 = off)
+        self.wolken_schwelle = float(cfg["fit"].get("wolken_schwelle", 0.5) or 0)
+        self.wolken_entfernen = bool(cfg["fit"].get("wolken_entfernen", True))
+        ir_c = list(c["radii"]).index(16) if 16 in list(c["radii"]) else len(c["radii"]) // 2
+        csum = np.where(keep, np.nansum(c["flux"][:, self.cand, ir_c], axis=1), np.nan) if self.cand else np.full(nf, np.nan)
+        self.transmission, self.cloud = cloud_frames(csum, self.wolken_schwelle)
+        jd = c.get("jd_utc_mid", c["bjd_tdb"])
+        self.cloud_ranges = time_ranges(jd, self.cloud)
+        if self.cloud.any() and _once(f"{nf}-{int(self.cloud.sum())}-{self.wolken_entfernen}"):
+            log(f"Wolken (Vergleichssterne < {100 * (1 - self.wolken_schwelle):.0f} % des ueblichen Flusses): "
+                f"{int(self.cloud.sum())} Frames, " + ", ".join(f"{a}-{b} UT ({k})" if a != b else f"{a} UT ({k})"
+                                                             for a, b, k in self.cloud_ranges)
+                + ("  -> nicht im Fit" if self.wolken_entfernen else "  -> nur markiert ([fit] wolken_entfernen = false)"))
+        if self.wolken_entfernen:
+            keep = keep & ~self.cloud
         sel = keep & (pk[:, 0] <= sat) & np.all(pk[:, self.cand] <= sat, axis=1)
         sel &= np.all(np.isfinite(c["flux"][:, [0] + self.cand, :]).reshape(nf, -1), axis=1)
         self.sel = sel
@@ -63,7 +123,11 @@ class Night:
         self.u = (cfg["fit"]["u1"], cfg["fit"]["u2"])
         self.flipd = {}
         self.flip_target = (0.0, 1.0)
-        self.info = dict(frames_total=int(nf), frames_used=int(sel.sum()), excluded_list=int((~keep).sum()),
+        n_cloud_out = int((self.keep & self.cloud).sum()) if self.wolken_entfernen else 0
+        self.info = dict(frames_total=int(nf), frames_used=int(sel.sum()), excluded_list=int((~self.keep).sum()),
+                         excluded_clouds=n_cloud_out, clouds_marked=int(self.cloud.sum()),
+                         cloud_ranges=[list(x) for x in self.cloud_ranges], wolken_schwelle=self.wolken_schwelle,
+                         wolken_entfernen=self.wolken_entfernen,
                          excluded_saturation=int((keep & ~sel).sum()), n_oot=int(self.oot.sum()),
                          n_oot_pre=int((self.oot & (self.t < pred["Tc"])).sum()),
                          n_oot_post=int((self.oot & (self.t > pred["Tc"])).sum()),

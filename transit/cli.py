@@ -327,7 +327,7 @@ def cmd_compsearch(m, a):
     n, c, pred, par = night_from(m, a)
     rej = n.prefilter()
     log(f"Frames: {n.info['frames_used']} von {n.info['frames_total']} (Liste {n.info['excluded_list']}, "
-        f"Saettigung {n.info['excluded_saturation']}); OOT {n.info['n_oot']} ({n.info['n_oot_pre']} vor / {n.info['n_oot_post']} nach)")
+        f"Wolken {n.info.get('excluded_clouds', 0)}, Saettigung {n.info['excluded_saturation']}); OOT {n.info['n_oot']} ({n.info['n_oot_pre']} vor / {n.info['n_oot_post']} nach)")
     log(f"Gesaettigte Vergleichssterne entfernt: {n.dropped_saturating}; Vorfilter verworfen: {rej}; Pool {len(n.pool)}")
     for p_ in n.prefilter_table:
         if p_["variabel"]:
