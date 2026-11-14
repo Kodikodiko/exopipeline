@@ -71,11 +71,14 @@ def verify(m, stage=""):
         return "angelegt"
     ref = json.load(open(cf))
     cur = snapshot(m, full=False)
-    bad = []
+    bad, aside = [], []
     for k, v in ref.items():
         c = cur.get(k)
         if c is None:
-            bad.append(f"{k}: fehlt")
+            if set_aside(m, k, v):
+                aside.append(k)
+            else:
+                bad.append(f"{k}: fehlt")
         elif c["size"] != v["size"] or (not v.get("full") and c["sha256"] != v["sha256"]):
             bad.append(f"{k}: veraendert")
     new = sorted(set(cur) - set(ref))
@@ -84,4 +87,27 @@ def verify(m, stage=""):
                                 "Den Ordner waehlen, in dem die Lights jetzt liegen (z. B. am NAS). Es wurde nichts veraendert.")
     if bad:
         raise ReadOnlyViolation(f"Light-Dateien veraendert ({stage}): " + "; ".join(bad[:10]))
-    return f"ok ({len(ref)} Dateien" + (f", {len(new)} neu" if new else "") + ")"
+    if aside:                                              # deliberately set aside: accept and drop from the reference
+        for k in aside:
+            ref.pop(k)
+        with open(cf, "w") as fh:
+            json.dump(ref, fh, indent=0)
+    return (f"ok ({len(ref)} Dateien" + (f", {len(new)} neu" if new else "")
+            + (f", {len(aside)} defekte beiseitegelegt: {', '.join(aside[:5])}{' ...' if len(aside) > 5 else ''}" if aside else "")
+            + ")")
+
+
+ASIDE_DIRS = ("_defekt", "_defect", "_bad", "_aussortiert")
+
+
+def set_aside(m, name, ref):
+    """A light that is missing on purpose: it was empty (0 bytes, nothing lost) or it was moved unchanged into a
+    set-aside subfolder of the light folder (e.g. LIGHT\\_defekt after a write error in NINA)."""
+    if ref.get("size") == 0:
+        return True
+    for d in ASIDE_DIRS:
+        p = os.path.join(m.lights, d, name)
+        if os.path.isfile(p) and os.path.getsize(p) == ref.get("size"):
+            if ref.get("full") or fingerprint(p)["sha256"] == ref.get("sha256"):
+                return True
+    return False
