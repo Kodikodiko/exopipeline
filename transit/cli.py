@@ -63,7 +63,10 @@ def cmd_inventory(m, a):
     import astropy.units as u
     st = safety.record(m, full=a.full)
     log(f"Pruefsummen fuer {len(st)} Light-Dateien gespeichert ({'voll' if a.full else 'schnell'})")
-    hd = read_headers(m)
+    defekt = []
+    hd = read_headers(m, skipped=defekt)
+    if not hd:
+        raise SystemExit("Keine lesbaren FITS-Dateien im Light-Ordner" + (f" ({len(defekt)} defekt)" if defekt else ""))
     with open(m.path("headers.csv"), "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh); w.writerow(["file", "size", "solved"] + KEYS)
         for x in hd:
@@ -88,7 +91,13 @@ def cmd_inventory(m, a):
                exptimes=sorted({float(x["header"].get("EXPTIME", 0)) for x in hd}),
                ccd_temp=[float(np.nanmin(tm_ := [x["header"].get("CCD-TEMP", np.nan) for x in hd])), float(np.nanmax(tm_))],
                date_first=hd[0]["header"]["DATE-OBS"], date_last=hd[-1]["header"]["DATE-OBS"], target=str(tgt.to_string("hmsdms")),
-               ephemeris=pred, planet=par, checks=night_checks(m, hd, tm, pred))
+               ephemeris=pred, planet=par, checks=night_checks(m, hd, tm, pred),
+               defekt=[dict(file=os.path.basename(f), grund=g) for f, g in defekt])
+    if defekt:
+        names = ", ".join(os.path.basename(f) for f, _ in defekt[:6]) + (" ..." if len(defekt) > 6 else "")
+        inv["checks"].insert(0, dict(level="WARN", text=f"{len(defekt)} defekte FITS-Datei(en) uebersprungen: {names}",
+                                     fix="Leere/abgeschnittene Dateien (z. B. Schreibabbruch in NINA) in einen Unterordner "
+                                         "des Light-Ordners verschieben, z. B. LIGHT\\_defekt"))
     jdump(inv, m.path("inventory.json"))
     log(f"{inv['n_frames']} Frames, {inv['n_solved']} mit WCS, Filter {inv['filters']}, Belichtung {inv['exptimes']} s, "
         f"CCD {inv['ccd_temp'][0]:.1f}..{inv['ccd_temp'][1]:.1f} C")
