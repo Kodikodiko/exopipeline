@@ -3,7 +3,7 @@
 transit kommentar <Messordner> [--lauf L]   prints it and copies it to the clipboard (valid run by default).
 Also appended to exoclock_formular.txt by transit export.  Extra fixed text: [export] kommentar_zusatz.
 After the remarks: the comparison-star ensemble (Gaia DR3 ID, G, BP-RP, distance to the target), switch
-[export] kommentar_sterne = false; whole comment at most [export] kommentar_max characters (default 600).
+[export] kommentar_sterne = false; whole comment at most [export] kommentar_max characters (default 700).
 """
 import csv
 import glob
@@ -14,8 +14,8 @@ from datetime import datetime
 
 import numpy as np
 
-MAXLEN = 300          # remarks proper: the most important ones within ~300 characters
-MAXLEN_ALLES = 600    # whole comment incl. the comparison-star list ([export] kommentar_max)
+MAXLEN = 360          # remarks proper: the most important ones within ~360 characters
+MAXLEN_ALLES = 700    # whole comment incl. the comparison-star list ([export] kommentar_max)
 
 
 def _j(out, name):
@@ -44,7 +44,7 @@ def make(out, cfg=None):
     info, mc, pred = fr["info"], fr["mcmc"], fr["ephemeris"]
     cfg = cfg or {}
     r = []                                                 # in order of importance
-    fl = flip_text(out, info, pred, hdr)
+    fl = flip_text(out, info, pred, hdr, fr.get("tests"), fr.get("flip_target"))
     if fl:
         r.append(fl)
     cl = clouds_text(info)
@@ -135,8 +135,10 @@ def _f(x):
 
 
 def ensemble_text(out, fr, room):
-    """Comparison stars of the final ensemble: Gaia DR3 ID, G, BP-RP, distance to the target ('), from fit.json
-    (best.comps/gaia) and candidates.csv.  Fits into `room` characters; stars that do not fit are counted ("+2 more")."""
+    """Target and comparison stars of the final ensemble, with a legend so a reviewer need not guess the format:
+    "Target G 8.6, BP-RP 0.67. Comparison stars, Gaia DR3 ID (G mag / BP-RP / separation from target):
+    3438063011972005120 (10.0 / 0.63 / 6.5'); ..."  From fit.json (best.comps/gaia) and candidates.csv.
+    Fits into `room` characters; stars that do not fit are counted ("+2 more")."""
     best = fr.get("best") or {}
     names, ids = list(best.get("comps") or []), [str(x) for x in (best.get("gaia") or [])]
     if not names:
@@ -144,20 +146,22 @@ def ensemble_text(out, fr, room):
     cp = os.path.join(out, "candidates.csv")
     cand = {r["name"]: r for r in csv.DictReader(open(cp, encoding="utf-8"))} if os.path.exists(cp) else {}
     tg = next((r for r in cand.values() if r.get("role") == "target"), None)
-    head = f"Comparison ensemble ({len(names)} stars; Gaia DR3 ID G/BP-RP/dist. from target)"
+    tpos = tg and None not in (_f(tg.get("ra")), _f(tg.get("dec")))
+    ziel = ""
     if tg and _f(tg.get("G")) is not None:
-        head += f", target G {float(tg['G']):.1f}" + (f" BP-RP {_f(tg.get('bp_rp')):.2f}" if _f(tg.get("bp_rp")) is not None else "")
+        ziel = f"Target G {_f(tg['G']):.1f}" + (f", BP-RP {_f(tg.get('bp_rp')):.2f}" if _f(tg.get("bp_rp")) is not None else "") + ". "
+    legend = "G mag / BP-RP" + (" / separation from target" if tpos else "")
+    head = f"{ziel}Comparison stars, Gaia DR3 ID ({legend})"
     items = []
     for k, n in enumerate(names):
         c = cand.get(n, {})
         sid = ids[k] if k < len(ids) else str(c.get("source_id", "") or n)
         g, col = _f(c.get("G")), _f(c.get("bp_rp"))
         val = [f"{g:.1f}" if g is not None else "-", f"{col:.2f}" if col is not None else "-"]
-        ra, de = _f(c.get("ra")), _f(c.get("dec"))
-        if tg and None not in (ra, de, _f(tg.get("ra")), _f(tg.get("dec"))):
-            val.append(f"{_sep_arcmin(ra, de, float(tg['ra']), float(tg['dec'])):.1f}'")
-        items.append(f"{sid} {'/'.join(val)}")
-    text = ""
+        if tpos:
+            ra, de = _f(c.get("ra")), _f(c.get("dec"))
+            val.append(f"{_sep_arcmin(ra, de, float(tg['ra']), float(tg['dec'])):.1f}'" if None not in (ra, de) else "-")
+        items.append(f"{sid} ({' / '.join(val)})")
     for k in range(len(items), 0, -1):                   # as many stars as fit, the rest counted
         rest = len(items) - k
         text = head + ": " + "; ".join(items[:k]) + (f"; +{rest} more" if rest else "") + "."
@@ -166,7 +170,7 @@ def ensemble_text(out, fr, room):
     return ""
 
 
-def flip_text(out, info, pred, hdr):
+def flip_text(out, info, pred, hdr, fr_tests=None, flip_target=None):
     """Where the meridian flip lies relative to the predicted transit, and how the flux step was handled.
     Flip time = middle of the pause between the last frame on one pier side and the first on the other (as in inventory)."""
     mode = info.get("flip_mode", "none")
@@ -184,9 +188,16 @@ def flip_text(out, info, pred, hdr):
         lage = f"{(tf - pred['egress']) * 1440:.0f} min after egress"
     else:
         lage = f"during the transit, {(tf - pred['ingress']) * 1440:.0f} min after ingress"
-    how = ("the flux step was corrected with a prior measured on the comparison stars" if mode == "prior"
-           else "the flux step was fitted as a free parameter")
-    return f"Meridian flip {lage}; {how}."
+    step = ((fr_tests or {}).get("alle_fest") or {}).get("flip_ppt")
+    wert = f": {step:+.1f} ppt," if step is not None else ""
+    ft = flip_target if mode == "prior" else None
+    n = int(_j(out, "compsearch.json").get("flip", {}).get("n_stars") or 0)
+    if ft:
+        quelle = f"measured on {n} field stars" if n else "measured on the field stars"
+        how = f"Flux step across the flip{wert} fitted with a prior ({ft[0] * 1e3:+.1f} +/- {ft[1] * 1e3:.1f} ppt) {quelle}"
+    else:
+        how = f"Flux step across the flip{wert} fitted as a free parameter"
+    return f"Meridian flip {lage}. {how}; the uploaded fluxes are corrected for it."
 
 
 def clouds_text(info):
