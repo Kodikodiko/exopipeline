@@ -143,7 +143,10 @@ def frame_status(out, fr, cfg):
     if ex:
         try:
             jd = np.loadtxt(ex[0], comments="#", usecols=0, ndmin=1)
-            used = np.isin(np.round(c["jd_start"], 5), np.round(jd, 5))
+            jd = np.sort(jd)
+            k = np.clip(np.searchsorted(jd, c["jd_start"]), 1, max(len(jd) - 1, 1))
+            near = np.minimum(abs(c["jd_start"] - jd[k - 1]), abs(c["jd_start"] - jd[np.minimum(k, len(jd) - 1)]))
+            used = near < 2 / 86400                          # same frame (export writes 7 decimals)
             why[used] = ""
             why[~used & (why == "")] = "other"
         except Exception:
