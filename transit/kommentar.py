@@ -3,7 +3,7 @@
 transit kommentar <Messordner> [--lauf L]   prints it and copies it to the clipboard (valid run by default).
 Also appended to exoclock_formular.txt by transit export.  Extra fixed text: [export] kommentar_zusatz.
 After the remarks: the comparison-star ensemble (Gaia DR3 ID, G, BP-RP, distance to the target), switch
-[export] kommentar_sterne = false; whole comment at most [export] kommentar_max characters (default 700).
+[export] kommentar_sterne = false; whole comment at most [export] kommentar_max characters (default 800).
 """
 import csv
 import glob
@@ -14,8 +14,8 @@ from datetime import datetime
 
 import numpy as np
 
-MAXLEN = 360          # remarks proper: the most important ones within ~360 characters
-MAXLEN_ALLES = 700    # whole comment incl. the comparison-star list ([export] kommentar_max)
+MAXLEN = 400          # remarks proper: the most important ones within ~400 characters
+MAXLEN_ALLES = 800    # whole comment incl. the comparison-star list ([export] kommentar_max)
 
 
 def _j(out, name):
@@ -44,7 +44,7 @@ def make(out, cfg=None):
     info, mc, pred = fr["info"], fr["mcmc"], fr["ephemeris"]
     cfg = cfg or {}
     r = []                                                 # in order of importance
-    fl = flip_text(out, info, pred, hdr, fr.get("tests"), fr.get("flip_target"))
+    fl = flip_text(out, info, pred, hdr, fr.get("tests"), fr.get("flip_target"), fr.get("best"))
     if fl:
         r.append(fl)
     cl = clouds_text(info)
@@ -136,7 +136,8 @@ def _f(x):
 
 def ensemble_text(out, fr, room):
     """Target and comparison stars of the final ensemble, with a legend so a reviewer need not guess the format:
-    "Target G 8.6, BP-RP 0.67. Comparison stars, Gaia DR3 ID (G mag / BP-RP / separation from target):
+    "Target G 8.6, BP-RP 0.67. Comparison ensemble used for the light curve (5 stars), Gaia DR3 ID
+    (G mag / BP-RP / separation from target):
     3438063011972005120 (10.0 / 0.63 / 6.5'); ..."  From fit.json (best.comps/gaia) and candidates.csv.
     Fits into `room` characters; stars that do not fit are counted ("+2 more")."""
     best = fr.get("best") or {}
@@ -151,7 +152,7 @@ def ensemble_text(out, fr, room):
     if tg and _f(tg.get("G")) is not None:
         ziel = f"Target G {_f(tg['G']):.1f}" + (f", BP-RP {_f(tg.get('bp_rp')):.2f}" if _f(tg.get("bp_rp")) is not None else "") + ". "
     legend = "G mag / BP-RP" + (" / separation from target" if tpos else "")
-    head = f"{ziel}Comparison stars, Gaia DR3 ID ({legend})"
+    head = f"{ziel}Comparison ensemble used for the light curve ({len(names)} star{'s' if len(names) != 1 else ''}), Gaia DR3 ID ({legend})"
     items = []
     for k, n in enumerate(names):
         c = cand.get(n, {})
@@ -170,7 +171,7 @@ def ensemble_text(out, fr, room):
     return ""
 
 
-def flip_text(out, info, pred, hdr, fr_tests=None, flip_target=None):
+def flip_text(out, info, pred, hdr, fr_tests=None, flip_target=None, fr_best=None):
     """Where the meridian flip lies relative to the predicted transit, and how the flux step was handled.
     Flip time = middle of the pause between the last frame on one pier side and the first on the other (as in inventory)."""
     mode = info.get("flip_mode", "none")
@@ -191,9 +192,16 @@ def flip_text(out, info, pred, hdr, fr_tests=None, flip_target=None):
     step = ((fr_tests or {}).get("alle_fest") or {}).get("flip_ppt")
     wert = f": {step:+.1f} ppt," if step is not None else ""
     ft = flip_target if mode == "prior" else None
-    n = int(_j(out, "compsearch.json").get("flip", {}).get("n_stars") or 0)
+    fl = _j(out, "compsearch.json").get("flip") or {}
+    n = int(fl.get("n_stars") or 0)
     if ft:
         quelle = f"measured on {n} field stars" if n else "measured on the field stars"
+        ens = set((fr_best or {}).get("comps") or [])
+        drin = len(ens & {s_["name"] for s_ in fl.get("stars", [])})
+        if ens and drin == len(ens):
+            quelle += " (incl. the comparison stars)"
+        elif drin:
+            quelle += f" (incl. {drin} of the {len(ens)} comparison stars)"
         how = f"Flux step across the flip{wert} fitted with a prior ({ft[0] * 1e3:+.1f} +/- {ft[1] * 1e3:.1f} ppt) {quelle}"
     else:
         how = f"Flux step across the flip{wert} fitted as a free parameter"

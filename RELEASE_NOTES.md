@@ -25,7 +25,7 @@ Umfasst PR #22 bis #31.
 ### Export und ExoClock
 
 - **Vergleichssterne im ExoClock-Kommentar:** Hinter den Hinweisen folgt das Ensemble des Laufs, je Stern Gaia-DR3-Nummer, G-Helligkeit, Farbe BP−RP und Abstand zum Ziel in Bogenminuten, dazu G und BP−RP des Zielsterns. Der ganze Kommentar bleibt unter `[export] kommentar_max` Zeichen (Standard 600); passen nicht alle Sterne hinein, endet die Liste mit „+N more“. Abschalten mit `[export] kommentar_sterne = false`. (#26)
-- **Verständlicherer ExoClock-Kommentar:** Die Vergleichssterne-Liste hat eine Legende und klammert die Werte je Stern: „Target G 8.6, BP-RP 0.67. Comparison stars, Gaia DR3 ID (G mag / BP-RP / separation from target): 3438063011972005120 (10.0 / 0.63 / 6.5'); …“. Der Flip-Satz nennt jetzt die Zahlen: gefittete Stufe, Prior aus wie vielen Feldsternen, und dass die hochgeladenen Flüsse korrigiert sind. Standard für `[export] kommentar_max` jetzt 700 Zeichen (Hinweise bis ca. 360). (#35)
+- **Verständlicherer ExoClock-Kommentar:** Die Vergleichssterne-Liste hat eine Legende und klammert die Werte je Stern: „Target G 8.6, BP-RP 0.67. Comparison ensemble used for the light curve (5 stars), Gaia DR3 ID (G mag / BP-RP / separation from target): 3438063011972005120 (10.0 / 0.63 / 6.5'); …“. Der Flip-Satz nennt jetzt die Zahlen: gefittete Stufe, Prior aus wie vielen Feldsternen (und ob die Vergleichssterne darunter sind), und dass die hochgeladenen Flüsse korrigiert sind. Standard für `[export] kommentar_max` jetzt 800 Zeichen (Hinweise bis ca. 400). (#35)
 - **Farbkamera im Kommentar:** Bei Aufnahmen mit Farbkamera steht „Colour (Bayer) camera: photometry on 2x2 superpixels (no debayering).“ (#26)
 
 ### Kalibrierung
