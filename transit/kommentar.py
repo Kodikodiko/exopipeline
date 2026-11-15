@@ -3,7 +3,7 @@
 transit kommentar <Messordner> [--lauf L]   prints it and copies it to the clipboard (valid run by default).
 Also appended to exoclock_formular.txt by transit export.  Extra fixed text: [export] kommentar_zusatz.
 After the remarks: the comparison-star ensemble (Gaia DR3 ID, G, BP-RP, distance to the target), switch
-[export] kommentar_sterne = false; whole comment at most [export] kommentar_max characters (default 900).
+[export] kommentar_sterne = false; whole comment at most [export] kommentar_max characters (default 1400).
 """
 import csv
 import glob
@@ -14,8 +14,8 @@ from datetime import datetime
 
 import numpy as np
 
-MAXLEN = 480          # remarks proper: the most important ones within ~480 characters
-MAXLEN_ALLES = 900    # whole comment incl. the comparison-star list ([export] kommentar_max)
+MAXLEN_ALLES = 1400   # whole comment incl. the comparison-star list ([export] kommentar_max)
+STERN_PLATZ = 350     # room kept free for the comparison-star list
 
 
 def _j(out, name):
@@ -33,80 +33,239 @@ def valid_run(root):
 
 
 def make(out, cfg=None):
-    """Short remark (1-2 sentences, ~300 chars) with only what ExoClock cannot see in the data; "No special remarks." else.
-    Frame count, exposure, time format, own fit values and the standard method are deliberately left out."""
+    """Comment for the ExoClock reviewers, most important facts first (whatever does not fit in [export] kommentar_max
+    falls away from the end): coverage of the contacts and baselines, every gap in the uploaded data with cause and
+    position, frames used/removed per reason, meridian flip and detrending, comparison-star decisions, timing doubts,
+    calibration, sigma clipping, camera/exposure/filter notes, then the comparison-star list with a legend."""
     fr, cj = _j(out, "fit.json"), _j(out, "calib.json")
     if not fr:
         raise SystemExit(f"{out}: keine fit.json - Lauf nicht fertig")
     hp = os.path.join(out, "headers.csv")
     hdr = list(csv.DictReader(open(hp, encoding="utf-8"))) if os.path.exists(hp) else []
     hdr = [h for h in hdr if not any(w in str(h.get("IMAGETYP", "")).upper() for w in ("BIAS", "DARK", "FLAT", "MASTER"))]
-    info, mc, pred = fr["info"], fr["mcmc"], fr["ephemeris"]
+    info, pred = fr["info"], fr["ephemeris"]
     cfg = cfg or {}
-    r = []                                                 # in order of importance
+    ex = cfg.get("export", {})
+    r = []                                                 # in order of importance for the reviewer
+    extra = str(ex.get("kommentar_zusatz", "") or "").strip()
+    if extra:
+        r.append(extra)
+    st = frame_status(out, fr, cfg)
+    if st is not None:
+        r += coverage_text(st, pred)
+        r.append(frames_text(st, hdr, _j(out, "inventory.json")))
     fl = flip_text(out, info, pred, hdr, fr.get("tests"), fr.get("flip_target"), fr.get("best"))
-    if fl:
-        r.append(fl)
-    cl = clouds_text(info)
-    if cl:
-        r.append(cl)
-    sa = saturation_text(out, info, cfg)
-    if sa:
-        r.append(sa)
-    r.append(clipping_text(out, cfg))                     # reviewers ask for it: always stated
+    r.append(fl or "Uploaded fluxes are not detrended (airmass left to the ExoClock fit).")
     if info.get("ensemble_fest"):
         r.append(f"Comparison stars selected manually ({', '.join(info['ensemble_fest'])}).")
     comps = comps_text(out, info, fr)
     if comps:
         r.append(comps)
-    osc = colour_text(out)
-    if osc:
-        r.append(osc)
     tc = fr.get("tc_check") or {}
     if tc.get("ampel") in ("gelb", "rot"):
         r.append("Tc profile shows a second, almost equal minimum: the timing may be ambiguous."
                  if tc.get("taeler") else "Tc shifts when the depth is fixed to the literature value: timing depends on the depth.")
-    want, eff = cj.get("mode"), cj.get("mode_effektiv") or cj.get("mode")
-    if eff in ("raw", "b"):
-        r.append("No flat-field correction (no matching flat available).")
-    elif cj.get("flat") and cj["flat"].get("date") and hdr:
-        age = (datetime.fromisoformat(hdr[0]["DATE-OBS"][:19]) - datetime.fromisoformat(str(cj["flat"]["date"])[:19])).days
-        if abs(age) > 60:
-            r.append(f"Flat field {abs(age)} days {'older' if age > 0 else 'newer'} than the observations.")
+    ca = calib_text(cj, hdr)
+    if ca:
+        r.append(ca)
+    r.append(clipping_text(out, cfg))
+    osc = colour_text(out)
+    if osc:
+        r.append(osc)
     exps = sorted({float(h["EXPTIME"]) for h in hdr if h.get("EXPTIME")})
     if len(exps) > 1 and sum(float(h["EXPTIME"]) != exps[-1] for h in hdr) > 1:
         r.append(f"Alternating exposures {' / '.join(f'{e:g}' for e in exps)} s; the form shows the median.")
-    terr = (mc["Tc"][2] - mc["Tc"][0]) / 2 * 1440
     if exps and max(exps) < 10:
         r.append("Very short exposures: scintillation-limited, hence the large timing uncertainty.")
-    elif terr > 5:
-        r.append("Low timing precision (noisy data).")
-    t = sorted(datetime.fromisoformat(h["DATE-OBS"][:19]).timestamp() for h in hdr if h.get("DATE-OBS"))
-    if len(t) > 3:
-        g = np.diff(t); cad = np.median(g)
-        side = {datetime.fromisoformat(h["DATE-OBS"][:19]).timestamp(): h.get("PIERSIDE", "") for h in hdr if h.get("DATE-OBS")}
-        big = [(i, d) for i, d in enumerate(g) if d > max(5 * cad, 600)
-               and side.get(t[i]) == side.get(t[i + 1])]     # the pause at the meridian flip is not a gap
-        if big:
-            r.append(f"Data gap(s) of {', '.join(f'{d / 60:.0f}' for _, d in big[:3])} min (clouds/interruption).")
-    if cfg.get("export", {}).get("filter") and not any(h.get("FILTER") for h in hdr):
+    if ex.get("filter") and not any(h.get("FILTER") for h in hdr):
         r.append("Filter not in the FITS header; taken from the observer's notes.")
-    extra = str(cfg.get("export", {}).get("kommentar_zusatz", "") or "").strip()
-    if extra:
-        r.insert(0, extra)
+    lim = int(ex.get("kommentar_max") or MAXLEN_ALLES)
+    sterne = ex.get("kommentar_sterne", True)
+    budget = lim - (STERN_PLATZ if sterne else 0)
     text = ""
-    for x in r:                                            # keep the most important remarks within ~300 characters
-        if len(text) + len(x) + 1 > MAXLEN:
-            break
-        text = (text + " " + x).strip()
+    for x in r:                                            # most important first; what does not fit is left out
+        if len(text) + len(x) + 1 <= budget:
+            text = (text + " " + x).strip()
     text = text or "No special remarks."
-    ex = cfg.get("export", {})
-    if ex.get("kommentar_sterne", True):
-        lim = int(ex.get("kommentar_max") or MAXLEN_ALLES)
-        st = ensemble_text(out, fr, lim - len(text) - 1)
-        if st:
-            text += " " + st
+    if sterne:
+        st_ = ensemble_text(out, fr, lim - len(text) - 1)
+        if st_:
+            text += " " + st_
     return text
+
+
+def _cube(out):
+    p = sorted(glob.glob(os.path.join(out, "cube_*.npz")))
+    if not p:
+        return None
+    with np.load(p[0]) as z:
+        return {k: z[k] for k in z.files}
+
+
+def _hm(jd):
+    from astropy.time import Time
+    return Time(float(jd) + 30 / 86400, format="jd").datetime.strftime("%H:%M")    # rounded to the minute
+
+
+def frame_status(out, fr, cfg):
+    """Per frame of the cube: why it is not in the uploaded light curve ('' = used).  Same rules as analysis.Night
+    (frame list, airmass cut, clouds, saturation, missing flux, sigma clipping); 'used' itself is taken from the
+    exported ExoClock file when it exists, so the comment describes exactly what ExoClock gets."""
+    c = _cube(out)
+    if c is None:
+        return None
+    info = fr.get("info") or {}
+    nf = len(c["jd_start"])
+    names = [str(x) for x in c["star_name"]]
+    why = np.array([""] * nf, dtype=object)
+    se = cfg.get("search") or {}
+    ff = np.array([str(x) for x in c["frame_file"]]) if "frame_file" in c else np.array([""] * nf)
+    ar = {d.get("frame") for d in _j(out, "ausreisser.json").get("frames", [])}
+    why[np.isin(ff, list(ar))] = "clip"
+    why[np.isin(ff, list(se.get("exclude_frames") or []))] = "list"
+    amax = float(se.get("airmass_max") or 0)
+    if amax and "airmass_calc" in c:
+        why[(why == "") & (c["airmass_calc"] > amax)] = "airmass"
+    skip = set(info.get("dropped_saturating") or []) | set(info.get("excluded_stars") or [])
+    cand = [j for j in range(1, len(names)) if names[j] not in skip]
+    if info.get("excluded_clouds") and cand:
+        from .analysis import cloud_frames
+        rad = list(c["radii"])
+        ir = rad.index(16) if 16 in rad else len(rad) // 2
+        csum = np.where(why == "", np.nansum(c["flux"][:, cand, ir], axis=1), np.nan)
+        why[(why == "") & cloud_frames(csum, float(info.get("wolken_schwelle", 0.5)))[1]] = "cloud"
+    sat = float((cfg.get("camera") or {}).get("saturation_adu") or 0)
+    if sat:
+        why[(why == "") & np.any(c["peak_raw"][:, [0] + cand] > sat, axis=1)] = "sat"
+    why[(why == "") & ~np.all(np.isfinite(c["flux"][:, [0] + cand, :]).reshape(nf, -1), axis=1)] = "nan"
+    used = why == ""
+    ex = glob.glob(os.path.join(out, "*_exoclock_JDUTC.txt"))
+    if ex:
+        try:
+            jd = np.loadtxt(ex[0], comments="#", usecols=0, ndmin=1)
+            used = np.isin(np.round(c["jd_start"], 5), np.round(jd, 5))
+            why[used] = ""
+            why[~used & (why == "")] = "other"
+        except Exception:
+            pass
+    return dict(jd=c.get("jd_utc_mid", c["jd_start"]), bjd=c["bjd_tdb"], east=c.get("east"), why=why, used=used)
+
+
+def _lage(a, b, I, E, Tc):
+    """Where the span a..b (JD) lies relative to the predicted contacts."""
+    def p(x):
+        if x < I:
+            return "before ingress"
+        if x > E:
+            return "after egress"
+        return "first half of the transit" if x < Tc else "second half of the transit"
+    pa, pb = p(a), p(b)
+    if a < I < b and b < E:
+        return "across ingress"
+    if I < a < E < b:
+        return "across egress"
+    if a < I and b > E:
+        return "the whole transit"
+    if pa == pb and pa in ("before ingress", "after egress"):
+        return pa
+    if I <= a and b <= E:
+        return f"in transit, {(a - Tc) * 1440:+.0f} to {(b - Tc) * 1440:+.0f} min from mid-transit"
+    return f"{pa} to {pb}"
+
+
+WARUM = dict(sat="saturated", cloud="clouds", list="excluded by the observer",
+             airmass="above the airmass limit", nan="no valid photometry", clip="sigma clipping", other="not used in the fit")
+
+
+GRUND = dict(sat="target or a comparison star saturated", cloud="clouds")
+
+
+def coverage_text(st, pred):
+    """Coverage (contacts and baselines in UT) and every gap in the uploaded data with cause and position."""
+    jd, used = st["jd"], st["used"]
+    if used.sum() < 3:
+        return []
+    off = float(np.nanmedian(st["bjd"] - jd))                  # BJD_TDB - JD_UTC: predicted contacts in UT
+    I, E, Tc = pred["ingress"] - off, pred["egress"] - off, pred["Tc"] - off
+    allt = np.sort(jd)
+    cad = float(np.median(np.diff(allt))) if len(allt) > 2 else 0.0
+    lim = max(10 / 1440, 5 * cad)
+    tu = np.sort(jd[used])
+    # gaps in the used data; gaps with only a few points between them (< 6 within 20 min) are merged into one
+    gaps = [[tu[i], tu[i + 1]] for i in np.where(np.diff(tu) > lim)[0]]
+    merged = []
+    for g in gaps:
+        if merged and g[0] - merged[-1][1] < 20 / 1440 and ((tu > merged[-1][1]) & (tu < g[0])).sum() < 6:
+            merged[-1][1] = g[1]
+        else:
+            merged.append(list(g))
+    lines = []
+    pre, post = (I - tu[0]) * 1440, (tu[-1] - E) * 1440
+    ing = tu[0] < I - 5 / 1440 and not any(a < I + 10 / 1440 and b > I - 10 / 1440 for a, b in merged)
+    egr = tu[-1] > E + 5 / 1440 and not any(a < E + 10 / 1440 and b > E - 10 / 1440 for a, b in merged)
+    kontakt = ("Ingress and egress observed" if ing and egr else "Ingress observed, egress not covered" if ing
+               else "Egress observed, ingress not covered" if egr else "Neither ingress nor egress covered")
+    base = []
+    base.append(f"{pre:.0f} min before ingress" if pre > 0 else "none before ingress")
+    base.append(f"{post:.0f} min after egress" if post > 0 else "none after egress")
+    lines.append(f"Coverage {_hm(tu[0])}-{_hm(tu[-1])} UT (predicted ingress {_hm(I)}, egress {_hm(E)} UT): "
+                 f"{kontakt}; baseline {' and '.join(base)}.")
+    if not merged:
+        lines.append("No gaps in the uploaded data.")
+        return lines
+    parts = []
+    for a, b in merged[:3]:
+        inn = (jd > a) & (jd < b)
+        left = int((used & inn).sum())
+        cnt = {}
+        for w in st["why"][inn & ~used]:
+            cnt[w] = cnt.get(w, 0) + 1
+        why = [f"{GRUND.get(w, WARUM.get(w, w))} in {k} frame{'s' if k != 1 else ''}" for w, k in sorted(cnt.items(), key=lambda x: -x[1])]
+        ta = np.sort(jd[inn | (jd == a) | (jd == b)])
+        e = st.get("east")
+        for x, y in zip(ta, ta[1:]):                       # no frames taken: flip pause or interruption
+            flip = e is not None and e[np.argmin(abs(jd - x))] != e[np.argmin(abs(jd - y))]
+            if flip or y - x > lim:
+                why.append(f"{'meridian flip' if flip else 'no frames recorded'} {_hm(x)}-{_hm(y)}")
+        s = f"{_hm(a)}-{_hm(b)} UT ({(b - a) * 1440:.0f} min, {_lage(a, b, I, E, Tc)}"
+        s += f"; only {left} scattered points left)" if left else ")"
+        parts.append(s + (": " + ", ".join(why) if why else ""))
+    lines.append(("Gap in the uploaded data: " if len(parts) == 1 else "Gaps in the uploaded data: ") + "; ".join(parts) + ".")
+    return lines
+
+
+def frames_text(st, hdr, inv):
+    """Frames taken / used and the frames removed per reason."""
+    n, u = len(st["why"]), int(st["used"].sum())
+    exps = sorted({float(h["EXPTIME"]) for h in hdr if h.get("EXPTIME")})
+    t = np.sort(st["jd"])
+    cad = float(np.median(np.diff(t))) * 86400 if n > 2 else 0
+    s = f"{n} frames" + (f" of {exps[0]:g} s" if len(exps) == 1 else "") + (f" (cadence {cad:.0f} s)" if cad else "")
+    cnt = {}
+    for w in st["why"][~st["used"]]:
+        cnt[w] = cnt.get(w, 0) + 1
+    rm = [f"{k} {WARUM.get(w, w)}" for w, k in sorted(cnt.items(), key=lambda x: -x[1])]
+    d = len((inv or {}).get("defekt") or [])
+    if d:
+        rm.append(f"{d} unreadable file{'s' if d != 1 else ''} skipped")
+    return s + f", {u} used" + (" (removed: " + "; ".join(rm) + ")" if rm else "") + "."
+
+
+def calib_text(cj, hdr):
+    eff = cj.get("mode_effektiv") or cj.get("mode")
+    if not eff:
+        return ""
+    was = {"raw": "none (no calibration frames)", "b": "bias only, no flat field", "f": "flat field only (no bias/dark on the lights)",
+           "bf": "bias and flat field", "bfd": "bias, dark and flat field"}.get(eff, eff)
+    s = f"Calibration: {was}"
+    if eff in ("f", "bf", "bfd") and (cj.get("flat") or {}).get("date") and hdr:
+        try:
+            age = (datetime.fromisoformat(hdr[0]["DATE-OBS"][:19]) - datetime.fromisoformat(str(cj["flat"]["date"])[:19])).days
+            if abs(age) > 60:
+                s += f"; flat {abs(age)} days {'older' if age > 0 else 'newer'} than the data"
+        except ValueError:
+            pass
+    return s + "."
 
 
 def colour_text(out):
@@ -208,43 +367,7 @@ def flip_text(out, info, pred, hdr, fr_tests=None, flip_target=None, fr_best=Non
         how = f"Flux step across the flip{wert} fitted with a prior ({ft[0] * 1e3:+.1f} +/- {ft[1] * 1e3:.1f} ppt) {quelle}"
     else:
         how = f"Flux step across the flip{wert} fitted as a free parameter"
-    return f"Meridian flip {lage}. {how}; the uploaded fluxes are corrected for it."
-
-
-def clouds_text(info):
-    """Frames removed because the comparison stars lost more than wolken_schwelle of their flux (clouds)."""
-    rg = info.get("cloud_ranges") or []
-    n = int(info.get("excluded_clouds") or 0)
-    if not rg or not n:
-        return ""
-    zeit = ", ".join(f"{a}-{b}" if a != b else a for a, b, _ in rg[:3]) + (" ..." if len(rg) > 3 else "")
-    return (f"{n} cloud-affected frame{'s' if n != 1 else ''} removed (comparison flux < "
-            f"{100 * (1 - float(info.get('wolken_schwelle', 0.5))):.0f} % of normal; {zeit} UT).")
-
-
-def saturation_text(out, info, cfg):
-    """Frames left out because the target or a comparison candidate was above [camera] saturation_adu: count and the
-    main time ranges (from the cube), so a reviewer knows why the light curve has a hole there."""
-    n = int(info.get("excluded_saturation") or 0)
-    if n < 3:
-        return ""
-    sat = float((cfg.get("camera") or {}).get("saturation_adu") or 0)
-    zeit = ""
-    for p in sorted(glob.glob(os.path.join(out, "cube_*.npz"))):
-        try:
-            from .analysis import time_ranges
-            with np.load(p) as z:
-                names = [str(x) for x in z["star_name"]]
-                skip = set(info.get("dropped_saturating") or []) | set(info.get("excluded_stars") or [])
-                cols = [0] + [j for j in range(1, len(names)) if names[j] not in skip]
-                m = np.any(z["peak_raw"][:, cols] > sat, axis=1) if sat else np.zeros(len(z["peak_raw"]), bool)
-                rg = [x for x in time_ranges(z["jd_utc_mid"], m, gap_min=10) if x[2] >= 5]
-            if rg:
-                zeit = ("; mostly " if sum(x[2] for x in rg[:2]) < n else "; ") + ", ".join(f"{a}-{b}" for a, b, _ in rg[:2]) + " UT"
-        except Exception:
-            pass
-        break
-    return f"{n} frames removed because the target or a comparison star was saturated{zeit}."
+    return f"Meridian flip {lage}. {how}; the uploaded fluxes are corrected for it, otherwise not detrended."
 
 
 def clipping_text(out, cfg):
