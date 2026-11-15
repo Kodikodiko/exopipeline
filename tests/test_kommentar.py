@@ -69,3 +69,13 @@ def test_flip_teilweise_im_ensemble(tmp_path):
     (tmp_path / "compsearch.json").write_text(json.dumps(dict(flip=dict(t_flip_bjd=2461359.5787, n_stars=4,
                                                                         stars=[dict(name="G05"), dict(name="G99")]))))
     assert "measured on 4 field stars (incl. 1 of the 3 comparison stars)" in k.make(str(tmp_path), {})
+
+
+def test_saettigung_mit_uhrzeit(tmp_path):
+    import numpy as np
+    jd = 2461359.5 + np.arange(40) / 1440                       # 1 frame per minute from 00:00 UT
+    pk = np.full((40, 2), 30000.0); pk[10:30, 0] = 65535          # target saturated 00:10-00:29
+    np.savez(tmp_path / "cube_f.npz", peak_raw=pk, jd_utc_mid=jd, star_name=np.array(["T", "G05"]))
+    t = k.saturation_text(str(tmp_path), dict(excluded_saturation=20), {"camera": {"saturation_adu": 60000}})
+    assert t == "20 frames removed because the target or a comparison star was saturated; 00:10-00:29 UT."
+    assert k.saturation_text(str(tmp_path), dict(excluded_saturation=1), {}) == ""

@@ -3,7 +3,7 @@
 transit kommentar <Messordner> [--lauf L]   prints it and copies it to the clipboard (valid run by default).
 Also appended to exoclock_formular.txt by transit export.  Extra fixed text: [export] kommentar_zusatz.
 After the remarks: the comparison-star ensemble (Gaia DR3 ID, G, BP-RP, distance to the target), switch
-[export] kommentar_sterne = false; whole comment at most [export] kommentar_max characters (default 800).
+[export] kommentar_sterne = false; whole comment at most [export] kommentar_max characters (default 900).
 """
 import csv
 import glob
@@ -14,8 +14,8 @@ from datetime import datetime
 
 import numpy as np
 
-MAXLEN = 400          # remarks proper: the most important ones within ~400 characters
-MAXLEN_ALLES = 800    # whole comment incl. the comparison-star list ([export] kommentar_max)
+MAXLEN = 480          # remarks proper: the most important ones within ~480 characters
+MAXLEN_ALLES = 900    # whole comment incl. the comparison-star list ([export] kommentar_max)
 
 
 def _j(out, name):
@@ -50,6 +50,9 @@ def make(out, cfg=None):
     cl = clouds_text(info)
     if cl:
         r.append(cl)
+    sa = saturation_text(out, info, cfg)
+    if sa:
+        r.append(sa)
     r.append(clipping_text(out, cfg))                     # reviewers ask for it: always stated
     if info.get("ensemble_fest"):
         r.append(f"Comparison stars selected manually ({', '.join(info['ensemble_fest'])}).")
@@ -217,6 +220,31 @@ def clouds_text(info):
     zeit = ", ".join(f"{a}-{b}" if a != b else a for a, b, _ in rg[:3]) + (" ..." if len(rg) > 3 else "")
     return (f"{n} cloud-affected frame{'s' if n != 1 else ''} removed (comparison flux < "
             f"{100 * (1 - float(info.get('wolken_schwelle', 0.5))):.0f} % of normal; {zeit} UT).")
+
+
+def saturation_text(out, info, cfg):
+    """Frames left out because the target or a comparison candidate was above [camera] saturation_adu: count and the
+    main time ranges (from the cube), so a reviewer knows why the light curve has a hole there."""
+    n = int(info.get("excluded_saturation") or 0)
+    if n < 3:
+        return ""
+    sat = float((cfg.get("camera") or {}).get("saturation_adu") or 0)
+    zeit = ""
+    for p in sorted(glob.glob(os.path.join(out, "cube_*.npz"))):
+        try:
+            from .analysis import time_ranges
+            with np.load(p) as z:
+                names = [str(x) for x in z["star_name"]]
+                skip = set(info.get("dropped_saturating") or []) | set(info.get("excluded_stars") or [])
+                cols = [0] + [j for j in range(1, len(names)) if names[j] not in skip]
+                m = np.any(z["peak_raw"][:, cols] > sat, axis=1) if sat else np.zeros(len(z["peak_raw"]), bool)
+                rg = [x for x in time_ranges(z["jd_utc_mid"], m, gap_min=10) if x[2] >= 5]
+            if rg:
+                zeit = ("; mostly " if sum(x[2] for x in rg[:2]) < n else "; ") + ", ".join(f"{a}-{b}" for a, b, _ in rg[:2]) + " UT"
+        except Exception:
+            pass
+        break
+    return f"{n} frames removed because the target or a comparison star was saturated{zeit}."
 
 
 def clipping_text(out, cfg):
