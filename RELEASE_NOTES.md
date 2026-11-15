@@ -25,6 +25,7 @@ Umfasst PR #22 bis #31.
 ### Export und ExoClock
 
 - **Vergleichssterne im ExoClock-Kommentar:** Hinter den Hinweisen folgt das Ensemble des Laufs, je Stern Gaia-DR3-Nummer, G-Helligkeit, Farbe BP−RP und Abstand zum Ziel in Bogenminuten, dazu G und BP−RP des Zielsterns. Der ganze Kommentar bleibt unter `[export] kommentar_max` Zeichen (Standard 600); passen nicht alle Sterne hinein, endet die Liste mit „+N more“. Abschalten mit `[export] kommentar_sterne = false`. (#26)
+- **ExoClock-Kommentar neu aufgebaut:** Er nennt jetzt zuerst, was Reviewer brauchen: Abdeckung (Ingress/Egress beobachtet, Baseline vor/nach in Minuten, Kontaktzeiten in UT), **jede Lücke** in den hochgeladenen Daten mit UT-Zeit, Lage zum Transit und Ursache (Sättigung, Wolken, Flip-Pause, keine Aufnahmen …), Frames gesamt/verwendet und verworfen je Grund, den Flip mit Stufe, Prior und Feldsternen, Detrending, Kalibrierung. Die Vergleichssterne-Liste hat eine Legende: „Comparison ensemble used for the light curve (5 stars), Gaia DR3 ID (G mag / BP-RP / separation from target): 3438063011972005120 (10.0 / 0.63 / 6.5'); …“. Standard für `[export] kommentar_max` jetzt 1400 Zeichen. (#35)
 - **Farbkamera im Kommentar:** Bei Aufnahmen mit Farbkamera steht „Colour (Bayer) camera: photometry on 2x2 superpixels (no debayering).“ (#26)
 
 ### Kalibrierung
